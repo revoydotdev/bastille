@@ -8,6 +8,7 @@ import { discountPercent } from './price/model.js';
 import type { SnapshotJob } from './jobs/snapshot.js';
 import type { DealFilter, DealRow } from './repo.js';
 import type { PromoKind } from './price/model.js';
+import { TtlCache } from './cache.js';
 import { normalizeZip, resolveZip, type ZipAnchor } from './geo.js';
 
 interface SearchResultRow {
@@ -61,6 +62,10 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
 
   /** Server-sent events: alerts pushed as soon as a poll produces them. */
   const sseClients = new Set<(payload: string) => void>();
+  // Memoize per-store searches briefly so retyping, re-filtering, or a
+  // component remount doesn't re-hit the stores. Filters are applied after the
+  // cache, so different filters reuse the same upstream fetch.
+  const searchCache = new TtlCache<Offer[]>(Number(process.env.GROCER_SEARCH_TTL_MS ?? 60_000), 300);
   /**
    * An SSE response never ends on its own, so `app.close()` would wait for it
    * forever and the process would ignore SIGTERM. Every open stream is tracked
@@ -146,7 +151,10 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
 
     const settled = await Promise.allSettled(
       stores.map(async (id) => {
-        const offers = await adapterFor(id).search({ query, locationId: locations[id], limit });
+        const key = `${id}:${locations[id] ?? ''}:${limit}:${query.toLowerCase()}`;
+        const offers = await searchCache.wrap(key, () =>
+          adapterFor(id).search({ query, locationId: locations[id], limit }),
+        );
         return { id, offers };
       }),
     );

@@ -237,3 +237,15 @@ Read-only. One request at a time per host with a floor between requests
 `User-Agent`. No account, no cart, no checkout, no DataDome or Cloudflare
 challenge solving. The Algolia key is used exactly as the storefront uses it,
 with its own rate limits intact.
+
+## Daily snapshot & deals corpus
+
+A daily job records a broad set of current offers from both chains into
+`daily_snapshot` (one row per product per store per day) for analysis, and the
+deals filter reads the latest day. To stay bounded and low-resource the corpus
+is: Food Lion's full top-aisle catalogue (the pages `search` already caches, so
+near-free) plus a bounded page-through of Wegmans' index at one canonical store
+(`WEGMANS_SNAPSHOT_PRODUCTS`, default 3000). Each store is snapshotted at a
+single location so the day-to-day series is consistent. `discount_pct` (percent
+off the regular unit price) is computed and indexed so `/api/deals` filters by
+threshold or promo kind in-DB in ~milliseconds.

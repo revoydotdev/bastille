@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DealFilters, DealRow, DealsResponse, PromoKind, StoreId, StoreSelection } from '../types';
 import { api, money, relativeTime } from '../lib/api';
 import { STORE_COLOR, STORE_LABEL } from './bits';
@@ -22,7 +22,7 @@ interface Props {
   snapshotRunning: boolean;
 }
 
-function DealRowView({ row }: { row: DealRow }) {
+const DealRowView = memo(function DealRowView({ row }: { row: DealRow }) {
   const numeric = row.effectiveUnitCents !== null;
   return (
     <article className="row">
@@ -59,7 +59,7 @@ function DealRowView({ row }: { row: DealRow }) {
       </div>
     </article>
   );
-}
+});
 
 export function Deals({ selection, lastSnapshot, onRunSnapshot, snapshotRunning }: Props) {
   const [filters, setFilters] = useState<DealFilters>({

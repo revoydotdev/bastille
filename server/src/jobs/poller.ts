@@ -46,6 +46,10 @@ export class Poller {
     return this.running;
   }
 
+  private storeOf(productId: number): string {
+    return this.repo.getProductById(productId)?.storeId ?? 'unknown';
+  }
+
   async pollOnce(): Promise<PollResult> {
     if (this.running) return { itemsPolled: 0, changes: [], errors: ['poll already in progress'] };
     this.running = true;
@@ -53,25 +57,40 @@ export class Poller {
     const result: PollResult = { itemsPolled: 0, changes: [], errors: [] };
 
     try {
+      // Group by store so the two hosts poll concurrently, while each host's
+      // own items stay serial (the HTTP client already throttles per host).
+      const byStore = new Map<string, { productId: number; locationId: string | null }[]>();
       for (const item of this.repo.listWatchItems()) {
-        const product = this.repo.getProductById(item.productId);
-        if (!product) continue;
-        try {
-          const offer = await adapterFor(product.storeId).fetchOffer(
-            product.storeProductId,
-            item.locationId ?? undefined,
-          );
-          if (!offer) {
-            result.errors.push(`${product.storeId}:${product.storeProductId} not found`);
-            continue;
-          }
-          this.repo.upsertProduct(offer);
-          result.changes.push(...this.repo.recordPrice(product.id, item.locationId, offer.price));
-          result.itemsPolled++;
-        } catch (err) {
-          result.errors.push(`${product.storeId}:${product.storeProductId} ${(err as Error).message}`);
-        }
+        const arr = byStore.get(this.storeOf(item.productId)) ?? [];
+        arr.push({ productId: item.productId, locationId: item.locationId });
+        byStore.set(this.storeOf(item.productId), arr);
       }
+
+      await Promise.all(
+        [...byStore.values()].map(async (items) => {
+          for (const item of items) {
+            const product = this.repo.getProductById(item.productId);
+            if (!product) continue;
+            try {
+              const offer = await adapterFor(product.storeId).fetchOffer(
+                product.storeProductId,
+                item.locationId ?? undefined,
+              );
+              if (!offer) {
+                result.errors.push(`${product.storeId}:${product.storeProductId} not found`);
+                continue;
+              }
+              // DB writes are synchronous (node:sqlite) so interleaving across
+              // the two store loops is safe — no concurrent writers.
+              this.repo.upsertProduct(offer);
+              result.changes.push(...this.repo.recordPrice(product.id, item.locationId, offer.price));
+              result.itemsPolled++;
+            } catch (err) {
+              result.errors.push(`${product.storeId}:${product.storeProductId} ${(err as Error).message}`);
+            }
+          }
+        }),
+      );
       this.repo.finishPollRun(runId, result.itemsPolled, result.changes.length, result.errors.join('; ') || null);
     } catch (err) {
       this.repo.finishPollRun(runId, result.itemsPolled, result.changes.length, (err as Error).message);

@@ -69,6 +69,10 @@ looks up.
 | `FOODLION_AISLE_TTL_MS` | `1800000` | Food Lion catalogue cache lifetime |
 | `FOODLION_STORES_TTL_MS` | `86400000` | Food Lion store directory cache lifetime |
 | `WEGMANS_STORES_TTL_MS` | `86400000` | Wegmans store list cache lifetime |
+| `GROCER_SNAPSHOT_HOUR` | `3` | local hour (0-23) the daily snapshot runs |
+| `WEGMANS_SNAPSHOT_PRODUCTS` | `3000` | Wegmans products captured per daily snapshot |
+| `SNAPSHOT_WEGMANS_STORE` | `WEGMANS_STORE` | Wegmans store the snapshot is taken at |
+| `GROCER_SEARCH_TTL_MS` | `60000` | server-side per-store search cache lifetime |
 
 ## Picking your stores
 
@@ -141,7 +145,9 @@ DESIGN.md        colour, type, spacing, and what each colour is allowed to mean
 
 | method | path | |
 |---|---|---|
-| GET | `/api/search?q=&stores=&wegmansLocation=&foodlionLocation=` | both stores, cheapest comparable first |
+| GET | `/api/search?q=&stores=&wegmansLocation=&foodlionLocation=&minDiscount=&promoKinds=&onSale=` | both stores, cheapest comparable first, filterable |
+| GET | `/api/deals?minDiscount=&promoKinds=&onSale=&stores=&sort=` | everything ≥N% off or of a promo kind (e.g. only BOGO), from the latest daily snapshot (live scan before the first snapshot) |
+| GET | `/api/snapshot/status` · POST `/api/snapshot/run` | daily-snapshot state / trigger now |
 | GET | `/api/stores?postalCode=` | both chains' nearest stores, with distances and whether the chain prices per store |
 | GET/POST | `/api/watchlist` | list / add (add to an existing group to compare) |
 | PATCH/DELETE | `/api/watchlist/:id` | rename, set a target price, remove |

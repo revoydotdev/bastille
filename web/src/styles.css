@@ -142,6 +142,10 @@ input.field { flex: 1 1 260px; }
 .rows { display: flex; flex-direction: column; gap: 8px; }
 
 .row {
+  /* Skip layout/paint for rows scrolled off-screen; keeps long deal lists
+     cheap. The intrinsic size reserves space so the scrollbar stays honest. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 74px;
   display: grid;
   grid-template-columns: 4px 48px minmax(0, 1fr) auto auto;
   gap: 12px; align-items: center;
@@ -214,6 +218,8 @@ input.field { flex: 1 1 260px; }
 
 /* ---- alerts ---- */
 .alert {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
   display: flex; align-items: flex-start; gap: 12px;
   background: var(--surface); border: 1px solid var(--border);
   border-left: 3px solid var(--border);

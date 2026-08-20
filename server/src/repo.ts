@@ -127,7 +127,20 @@ function rowToSnapshot(r: PriceRow): PriceSnapshot {
 }
 
 export class Repo {
+  /** Compiled statements are reused across calls so hot paths (price inserts,
+   *  latest-price reads, alerts) don't recompile SQL every time. */
+  private stmts = new Map<string, ReturnType<DB['prepare']>>();
+
   constructor(private db: DB) {}
+
+  private stmt(sql: string): ReturnType<DB['prepare']> {
+    let cached = this.stmts.get(sql);
+    if (!cached) {
+      cached = this.db.prepare(sql);
+      this.stmts.set(sql, cached);
+    }
+    return cached;
+  }
 
   upsertProduct(offer: Offer): StoredProduct {
     const p = offer.product;
@@ -163,7 +176,7 @@ export class Repo {
   }
 
   getProductById(id: number): StoredProduct | null {
-    const r = this.db.prepare('SELECT * FROM product WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    const r = this.stmt('SELECT * FROM product WHERE id = ?').get(id) as Record<string, unknown> | undefined;
     return r ? this.mapProduct(r) : null;
   }
 
@@ -182,12 +195,10 @@ export class Repo {
   }
 
   latestPrice(productId: number, locationId: string | null): PriceSnapshot | null {
-    const r = this.db
-      .prepare(
-        `SELECT * FROM price_point WHERE product_id = ? AND (location_id IS ? OR location_id = ?)
-         ORDER BY captured_at DESC, id DESC LIMIT 1`,
-      )
-      .get(productId, locationId, locationId) as unknown as PriceRow | undefined;
+    const r = this.stmt(
+      `SELECT * FROM price_point WHERE product_id = ? AND (location_id IS ? OR location_id = ?)
+       ORDER BY captured_at DESC, id DESC LIMIT 1`,
+    ).get(productId, locationId, locationId) as unknown as PriceRow | undefined;
     return r ? rowToSnapshot(r) : null;
   }
 
@@ -202,13 +213,11 @@ export class Repo {
   }
 
   insertPrice(productId: number, locationId: string | null, price: PriceSnapshot): void {
-    this.db
-      .prepare(
-        `INSERT INTO price_point (product_id, location_id, captured_at, regular_cents, current_cents,
-            effective_unit_cents, promo_kind, promo_text, promo_detail_json, unit_price_text, in_stock)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .run(
+    this.stmt(
+      `INSERT INTO price_point (product_id, location_id, captured_at, regular_cents, current_cents,
+          effective_unit_cents, promo_kind, promo_text, promo_detail_json, unit_price_text, in_stock)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    ).run(
         productId,
         locationId,
         price.capturedAt,
@@ -258,13 +267,11 @@ export class Repo {
   }
 
   private insertAlert(productId: number, groupId: number | null, c: PriceChange, severity: string): void {
-    this.db
-      .prepare(
-        `INSERT INTO alert (product_id, group_id, created_at, kind, numeric_change, severity,
-            from_cents, to_cents, delta_cents, delta_percent, message)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      )
-      .run(
+    this.stmt(
+      `INSERT INTO alert (product_id, group_id, created_at, kind, numeric_change, severity,
+          from_cents, to_cents, delta_cents, delta_percent, message)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    ).run(
         productId,
         groupId,
         new Date().toISOString(),

@@ -1,11 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { Alert, StoreId, StoreSelection, StoresResponse, WatchGroup } from './types';
 import { api, relativeTime } from './lib/api';
 import { SearchPanel } from './components/SearchPanel';
 import { StorePicker } from './components/StorePicker';
-import { Watchlist } from './components/Watchlist';
-import { Alerts } from './components/Alerts';
-import { Deals } from './components/Deals';
+
+// Non-default tabs are split out of the initial bundle — they load on first
+// open, keeping first paint of the Search view lean.
+const Deals = lazy(() => import('./components/Deals').then((m) => ({ default: m.Deals })));
+const Watchlist = lazy(() => import('./components/Watchlist').then((m) => ({ default: m.Watchlist })));
+const Alerts = lazy(() => import('./components/Alerts').then((m) => ({ default: m.Alerts })));
 
 type Tab = 'search' | 'deals' | 'watchlist' | 'alerts';
 
@@ -195,6 +198,7 @@ export function App() {
           />
         </>
       )}
+      <Suspense fallback={<div className="meta" style={{ padding: 24 }}>Loading…</div>}>
       {tab === 'deals' && (
         <Deals
           selection={selection}
@@ -205,6 +209,7 @@ export function App() {
       )}
       {tab === 'watchlist' && <Watchlist groups={groups} onChanged={() => void loadWatchlist()} />}
       {tab === 'alerts' && <Alerts alerts={alerts} onChanged={() => void loadWatchlist()} />}
+      </Suspense>
     </div>
   );
 }
