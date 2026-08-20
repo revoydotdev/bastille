@@ -7,6 +7,14 @@ export type DB = DatabaseSync;
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
+-- Perf: NORMAL is safe under WAL, waits out writer locks instead of erroring,
+-- keeps temp b-trees and a generous page cache in memory, and memory-maps the
+-- db so reads avoid syscalls. All cheap on a single-writer local app.
+PRAGMA synchronous = NORMAL;
+PRAGMA busy_timeout = 5000;
+PRAGMA temp_store = MEMORY;
+PRAGMA cache_size = -16000;   -- ~16 MB page cache
+PRAGMA mmap_size = 268435456; -- 256 MB
 
 CREATE TABLE IF NOT EXISTS store_location (
   store_id      TEXT NOT NULL,          -- 'foodlion' | 'wegmans'
@@ -85,6 +93,47 @@ CREATE TABLE IF NOT EXISTS alert (
   acknowledged   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS alert_created ON alert (created_at DESC);
+
+-- One row per product per store per day: a durable cross-source price record
+-- for analysis, and the corpus the deals filter reads. Append-only.
+CREATE TABLE IF NOT EXISTS daily_snapshot (
+  id                   INTEGER PRIMARY KEY,
+  snapshot_date        TEXT NOT NULL,          -- YYYY-MM-DD (local)
+  captured_at          TEXT NOT NULL,          -- ISO-8601
+  store_id             TEXT NOT NULL,
+  location_id          TEXT,
+  store_product_id     TEXT NOT NULL,
+  name                 TEXT NOT NULL,
+  brand                TEXT,
+  size                 TEXT,
+  category             TEXT,
+  image_url            TEXT,
+  product_url          TEXT,
+  regular_cents        INTEGER,
+  current_cents        INTEGER,
+  effective_unit_cents INTEGER,
+  discount_pct         REAL,                   -- percent off regular, or NULL
+  promo_kind           TEXT NOT NULL,
+  promo_text           TEXT,
+  unit_price_text      TEXT,
+  in_stock             INTEGER,
+  UNIQUE (snapshot_date, store_id, location_id, store_product_id)
+);
+-- Deals queries filter one date by discount / promo / store, so lead with date.
+CREATE INDEX IF NOT EXISTS daily_snapshot_deals
+  ON daily_snapshot (snapshot_date, store_id, discount_pct DESC);
+CREATE INDEX IF NOT EXISTS daily_snapshot_product
+  ON daily_snapshot (store_id, store_product_id, snapshot_date DESC);
+
+CREATE TABLE IF NOT EXISTS snapshot_run (
+  id            INTEGER PRIMARY KEY,
+  snapshot_date TEXT NOT NULL,
+  started_at    TEXT NOT NULL,
+  finished_at   TEXT,
+  rows_written  INTEGER NOT NULL DEFAULT 0,
+  stores        TEXT,
+  error         TEXT
+);
 
 CREATE TABLE IF NOT EXISTS poll_run (
   id           INTEGER PRIMARY KEY,

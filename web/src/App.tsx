@@ -5,8 +5,9 @@ import { SearchPanel } from './components/SearchPanel';
 import { StorePicker } from './components/StorePicker';
 import { Watchlist } from './components/Watchlist';
 import { Alerts } from './components/Alerts';
+import { Deals } from './components/Deals';
 
-type Tab = 'search' | 'watchlist' | 'alerts';
+type Tab = 'search' | 'deals' | 'watchlist' | 'alerts';
 
 export function App() {
   const [tab, setTab] = useState<Tab>('search');
@@ -30,6 +31,8 @@ export function App() {
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const notified = useRef(new Set<number>());
+  const [snapshot, setSnapshot] = useState<{ date: string; rows: number } | null>(null);
+  const [snapshotRunning, setSnapshotRunning] = useState(false);
 
   const loadWatchlist = useCallback(async () => {
     const [w, a] = await Promise.all([api.watchlist(), api.alerts()]);
@@ -66,6 +69,9 @@ export function App() {
   useEffect(() => {
     void findStores(selection.zip);
     void loadWatchlist().catch((e) => setError((e as Error).message));
+    void api.snapshotStatus().then((st) => {
+      if (st.lastRun?.finishedAt) setSnapshot({ date: st.lastRun.date, rows: st.lastRun.rows });
+    }).catch(() => undefined);
     // Runs once: later lookups are driven by the ZIP form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -112,6 +118,19 @@ export function App() {
     }
   }
 
+  const runSnapshot = useCallback(async () => {
+    setSnapshotRunning(true);
+    try {
+      const r = await api.runSnapshot();
+      setSnapshot({ date: r.date, rows: r.rows });
+      if (r.errors.length) setError(r.errors.join('; '));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSnapshotRunning(false);
+    }
+  }, []);
+
   const unread = alerts.filter((a) => !a.acknowledged).length;
   const canNotify = 'Notification' in window && Notification.permission === 'default';
 
@@ -136,6 +155,7 @@ export function App() {
         {(
           [
             ['search', 'Search'],
+            ['deals', 'Deals'],
             ['watchlist', `Watchlist${groups.length ? ` (${groups.length})` : ''}`],
             ['alerts', 'Alerts'],
           ] as [Tab, string][]
@@ -174,6 +194,14 @@ export function App() {
             onWatchlistChanged={() => void loadWatchlist()}
           />
         </>
+      )}
+      {tab === 'deals' && (
+        <Deals
+          selection={selection}
+          lastSnapshot={snapshot}
+          onRunSnapshot={() => void runSnapshot()}
+          snapshotRunning={snapshotRunning}
+        />
       )}
       {tab === 'watchlist' && <Watchlist groups={groups} onChanged={() => void loadWatchlist()} />}
       {tab === 'alerts' && <Alerts alerts={alerts} onChanged={() => void loadWatchlist()} />}

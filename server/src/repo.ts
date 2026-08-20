@@ -5,6 +5,47 @@
 import type { DB } from './db.js';
 import type { Offer, PriceSnapshot, PromoDetail, PromoKind, StoreId } from './price/model.js';
 import { diffSnapshots, severityOf, type PriceChange } from './price/diff.js';
+import { discountPercent } from './price/model.js';
+
+export interface DealFilter {
+  /** minimum percent off the regular unit price (0 = any) */
+  minDiscountPct?: number;
+  /** restrict to these promo kinds (e.g. only BOGO); empty = any */
+  promoKinds?: PromoKind[];
+  /** only rows carrying some promotion at all */
+  onSaleOnly?: boolean;
+  stores?: StoreId[];
+  /** 'discount' (default), 'price' (cheapest unit), 'name' */
+  sort?: 'discount' | 'price' | 'name';
+  limit?: number;
+  offset?: number;
+  /** which day's snapshot to read; defaults to the latest */
+  date?: string;
+}
+
+export interface DealRow {
+  storeId: StoreId;
+  storeProductId: string;
+  name: string;
+  brand: string | null;
+  size: string | null;
+  category: string | null;
+  imageUrl: string | null;
+  productUrl: string | null;
+  regularCents: number | null;
+  currentCents: number | null;
+  effectiveUnitCents: number | null;
+  discountPct: number | null;
+  promoKind: PromoKind;
+  promoText: string | null;
+  unitPriceText: string | null;
+  inStock: boolean | null;
+}
+
+export interface SnapshotOffer {
+  offer: Offer;
+  locationId: string | null;
+}
 
 export interface StoredProduct {
   id: number;
@@ -395,6 +436,169 @@ export class Repo {
       itemsPolled: r['items_polled'] as number,
       changes: r['changes'] as number,
       error: (r['error'] as string | null) ?? null,
+    };
+  }
+
+  // ---- daily snapshot / deals -------------------------------------------
+
+  startSnapshotRun(date: string, stores: string): number {
+    const info = this.db
+      .prepare('INSERT INTO snapshot_run (snapshot_date, started_at, stores) VALUES (?,?,?)')
+      .run(date, new Date().toISOString(), stores);
+    return Number(info.lastInsertRowid);
+  }
+
+  finishSnapshotRun(id: number, rows: number, error: string | null): void {
+    this.db
+      .prepare('UPDATE snapshot_run SET finished_at = ?, rows_written = ?, error = ? WHERE id = ?')
+      .run(new Date().toISOString(), rows, error, id);
+  }
+
+  /**
+   * Writes a batch of offers as one day's snapshot rows in a single
+   * transaction. Idempotent per (date, store, location, product): re-running a
+   * day overwrites rather than duplicating, so a retried job is safe.
+   */
+  recordSnapshot(date: string, offers: SnapshotOffer[]): number {
+    const now = new Date().toISOString();
+    const stmt = this.db.prepare(
+      `INSERT INTO daily_snapshot (snapshot_date, captured_at, store_id, location_id, store_product_id,
+          name, brand, size, category, image_url, product_url, regular_cents, current_cents,
+          effective_unit_cents, discount_pct, promo_kind, promo_text, unit_price_text, in_stock)
+       VALUES (@date,@now,@store_id,@location_id,@store_product_id,@name,@brand,@size,@category,
+          @image_url,@product_url,@regular_cents,@current_cents,@effective_unit_cents,@discount_pct,
+          @promo_kind,@promo_text,@unit_price_text,@in_stock)
+       ON CONFLICT (snapshot_date, store_id, location_id, store_product_id) DO UPDATE SET
+          captured_at=excluded.captured_at, name=excluded.name, brand=excluded.brand, size=excluded.size,
+          category=excluded.category, image_url=excluded.image_url, product_url=excluded.product_url,
+          regular_cents=excluded.regular_cents, current_cents=excluded.current_cents,
+          effective_unit_cents=excluded.effective_unit_cents, discount_pct=excluded.discount_pct,
+          promo_kind=excluded.promo_kind, promo_text=excluded.promo_text,
+          unit_price_text=excluded.unit_price_text, in_stock=excluded.in_stock`,
+    );
+    let n = 0;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      for (const { offer, locationId } of offers) {
+        const p = offer.price;
+        stmt.run({
+          date,
+          now,
+          store_id: offer.product.storeId,
+          location_id: locationId,
+          store_product_id: offer.product.storeProductId,
+          name: offer.product.name,
+          brand: offer.product.brand,
+          size: offer.product.size,
+          category: offer.product.category,
+          image_url: offer.product.imageUrl,
+          product_url: offer.product.productUrl,
+          regular_cents: p.regularCents,
+          current_cents: p.currentCents,
+          effective_unit_cents: p.effectiveUnitCents,
+          discount_pct: discountPercent(p),
+          promo_kind: p.promoKind,
+          promo_text: p.promoText,
+          unit_price_text: p.unitPriceText,
+          in_stock: p.inStock === null ? null : p.inStock ? 1 : 0,
+        });
+        n++;
+      }
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+    return n;
+  }
+
+  latestSnapshotDate(): string | null {
+    const r = this.db.prepare('SELECT MAX(snapshot_date) AS d FROM daily_snapshot').get() as
+      | { d: string | null }
+      | undefined;
+    return r?.d ?? null;
+  }
+
+  snapshotDates(limit = 60): string[] {
+    const rows = this.db
+      .prepare('SELECT DISTINCT snapshot_date FROM daily_snapshot ORDER BY snapshot_date DESC LIMIT ?')
+      .all(limit) as unknown as { snapshot_date: string }[];
+    return rows.map((r) => r.snapshot_date);
+  }
+
+  lastSnapshotRun(): { date: string; startedAt: string; finishedAt: string | null; rows: number; error: string | null } | null {
+    const r = this.db.prepare('SELECT * FROM snapshot_run ORDER BY id DESC LIMIT 1').get() as
+      | Record<string, unknown>
+      | undefined;
+    if (!r) return null;
+    return {
+      date: r['snapshot_date'] as string,
+      startedAt: r['started_at'] as string,
+      finishedAt: (r['finished_at'] as string | null) ?? null,
+      rows: r['rows_written'] as number,
+      error: (r['error'] as string | null) ?? null,
+    };
+  }
+
+  /** Filter one day's snapshot by discount / promo / store — the deals feed. */
+  queryDeals(filter: DealFilter): { date: string | null; total: number; rows: DealRow[] } {
+    const date = filter.date ?? this.latestSnapshotDate();
+    if (!date) return { date: null, total: 0, rows: [] };
+
+    const where: string[] = ['snapshot_date = ?'];
+    const params: (string | number)[] = [date];
+
+    if (filter.stores && filter.stores.length > 0) {
+      where.push(`store_id IN (${filter.stores.map(() => '?').join(',')})`);
+      params.push(...filter.stores);
+    }
+    if (filter.onSaleOnly) where.push("promo_kind != 'none'");
+    if (filter.minDiscountPct && filter.minDiscountPct > 0) {
+      where.push('discount_pct IS NOT NULL AND discount_pct >= ?');
+      params.push(filter.minDiscountPct);
+    }
+    if (filter.promoKinds && filter.promoKinds.length > 0) {
+      where.push(`promo_kind IN (${filter.promoKinds.map(() => '?').join(',')})`);
+      params.push(...filter.promoKinds);
+    }
+
+    const order =
+      filter.sort === 'price'
+        ? 'effective_unit_cents IS NULL, effective_unit_cents ASC'
+        : filter.sort === 'name'
+          ? 'name ASC'
+          : 'discount_pct IS NULL, discount_pct DESC, effective_unit_cents ASC';
+
+    const whereSql = where.join(' AND ');
+    const total = (this.db.prepare(`SELECT COUNT(*) AS c FROM daily_snapshot WHERE ${whereSql}`).get(...params) as { c: number }).c;
+
+    const limit = Math.min(Math.max(filter.limit ?? 60, 1), 500);
+    const offset = Math.max(filter.offset ?? 0, 0);
+    const rows = this.db
+      .prepare(`SELECT * FROM daily_snapshot WHERE ${whereSql} ORDER BY ${order} LIMIT ? OFFSET ?`)
+      .all(...params, limit, offset) as unknown as Record<string, unknown>[];
+
+    return {
+      date,
+      total,
+      rows: rows.map((r) => ({
+        storeId: r['store_id'] as StoreId,
+        storeProductId: r['store_product_id'] as string,
+        name: r['name'] as string,
+        brand: (r['brand'] as string | null) ?? null,
+        size: (r['size'] as string | null) ?? null,
+        category: (r['category'] as string | null) ?? null,
+        imageUrl: (r['image_url'] as string | null) ?? null,
+        productUrl: (r['product_url'] as string | null) ?? null,
+        regularCents: (r['regular_cents'] as number | null) ?? null,
+        currentCents: (r['current_cents'] as number | null) ?? null,
+        effectiveUnitCents: (r['effective_unit_cents'] as number | null) ?? null,
+        discountPct: (r['discount_pct'] as number | null) ?? null,
+        promoKind: r['promo_kind'] as PromoKind,
+        promoText: (r['promo_text'] as string | null) ?? null,
+        unitPriceText: (r['unit_price_text'] as string | null) ?? null,
+        inStock: r['in_stock'] === null ? null : r['in_stock'] === 1,
+      })),
     };
   }
 }

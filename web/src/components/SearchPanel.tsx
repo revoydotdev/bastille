@@ -153,6 +153,9 @@ export function SearchPanel({ storeData, selection, groups, onWatchlistChanged }
                       </span>
                     )}
                     {r.offer.product.size && <span>{r.offer.product.size}</span>}
+                    {r.discountPct !== null && r.discountPct >= 5 && (
+                      <span className="deal-badge sm" title="percent off regular unit price">{Math.round(r.discountPct)}% off</span>
+                    )}
                     <PromoChip price={r.offer.price} label={r.promoLabel} />
                     {r.offer.price.inStock === false && <span className="chip oos">Out of stock</span>}
                   </div>

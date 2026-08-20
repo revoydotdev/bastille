@@ -4,6 +4,10 @@ import type { Repo } from './repo.js';
 import type { Poller } from './jobs/poller.js';
 import type { Offer, StoreId } from './price/model.js';
 import { describePromo } from './price/promo.js';
+import { discountPercent } from './price/model.js';
+import type { SnapshotJob } from './jobs/snapshot.js';
+import type { DealFilter, DealRow } from './repo.js';
+import type { PromoKind } from './price/model.js';
 import { normalizeZip, resolveZip, type ZipAnchor } from './geo.js';
 
 interface SearchResultRow {
@@ -11,7 +15,27 @@ interface SearchResultRow {
   storeLabel: string;
   offer: Offer;
   promoLabel: string | null;
+  discountPct: number | null;
   watchedGroupIds: number[];
+}
+
+const ALL_PROMO_KINDS: PromoKind[] = ['none','sale','bogo','bxgy','multibuy','percent_off','amount_off','loyalty','coupon','unknown'];
+
+function parsePromoKinds(raw: unknown): PromoKind[] {
+  if (typeof raw !== 'string' || raw.trim() === '') return [];
+  return raw.split(',').map((s) => s.trim()).filter((k): k is PromoKind => (ALL_PROMO_KINDS as string[]).includes(k));
+}
+
+/** Applies deal filters to an in-memory result set (shared by search + deals live fallback). */
+function passesFilter(
+  discount: number | null,
+  promoKind: PromoKind,
+  f: { minDiscountPct?: number; promoKinds?: PromoKind[]; onSaleOnly?: boolean },
+): boolean {
+  if (f.onSaleOnly && promoKind === 'none') return false;
+  if (f.minDiscountPct && f.minDiscountPct > 0 && (discount === null || discount < f.minDiscountPct)) return false;
+  if (f.promoKinds && f.promoKinds.length > 0 && !f.promoKinds.includes(promoKind)) return false;
+  return true;
 }
 
 function parseStores(raw: unknown): StoreId[] {
@@ -21,7 +45,7 @@ function parseStores(raw: unknown): StoreId[] {
   return valid.length > 0 ? valid : STORE_IDS;
 }
 
-export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller): void {
+export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller, snapshotJob?: SnapshotJob): void {
   // Several endpoints take no body (refresh, ack, delete). Fastify's default
   // JSON parser rejects an empty body outright, which turns a perfectly
   // ordinary `fetch(url, {method: 'POST'})` into a 400.
@@ -101,6 +125,11 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
 
     const stores = parseStores(q.stores);
     const limit = Math.min(Math.max(Number(q.limit ?? 20) || 20, 1), 50);
+    const filter = {
+      minDiscountPct: Number((q as Record<string, string>).minDiscount ?? 0) || 0,
+      promoKinds: parsePromoKinds((q as Record<string, string>).promoKinds),
+      onSaleOnly: (q as Record<string, string>).onSale === '1' || (q as Record<string, string>).onSale === 'true',
+    };
     const locations: Partial<Record<StoreId, string | undefined>> = {
       foodlion: q.foodlionLocation,
       wegmans: q.wegmansLocation,
@@ -131,11 +160,14 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
         return;
       }
       for (const offer of outcome.value.offers) {
+        const discount = discountPercent(offer.price);
+        if (!passesFilter(discount, offer.price.promoKind, filter)) continue;
         results.push({
           storeId: id,
           storeLabel: adapterFor(id).label,
           offer,
           promoLabel: describePromo(offer.price.promoKind, offer.price.promoDetail, offer.price.promoText),
+          discountPct: discount,
           watchedGroupIds: membership.get(`${id}:${offer.product.storeProductId}`) ?? [],
         });
       }
@@ -262,9 +294,97 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
     };
   });
 
+
+  /**
+   * Deals feed: everything at or above a discount threshold, or of a chosen
+   * promo kind (e.g. only BOGO), across the stores. Reads the latest daily
+   * snapshot when one exists; otherwise falls back to a live catalogue scan so
+   * the view works before the first snapshot has run.
+   */
+  app.get('/api/deals', async (req) => {
+    const q = req.query as Record<string, string>;
+    const filter: DealFilter = {
+      minDiscountPct: Number(q.minDiscount ?? 0) || 0,
+      promoKinds: parsePromoKinds(q.promoKinds),
+      onSaleOnly: q.onSale === '1' || q.onSale === 'true' || (Number(q.minDiscount ?? 0) || 0) > 0,
+      stores: parseStores(q.stores),
+      sort: q.sort === 'price' || q.sort === 'name' ? q.sort : 'discount',
+      limit: Math.min(Math.max(Number(q.limit ?? 60) || 60, 1), 500),
+      offset: Math.max(Number(q.offset ?? 0) || 0, 0),
+      date: q.date,
+    };
+
+    const snap = repo.queryDeals(filter);
+    if (snap.date) {
+      return { source: 'snapshot', date: snap.date, total: snap.total, rows: snap.rows };
+    }
+
+    // No snapshot yet — scan the live catalogue at the configured locations.
+    const locations: Partial<Record<StoreId, string | undefined>> = {
+      foodlion: q.foodlionLocation,
+      wegmans: q.wegmansLocation,
+    };
+    const budget = Math.min(Number(q.liveBudget ?? 2000) || 2000, 4000);
+    const settled = await Promise.allSettled(
+      (filter.stores ?? []).map(async (id) => ({
+        id,
+        offers: await adapterFor(id).enumerate({ locationId: locations[id], maxProducts: budget }),
+      })),
+    );
+
+    const rows: DealRow[] = [];
+    for (const outcome of settled) {
+      if (outcome.status !== 'fulfilled') continue;
+      const { id, offers } = outcome.value;
+      for (const offer of offers) {
+        const discount = discountPercent(offer.price);
+        if (!passesFilter(discount, offer.price.promoKind, filter)) continue;
+        rows.push({
+          storeId: id,
+          storeProductId: offer.product.storeProductId,
+          name: offer.product.name,
+          brand: offer.product.brand,
+          size: offer.product.size,
+          category: offer.product.category,
+          imageUrl: offer.product.imageUrl,
+          productUrl: offer.product.productUrl,
+          regularCents: offer.price.regularCents,
+          currentCents: offer.price.currentCents,
+          effectiveUnitCents: offer.price.effectiveUnitCents,
+          discountPct: discount,
+          promoKind: offer.price.promoKind,
+          promoText: offer.price.promoText,
+          unitPriceText: offer.price.unitPriceText,
+          inStock: offer.price.inStock,
+        });
+      }
+    }
+    rows.sort((a, b) => {
+      if (filter.sort === 'price') return (a.effectiveUnitCents ?? Infinity) - (b.effectiveUnitCents ?? Infinity);
+      if (filter.sort === 'name') return a.name.localeCompare(b.name);
+      return (b.discountPct ?? -1) - (a.discountPct ?? -1);
+    });
+    const total = rows.length;
+    return { source: 'live', date: null, total, rows: rows.slice(filter.offset, (filter.offset ?? 0) + (filter.limit ?? 60)) };
+  });
+
+  app.get('/api/snapshot/status', async () => ({
+    lastRun: repo.lastSnapshotRun(),
+    latestDate: repo.latestSnapshotDate(),
+    dates: repo.snapshotDates(),
+    running: snapshotJob?.isRunning ?? false,
+  }));
+
+  app.post('/api/snapshot/run', async (_req, reply) => {
+    if (!snapshotJob) return reply.code(503).send({ error: 'snapshot job not configured' });
+    const result = await snapshotJob.runOnce();
+    return result;
+  });
+
   app.get('/api/status', async () => ({
     lastPoll: repo.lastPollRun(),
     polling: poller.isRunning,
+    lastSnapshot: repo.lastSnapshotRun(),
     stores: STORE_IDS.map((id) => ({ id, label: adapterFor(id).label })),
   }));
 

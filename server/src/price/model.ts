@@ -91,3 +91,18 @@ export function formatCents(cents: number | null): string {
   if (cents === null) return '—';
   return `$${(cents / 100).toFixed(2)}`;
 }
+
+/**
+ * Percent off the regular unit price, once the promotion is applied. This is
+ * the figure the deals filter thresholds on ("70% or more off"). Returns null
+ * when it cannot be computed honestly — no regular price, or an offer that
+ * doesn't reduce to a number (e.g. an un-parseable promo). A regular price
+ * equal to or below the effective price yields 0, never a negative "discount".
+ */
+export function discountPercent(price: PriceSnapshot): number | null {
+  const regular = price.regularCents;
+  const effective = price.effectiveUnitCents;
+  if (regular === null || regular <= 0 || effective === null) return null;
+  if (effective >= regular) return 0;
+  return Math.round(((regular - effective) / regular) * 1000) / 10;
+}

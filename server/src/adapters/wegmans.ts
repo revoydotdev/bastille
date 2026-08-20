@@ -351,4 +351,40 @@ export class WegmansAdapter implements StoreAdapter {
   async zipAnchors(): Promise<ZipAnchor[]> {
     return this.anchorsFrom(await this.stores());
   }
+
+  /**
+   * A bounded page-through of the store's product index for the daily
+   * snapshot. Pages sequentially (Algolia caps hitsPerPage at 1000) up to the
+   * product budget, so cost scales with the budget, not the 60k catalogue.
+   */
+  async enumerate({ locationId, maxProducts = 3000 }: { locationId?: string | null; maxProducts?: number }): Promise<Offer[]> {
+    const store = locationId ?? this.defaultLocationId;
+    const perPage = 1000;
+    const out: Offer[] = [];
+    for (let page = 0; out.length < maxProducts; page++) {
+      const params = new URLSearchParams({
+        query: '',
+        hitsPerPage: String(perPage),
+        page: String(page),
+        filters: `soldAtStores:${store}`,
+      });
+      const res = await fetchJson<AlgoliaResponse>(
+        `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/*/queries`,
+        {
+          method: 'POST',
+          headers: { 'x-algolia-application-id': ALGOLIA_APP_ID, 'x-algolia-api-key': ALGOLIA_API_KEY },
+          body: { requests: [{ indexName: ALGOLIA_INDEX, params: params.toString() }] },
+        },
+      );
+      const hits = res.results[0]?.hits ?? [];
+      if (hits.length === 0) break;
+      for (const h of hits) {
+        const offer = hitToOffer(h, store);
+        if (offer) out.push(offer);
+        if (out.length >= maxProducts) break;
+      }
+      if (hits.length < perPage) break;
+    }
+    return out;
+  }
 }

@@ -435,3 +435,86 @@ test('store finder', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: f
     assert.equal(history.history.length, 1, 'switching stores must not add a second reading');
   });
 });
+
+test('deals filtering and daily snapshot', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
+  const dir5 = mkdtempSync(join(tmpdir(), 'grocer-deals-'));
+  const app5 = Fastify();
+  const { openDb } = await import('../src/db.js');
+  const { Repo } = await import('../src/repo.js');
+  const { Poller } = await import('../src/jobs/poller.js');
+  const { SnapshotJob } = await import('../src/jobs/snapshot.js');
+  process.env.WEGMANS_SNAPSHOT_PRODUCTS = '200';
+  process.env.SNAPSHOT_WEGMANS_STORE = '1';
+  const repo5 = new Repo(openDb(join(dir5, 'deals.db')));
+  const snap = new SnapshotJob(repo5);
+  registerRoutes(app5, repo5, new Poller(repo5, 60_000), snap);
+  const url = await app5.listen({ port: 0, host: '127.0.0.1' });
+  t.after(async () => {
+    await app5.close();
+    rmSync(dir5, { recursive: true, force: true });
+  });
+
+  interface Deals {
+    source: 'snapshot' | 'live';
+    date: string | null;
+    total: number;
+    rows: { storeId: string; discountPct: number | null; promoKind: string; effectiveUnitCents: number | null }[];
+  }
+  const deals = async (qs: string) => (await (await fetch(`${url}/api/deals?${qs}`)).json()) as Deals;
+
+  const search = async (qs: string) => (await (await fetch(`${url}/api/search?${qs}`)).json()) as SearchBody & { results: { discountPct: number | null; offer: { price: { promoKind: string } } }[] };
+
+  await t.test('search honours an on-sale filter', async () => {
+    const body = await search('q=cheese&stores=wegmans&wegmansLocation=1&limit=25&onSale=1');
+    assert.ok(body.results.length > 0, 'expected some cheese on sale at Wegmans store 1');
+    assert.ok(body.results.every((r) => r.offer.price.promoKind !== 'none'), 'every result must be on sale');
+  });
+
+  await t.test('search honours a minimum discount', async () => {
+    const body = await search('q=soda&stores=foodlion&limit=40&minDiscount=25');
+    for (const r of body.results) {
+      assert.ok(r.discountPct !== null && r.discountPct >= 25, `row discount ${r.discountPct} < 25`);
+    }
+  });
+
+  await t.test('deals runs live before any snapshot exists', async () => {
+    const d = await deals('stores=foodlion&minDiscount=40&sort=discount&limit=15');
+    assert.equal(d.source, 'live');
+    assert.ok(d.rows.length > 0, 'expected some Food Lion items 40%+ off');
+    assert.ok(d.rows.every((r) => (r.discountPct ?? 0) >= 40), 'all rows must clear the threshold');
+    // sorted by discount, deepest first
+    const ds = d.rows.map((r) => r.discountPct ?? 0);
+    assert.deepEqual(ds, [...ds].sort((a, b) => b - a));
+  });
+
+  await t.test('the BOGO switch only returns BOGO offers', async () => {
+    const d = await deals('stores=foodlion,wegmans&wegmansLocation=1&promoKinds=bogo&limit=20');
+    assert.ok(d.rows.every((r) => r.promoKind === 'bogo'), 'only BOGO rows');
+  });
+
+  let snapDate = '';
+  await t.test('a snapshot records both stores and deals then read from it', async () => {
+    const res = (await (await fetch(`${url}/api/snapshot/run`, { method: 'POST' })).json()) as {
+      date: string;
+      rows: number;
+      perStore: Record<string, number>;
+      errors: string[];
+    };
+    assert.deepEqual(res.errors, []);
+    assert.ok(res.perStore['foodlion']! > 100, 'Food Lion catalogue snapshotted');
+    assert.ok(res.perStore['wegmans']! > 0, 'Wegmans snapshotted');
+    snapDate = res.date;
+
+    const d = await deals('stores=foodlion&minDiscount=30&limit=10');
+    assert.equal(d.source, 'snapshot', 'deals now read the snapshot');
+    assert.equal(d.date, snapDate);
+    assert.ok(d.rows.every((r) => (r.discountPct ?? 0) >= 30));
+  });
+
+  await t.test('re-running the same day overwrites rather than duplicating', async () => {
+    const before = (await (await fetch(`${url}/api/snapshot/status`)).json()) as { latestDate: string; dates: string[] };
+    await fetch(`${url}/api/snapshot/run`, { method: 'POST' });
+    const after = (await (await fetch(`${url}/api/snapshot/status`)).json()) as { latestDate: string; dates: string[] };
+    assert.deepEqual(after.dates, before.dates, 'still exactly one snapshot date');
+  });
+});

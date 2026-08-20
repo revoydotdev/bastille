@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
 import { Repo } from './repo.js';
 import { Poller } from './jobs/poller.js';
+import { SnapshotJob } from './jobs/snapshot.js';
 import { registerRoutes } from './routes.js';
 
 // Resolve paths against the repo, not the shell's cwd — `npm start
@@ -23,8 +24,9 @@ async function main(): Promise<void> {
   const db = openDb(process.env.GROCER_DB ?? resolve(REPO_ROOT, 'data/grocer.db'));
   const repo = new Repo(db);
   const poller = new Poller(repo);
+  const snapshotJob = new SnapshotJob(repo);
 
-  registerRoutes(app, repo, poller);
+  registerRoutes(app, repo, poller, snapshotJob);
 
   // Serve the built dashboard when it exists, so `npm start` is the whole app.
   const webDist = resolve(REPO_ROOT, 'web/dist');
@@ -37,6 +39,7 @@ async function main(): Promise<void> {
   }
 
   poller.start();
+  snapshotJob.start();
 
   let shuttingDown = false;
   const shutdown = async () => {
@@ -44,6 +47,7 @@ async function main(): Promise<void> {
     if (shuttingDown) process.exit(1);
     shuttingDown = true;
     poller.stop();
+    snapshotJob.stop();
     // Backstop: never let a stuck connection hold the process open.
     const failsafe = setTimeout(() => process.exit(1), 5_000);
     failsafe.unref();

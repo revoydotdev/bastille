@@ -55,6 +55,14 @@ export interface StoreAdapter {
 
   /** ZIP reference points this chain contributes to that shared lookup. */
   zipAnchors(): Promise<ZipAnchor[]>;
+
+  /**
+   * A bounded, broad set of current offers for the daily snapshot corpus.
+   * Deliberately capped so the daily job stays low-resource; breadth over
+   * completeness. `locationId` scopes per-store pricing where the chain
+   * supports it.
+   */
+  enumerate(opts: { locationId?: string | null; maxProducts?: number }): Promise<Offer[]>;
 }
 
 export type { Offer, Product, StoreId };

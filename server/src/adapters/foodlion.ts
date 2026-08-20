@@ -344,4 +344,23 @@ export class FoodLionAdapter implements StoreAdapter {
   zipAnchors(): Promise<ZipAnchor[]> {
     return zipAnchors();
   }
+
+  /**
+   * Every product across the top aisles — the same pages `search` already
+   * loads and caches, so a daily snapshot costs at most one refresh per aisle.
+   */
+  async enumerate({ maxProducts }: { locationId?: string | null; maxProducts?: number }): Promise<Offer[]> {
+    const aisles = await Promise.all(TOP_AISLES.map((slug) => this.aisle(slug)));
+    const seen = new Set<string>();
+    const out: Offer[] = [];
+    for (const products of aisles) {
+      for (const p of products) {
+        if (seen.has(p.prodId)) continue;
+        seen.add(p.prodId);
+        out.push(toOffer(p));
+        if (maxProducts && out.length >= maxProducts) return out;
+      }
+    }
+    return out;
+  }
 }

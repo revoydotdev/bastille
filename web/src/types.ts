@@ -47,7 +47,49 @@ export interface SearchResult {
   storeLabel: string;
   offer: Offer;
   promoLabel: string | null;
+  discountPct: number | null;
   watchedGroupIds: number[];
+}
+
+export interface DealRow {
+  storeId: StoreId;
+  storeProductId: string;
+  name: string;
+  brand: string | null;
+  size: string | null;
+  category: string | null;
+  imageUrl: string | null;
+  productUrl: string | null;
+  regularCents: number | null;
+  currentCents: number | null;
+  effectiveUnitCents: number | null;
+  discountPct: number | null;
+  promoKind: PromoKind;
+  promoText: string | null;
+  unitPriceText: string | null;
+  inStock: boolean | null;
+}
+
+export interface DealsResponse {
+  source: 'snapshot' | 'live';
+  date: string | null;
+  total: number;
+  rows: DealRow[];
+}
+
+export interface DealFilters {
+  minDiscount: number;
+  promoKinds: PromoKind[];
+  onSale: boolean;
+  stores: StoreId[];
+  sort: 'discount' | 'price' | 'name';
+}
+
+export interface SnapshotStatus {
+  lastRun: { date: string; startedAt: string; finishedAt: string | null; rows: number; error: string | null } | null;
+  latestDate: string | null;
+  dates: string[];
+  running: boolean;
 }
 
 export interface StoredProduct extends Product {
