@@ -182,7 +182,10 @@ The store-scoped storefronts for every ADUSA brand behave the same way — all
 | `foodlion.com/weekly-ad`, `/circular` | 403 |
 
 So **the app can offer a real Food Lion store, but not a store-specific
-price**. The adapter reports this through `pricesVaryByLocation: false`, and
+price**. The mobile app's own GraphQL API *does*
+expose per-store prices, but it is gated by DataDome's mobile SDK and is not
+reproducible from a server today — the full reverse-engineering write-up and
+the reason are in [FOODLION-MOBILE-API.md](FOODLION-MOBILE-API.md). The adapter reports this through `pricesVaryByLocation: false`, and
 `pricingLocationId()` collapses every store to one `national` scope so a store
 change cannot fork price history or register as a price movement. The UI labels
 Food Lion rows `national price` and the store picker says the choice sets
