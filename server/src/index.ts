@@ -38,8 +38,15 @@ async function main(): Promise<void> {
 
   poller.start();
 
+  let shuttingDown = false;
   const shutdown = async () => {
+    // A second signal means "I meant it" - stop waiting and go.
+    if (shuttingDown) process.exit(1);
+    shuttingDown = true;
     poller.stop();
+    // Backstop: never let a stuck connection hold the process open.
+    const failsafe = setTimeout(() => process.exit(1), 5_000);
+    failsafe.unref();
     await app.close();
     db.close();
     process.exit(0);

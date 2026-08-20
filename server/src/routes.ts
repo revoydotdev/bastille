@@ -37,6 +37,17 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
 
   /** Server-sent events: alerts pushed as soon as a poll produces them. */
   const sseClients = new Set<(payload: string) => void>();
+  /**
+   * An SSE response never ends on its own, so `app.close()` would wait for it
+   * forever and the process would ignore SIGTERM. Every open stream is tracked
+   * and torn down when the server closes.
+   */
+  const openStreams = new Set<{ end: () => void }>();
+  app.addHook('onClose', async () => {
+    for (const stream of openStreams) stream.end();
+    openStreams.clear();
+    sseClients.clear();
+  });
   poller.onPoll(() => {
     const unread = repo.listAlerts({ unacknowledgedOnly: true, limit: 50 });
     const payload = JSON.stringify({ type: 'alerts', alerts: unread });
@@ -268,9 +279,18 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
     sseClients.add(send);
     const keepAlive = setInterval(() => reply.raw.write(': ping\n\n'), 25_000);
 
-    req.raw.on('close', () => {
+    const close = () => {
       clearInterval(keepAlive);
       sseClients.delete(send);
-    });
+      openStreams.delete(stream);
+    };
+    const stream = {
+      end: () => {
+        close();
+        reply.raw.end();
+      },
+    };
+    openStreams.add(stream);
+    req.raw.on('close', close);
   });
 }
