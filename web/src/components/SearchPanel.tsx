@@ -1,17 +1,16 @@
 import { useState } from 'react';
-import type { SearchResult, StoreId, StoreInfo, WatchGroup } from '../types';
+import type { SearchResult, StoreId, StoreSelection, StoresResponse, WatchGroup } from '../types';
 import { api } from '../lib/api';
 import { PriceBlock, PromoChip, STORE_COLOR, STORE_LABEL } from './bits';
 
 interface Props {
-  stores: StoreInfo[];
+  storeData: StoresResponse | null;
+  selection: StoreSelection;
   groups: WatchGroup[];
-  wegmansStore: string;
-  onWegmansStoreChange: (id: string) => void;
   onWatchlistChanged: () => void;
 }
 
-export function SearchPanel({ stores, groups, wegmansStore, onWegmansStoreChange, onWatchlistChanged }: Props) {
+export function SearchPanel({ storeData, selection, groups, onWatchlistChanged }: Props) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<StoreId[]>(['foodlion', 'wegmans']);
   const [results, setResults] = useState<SearchResult[] | null>(null);
@@ -19,6 +18,12 @@ export function SearchPanel({ stores, groups, wegmansStore, onWegmansStoreChange
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   const [addTarget, setAddTarget] = useState<Record<string, number | 'new'>>({});
+
+  /** Chains whose price is the same everywhere — labelled so the store
+   *  choice is never read as having set the price. */
+  const nationalPriceStores = new Set(
+    (storeData?.stores ?? []).filter((s) => !s.pricesVaryByLocation).map((s) => s.id),
+  );
 
   const toggle = (id: StoreId) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id]));
@@ -29,7 +34,13 @@ export function SearchPanel({ stores, groups, wegmansStore, onWegmansStoreChange
     setBusy(true);
     setFailure(null);
     try {
-      const res = await api.search({ q: query.trim(), stores: selected, wegmansLocation: wegmansStore, limit: 20 });
+      const res = await api.search({
+        q: query.trim(),
+        stores: selected,
+        wegmansLocation: selection.wegmans,
+        foodlionLocation: selection.foodlion,
+        limit: 20,
+      });
       setResults(res.results);
       setErrors(res.errors);
     } catch (err) {
@@ -48,7 +59,7 @@ export function SearchPanel({ stores, groups, wegmansStore, onWegmansStoreChange
       await api.watch({
         storeId: r.storeId,
         storeProductId: r.offer.product.storeProductId,
-        locationId: r.storeId === 'wegmans' ? wegmansStore : null,
+        locationId: selection[r.storeId],
         ...(target === 'new' ? { label: r.offer.product.name } : { groupId: target }),
       });
       onWatchlistChanged();
@@ -66,8 +77,6 @@ export function SearchPanel({ stores, groups, wegmansStore, onWegmansStoreChange
       setBusy(false);
     }
   }
-
-  const wegmans = stores.find((s) => s.id === 'wegmans');
 
   return (
     <section>
@@ -97,27 +106,6 @@ export function SearchPanel({ stores, groups, wegmansStore, onWegmansStoreChange
           {busy ? 'Searching…' : 'Search'}
         </button>
       </form>
-
-      {wegmans && wegmans.locations.length > 0 && selected.includes('wegmans') && (
-        <div className="controls">
-          <label className="meta" htmlFor="weg-store" style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>
-            Wegmans prices for
-          </label>
-          <select
-            id="weg-store"
-            className="field"
-            value={wegmansStore}
-            onChange={(e) => onWegmansStoreChange(e.target.value)}
-          >
-            {wegmans.locations.map((l) => (
-              <option key={l.locationId} value={l.locationId}>
-                {l.name}
-                {l.address ? ` — ${l.address}` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {failure && <div className="error">{failure}</div>}
       {errors.map((e) => (
@@ -159,6 +147,11 @@ export function SearchPanel({ stores, groups, wegmansStore, onWegmansStoreChange
                   </div>
                   <div className="meta chipcell">
                     <span className="store" style={{ color: STORE_COLOR[r.storeId] }}>{r.storeLabel}</span>
+                    {nationalPriceStores.has(r.storeId) && (
+                      <span title="Food Lion publishes one online catalogue price chain-wide">
+                        national price
+                      </span>
+                    )}
                     {r.offer.product.size && <span>{r.offer.product.size}</span>}
                     <PromoChip price={r.offer.price} label={r.promoLabel} />
                     {r.offer.price.inStock === false && <span className="chip oos">Out of stock</span>}

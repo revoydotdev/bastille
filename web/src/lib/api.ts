@@ -1,4 +1,4 @@
-import type { Alert, SearchResult, StoreInfo, WatchGroup, PriceSnapshot } from '../types';
+import type { Alert, SearchResult, StoresResponse, WatchGroup, PriceSnapshot } from '../types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -14,11 +14,18 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   stores: (postalCode?: string) =>
-    json<{ stores: StoreInfo[] }>(`/api/stores${postalCode ? `?postalCode=${encodeURIComponent(postalCode)}` : ''}`),
+    json<StoresResponse>(`/api/stores${postalCode ? `?postalCode=${encodeURIComponent(postalCode)}` : ''}`),
 
-  search: (params: { q: string; stores: string[]; wegmansLocation?: string; limit?: number }) => {
+  search: (params: {
+    q: string;
+    stores: string[];
+    wegmansLocation?: string | null;
+    foodlionLocation?: string | null;
+    limit?: number;
+  }) => {
     const qs = new URLSearchParams({ q: params.q, stores: params.stores.join(',') });
     if (params.wegmansLocation) qs.set('wegmansLocation', params.wegmansLocation);
+    if (params.foodlionLocation) qs.set('foodlionLocation', params.foodlionLocation);
     if (params.limit) qs.set('limit', String(params.limit));
     return json<{ query: string; results: SearchResult[]; errors: { storeId: string; message: string }[] }>(
       `/api/search?${qs}`,

@@ -302,3 +302,136 @@ test('a starting offer alerts on its own', { skip: live ? false : 'GROCER_SKIP_L
   const alerts = repo.listAlerts({ unacknowledgedOnly: true });
   assert.ok(alerts.some((a) => a.kind === 'promo_started' && a.numeric === false && a.groupId === group.id));
 });
+
+interface StoresBody {
+  zip: string | null;
+  zipResolved: boolean;
+  zipPrecision: 'exact' | 'approximate' | null;
+  stores: {
+    id: string;
+    label: string;
+    pricesVaryByLocation: boolean;
+    error: string | null;
+    locations: { locationId: string; name: string; address: string | null; distanceMiles: number | null }[];
+  }[];
+}
+
+test('store finder', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
+  const dir4 = mkdtempSync(join(tmpdir(), 'grocer-stores-'));
+  const app4 = Fastify();
+  const { openDb } = await import('../src/db.js');
+  const { Repo } = await import('../src/repo.js');
+  const { Poller } = await import('../src/jobs/poller.js');
+  const repo4 = new Repo(openDb(join(dir4, 'stores.db')));
+  registerRoutes(app4, repo4, new Poller(repo4, 60_000));
+  const url = await app4.listen({ port: 0, host: '127.0.0.1' });
+  t.after(async () => {
+    await app4.close();
+    rmSync(dir4, { recursive: true, force: true });
+  });
+
+  const get = async (path: string) => (await (await fetch(`${url}${path}`)).json()) as StoresBody;
+
+  await t.test('a ZIP returns both chains, nearest first', async () => {
+    const body = await get('/api/stores?postalCode=22963');
+    assert.equal(body.zip, '22963');
+    assert.equal(body.zipResolved, true);
+    assert.equal(body.zipPrecision, 'exact');
+    assert.equal(body.stores.length, 2);
+
+    for (const store of body.stores) {
+      assert.equal(store.error, null, `${store.id}: ${store.error}`);
+      assert.ok(store.locations.length > 0, `${store.id} returned no stores`);
+      const miles = store.locations.map((l) => l.distanceMiles);
+      assert.ok(miles.every((m) => m !== null), `${store.id} must report distances`);
+      assert.deepEqual(miles, [...miles].sort((a, b) => a! - b!), `${store.id} must be nearest first`);
+      // 22963 is Palmyra, VA — both chains have a store within an easy drive.
+      assert.ok(miles[0]! < 30, `${store.id} nearest was ${miles[0]} mi away`);
+    }
+  });
+
+  await t.test('the two chains disagree about whether a store sets the price', async () => {
+    const body = await get('/api/stores?postalCode=22963');
+    const foodlion = body.stores.find((s) => s.id === 'foodlion')!;
+    const wegmans = body.stores.find((s) => s.id === 'wegmans')!;
+    assert.equal(wegmans.pricesVaryByLocation, true);
+    assert.equal(foodlion.pricesVaryByLocation, false);
+  });
+
+  await t.test('a ZIP one chain has never heard of still ranks that chain', async () => {
+    // 22902 is Charlottesville: Wegmans sits in that ZIP, Food Lion does not.
+    // The shared resolver means Food Lion still gets a real distance.
+    const body = await get('/api/stores?postalCode=22902&store=foodlion');
+    assert.equal(body.zipResolved, true);
+    assert.ok(body.stores[0]!.locations[0]!.distanceMiles! < 30);
+  });
+
+  await t.test('an unknown ZIP is reported rather than guessed at', async () => {
+    const body = await get('/api/stores?postalCode=99999');
+    assert.equal(body.zipResolved, false);
+    assert.equal(body.zipPrecision, null);
+    // Stores are still listed, just not ranked — no invented distances.
+    assert.ok(body.stores.every((s) => s.locations.every((l) => l.distanceMiles === null)));
+  });
+
+  await t.test('no ZIP at all is not an error', async () => {
+    const body = await get('/api/stores');
+    assert.equal(body.zip, null);
+    assert.ok(body.stores.every((s) => s.locations.length > 0));
+  });
+
+  await t.test('the Wegmans store choice is what sets the price', async () => {
+    const body = await get('/api/stores?postalCode=14580&store=wegmans');
+    const nearby = body.stores[0]!.locations.slice(0, 4).map((l) => l.locationId);
+    // Plus one deliberately far store, so the sample spans price regions.
+    const ids = [...new Set([...nearby, '8'])];
+
+    const { WegmansAdapter } = await import('../src/adapters/wegmans.js');
+    const wegmans = new WegmansAdapter();
+    const prices = new Map<string, number>();
+    for (const id of ids) {
+      const offer = await wegmans.fetchOffer('94427', id);
+      if (offer?.price.effectiveUnitCents != null) prices.set(id, offer.price.effectiveUnitCents);
+    }
+    assert.ok(prices.size >= 2, 'expected several stores to price this product');
+    assert.ok(
+      new Set(prices.values()).size >= 2,
+      `expected the price to differ by store, got ${JSON.stringify([...prices])}`,
+    );
+  });
+
+  await t.test('Food Lion records every store under one price scope', async () => {
+    const body = await get('/api/stores?postalCode=22963&store=foodlion');
+    const [first, second] = body.stores[0]!.locations;
+    assert.ok(first && second, 'expected at least two Food Lion stores near 22963');
+
+    const { adapterFor } = await import('../src/adapters/index.js');
+    const foodlion = adapterFor('foodlion');
+    assert.equal(foodlion.pricingLocationId(first.locationId), 'national');
+    assert.equal(foodlion.pricingLocationId(second.locationId), 'national');
+
+    // So watching the same item after switching stores must not fork history.
+    const search = (await (
+      await fetch(`${url}/api/search?q=bananas&stores=foodlion&limit=1`)
+    ).json()) as SearchBody;
+    const productId = search.results[0]!.offer.product.storeProductId;
+
+    const watch = async (locationId: string, groupId?: number) =>
+      (await (
+        await fetch(`${url}/api/watchlist`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ storeId: 'foodlion', storeProductId: productId, locationId, groupId, label: 'Bananas' }),
+        })
+      ).json()) as { group: { id: number; items: { product: { id: number } }[] } };
+
+    const created = await watch(first.locationId);
+    const dbId = created.group.items[0]!.product.id;
+    await watch(second.locationId, created.group.id);
+
+    const history = (await (await fetch(`${url}/api/prices/${dbId}?locationId=national`)).json()) as {
+      history: unknown[];
+    };
+    assert.equal(history.history.length, 1, 'switching stores must not add a second reading');
+  });
+});

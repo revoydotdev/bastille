@@ -80,6 +80,12 @@ dashboard that moves is a dashboard you cannot scan.
 
 ## Components
 
+- **Store picker** — one ZIP field driving one select per chain, each labelled
+  with what its store choice actually buys: "prices for this store" where the
+  chain prices per store, "pickup only · price is national" where it does not.
+  The second label is set in `--promo`, the colour reserved for *read the
+  words, not just the figure*. A row whose price is chain-wide repeats the note
+  inline so the caveat travels with the number.
 - **Offer row** — store accent bar on the left edge, product name and size,
   then the promotion chip, then the hero price with the struck regular price
   beneath it when the two differ.

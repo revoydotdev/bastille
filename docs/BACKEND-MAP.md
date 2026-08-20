@@ -142,6 +142,52 @@ https://foodlion.com/groceries/sitemap.xml
 Category pages: `/groceries/browse-aisles/{treeId}-{slug}`
 Product pages:  `/groceries/product/{slug}/{prodId}`
 
+### Store directory — `stores.foodlion.com`
+
+A Yext Pages site, completely open: no bot protection, no key, and it publishes
+its whole directory as a single document.
+
+```
+GET https://stores.foodlion.com/index.json     (~6 MB)
+```
+
+`directoryHierarchy` nests state → city → store. Every store leaf carries
+`latitude`, `longitude`, its street address and its page slug; every city node
+carries a postal code in `sampleEntity.profile.address`. That is 1,149 stores
+and 614 city postal codes — enough to find a shopper's store by ZIP and rank by
+distance without a third-party geocoder.
+
+Individual store pages (`/va/palmyra/264-turkeysag-trail`) render the full
+address as microdata. There is no per-store `.json`; the directory document is
+the machine-readable surface.
+
+### The catalogue is national, and this was tested
+
+`foodlion.com/groceries/` returns the same bytes regardless of any store hint.
+Tested against one product page with `?storeId=`, `?store=`, the cookies
+`SELECTED_STORE` / `storeId` / `siteId`, and an `x-store-id` header: identical
+response length and identical `"price"` every time. Nothing in the Astro
+bundles reads a store either — the only store-aware surface the client offers is
+a link out to `/store-locator`, which is itself DataDome-gated.
+
+The store-scoped storefronts for every ADUSA brand behave the same way — all
+403 to a plain request:
+
+| surface | status |
+|---|---|
+| `www.foodlion.com/product-search/milk` | 403 (DataDome) |
+| `stopandshop.com/product-search/milk` | 403 |
+| `hannaford.com/product-search/milk` | 403 |
+| `giantfood.com/product-search/milk` | 403 |
+| `foodlion.com/weekly-ad`, `/circular` | 403 |
+
+So **the app can offer a real Food Lion store, but not a store-specific
+price**. The adapter reports this through `pricesVaryByLocation: false`, and
+`pricingLocationId()` collapses every store to one `national` scope so a store
+change cannot fork price history or register as a price movement. The UI labels
+Food Lion rows `national price` and the store picker says the choice sets
+pickup, not price.
+
 ### Consequence for search
 
 The SEO surface publishes no search endpoint — the header form navigates to the
@@ -151,13 +197,35 @@ prices. Prices come from the store, ranking is done here.
 
 ---
 
-## Prices are per-store
+## Prices are per-store — for one chain of the two
 
-Wegmans prices are keyed by store number and vary widely — Vitamin D Whole Milk
-was $2.49 to $5.09 per gallon across stores on the same day. Food Lion's
-`/groceries/` surface serves one national price set. Any comparison that
-ignores the store number is comparing the wrong numbers, so the store selection
-is part of the watchlist, not a display preference.
+Wegmans prices are keyed by store number and vary widely: Vitamin D Whole Milk
+ran $2.49 to $5.09 per gallon across stores on the same day. Food Lion's
+`/groceries/` surface serves one national price set (see above). A comparison
+that ignores the Wegmans store number is comparing the wrong numbers, so the
+store selection is part of the watchlist, not a display preference — while the
+Food Lion store selection deliberately is *not*, because it changes nothing
+about the price.
+
+### Finding both stores from one ZIP
+
+Each chain contributes ZIP reference points from its own store data — Wegmans
+`/api/stores` has an exact ZIP and coordinates per store, Food Lion's directory
+has a ZIP per city. The two sets are unioned and the shopper's ZIP is resolved
+once against the whole thing, so a ZIP one chain has never heard of still ranks
+that chain correctly when the other has stores nearby. An exact ZIP hit is
+reported as `exact`; falling back to the centroid of stores sharing the
+three-digit prefix is reported as `approximate`; a ZIP that matches nothing at
+all resolves to nothing and the stores come back unranked with no distances
+rather than invented ones.
+
+Worked example, ZIP 22963 (Palmyra, VA):
+
+```
+zip 22963  exact
+  Food Lion   Palmyra, VA — 264 Turkeysag Trail          0.0 mi   (national price)
+  Wegmans     Charlottesville — 100 Wegmans Way        11.2 mi   (store #127)
+```
 
 ## Conduct
 

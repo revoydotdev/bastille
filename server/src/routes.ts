@@ -4,6 +4,7 @@ import type { Repo } from './repo.js';
 import type { Poller } from './jobs/poller.js';
 import type { Offer, StoreId } from './price/model.js';
 import { describePromo } from './price/promo.js';
+import { normalizeZip, resolveZip, type ZipAnchor } from './geo.js';
 
 interface SearchResultRow {
   storeId: StoreId;
@@ -45,23 +46,41 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
   app.get('/api/stores', async (req) => {
     const q = req.query as { postalCode?: string; store?: string };
     const ids = parseStores(q.store);
-    const out = [];
-    for (const id of ids) {
-      const adapter = adapterFor(id);
-      let locations: unknown[] = [];
-      try {
-        locations = await adapter.findLocations(q.postalCode ?? '');
-      } catch {
-        locations = [];
+    const zip = normalizeZip(q.postalCode ?? '');
+
+    // Resolve the ZIP once against every chain's store data, so a ZIP one
+    // chain has never heard of still ranks correctly when the other has
+    // stores nearby.
+    let near = null;
+    let zipPrecision: 'exact' | 'approximate' | null = null;
+    if (zip) {
+      const anchorSets = await Promise.allSettled(ids.map((id) => adapterFor(id).zipAnchors()));
+      const anchors: ZipAnchor[] = anchorSets.flatMap((r) => (r.status === 'fulfilled' ? r.value : []));
+      const match = resolveZip(zip, anchors);
+      if (match) {
+        near = match.point;
+        zipPrecision = match.precision;
       }
-      out.push({
+    }
+
+    const settled = await Promise.allSettled(
+      ids.map(async (id) => ({ id, locations: await adapterFor(id).findLocations(q.postalCode ?? '', near) })),
+    );
+
+    const stores = settled.map((outcome, i) => {
+      const id = ids[i]!;
+      const adapter = adapterFor(id);
+      return {
         id,
         label: adapter.label,
         defaultLocationId: adapter.defaultLocationId,
-        locations,
-      });
-    }
-    return { stores: out };
+        pricesVaryByLocation: adapter.pricesVaryByLocation,
+        locations: outcome.status === 'fulfilled' ? outcome.value.locations : [],
+        error: outcome.status === 'rejected' ? ((outcome.reason as Error)?.message ?? 'store lookup failed') : null,
+      };
+    });
+
+    return { zip, zipResolved: near !== null, zipPrecision, stores };
   });
 
   app.get('/api/search', async (req, reply) => {
@@ -147,9 +166,14 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
     }
 
     const adapter = adapterFor(body.storeId);
-    const locationId = body.locationId ?? adapter.defaultLocationId;
-    const offer = await adapter.fetchOffer(body.storeProductId, locationId);
+    const selected = body.locationId ?? adapter.defaultLocationId;
+    const offer = await adapter.fetchOffer(body.storeProductId, selected);
     if (!offer) return reply.code(404).send({ error: 'product not found at that store' });
+
+    // Record against the scope the price actually belongs to. For a chain with
+    // one national price that is a single scope, so switching stores does not
+    // split the history or read as a price change.
+    const locationId = adapter.pricingLocationId(selected);
 
     const product = repo.upsertProduct(offer);
     // Seed the history so the next poll has something to diff against — but
@@ -243,6 +267,7 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
     const send = (payload: string) => reply.raw.write(`data: ${payload}\n\n`);
     sseClients.add(send);
     const keepAlive = setInterval(() => reply.raw.write(': ping\n\n'), 25_000);
+
     req.raw.on('close', () => {
       clearInterval(keepAlive);
       sseClients.delete(send);

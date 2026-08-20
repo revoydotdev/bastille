@@ -11,6 +11,8 @@
  * from a catalog index built out of the same category pages.
  */
 import { fetchText } from './http.js';
+import { loadStores, zipAnchors } from './foodlion-stores.js';
+import { milesBetween, normalizeZip, resolveZip, type Point, type ZipAnchor } from '../geo.js';
 import type { SearchOptions, StoreAdapter, StoreLocation } from './types.js';
 import type { Offer, PriceSnapshot, PromoDetail, PromoKind } from '../price/model.js';
 import { centsFromDollars } from '../price/model.js';
@@ -220,6 +222,17 @@ export class FoodLionAdapter implements StoreAdapter {
   readonly label = 'Food Lion';
   /** The /groceries/ surface serves one national price set. */
   readonly defaultLocationId = 'national';
+  readonly pricesVaryByLocation = false;
+
+  /**
+   * Whichever store the shopper picks, the price came from the national
+   * catalogue — so every reading is recorded under one scope. Keying history
+   * by store would split one series into many identical ones and make a store
+   * change look like a price event.
+   */
+  pricingLocationId(): string {
+    return 'national';
+  }
 
   private cache = new Map<string, CacheEntry>();
   /** In-flight fetches, so a burst of searches makes one request per aisle. */
@@ -302,18 +315,33 @@ export class FoodLionAdapter implements StoreAdapter {
     return `${SITE}/groceries/product/${slugify(`${name} ${p.size ?? ''}`)}/${p.prodId}`;
   }
 
-  async findLocations(): Promise<StoreLocation[]> {
-    // The /groceries/ catalog is not store-scoped, so there is exactly one
-    // price set to track. Reporting a fake per-store choice would imply a
-    // precision this surface does not have.
-    return [
-      {
-        storeId: 'foodlion',
-        locationId: 'national',
-        name: 'Food Lion (online catalog price)',
-        address: null,
-        postalCode: null,
-      },
-    ];
+  /**
+   * Real stores, from the open Yext directory, nearest first. The price these
+   * stores share is the national catalogue price — `pricesVaryByLocation` says
+   * so, and the UI must not imply otherwise.
+   */
+  async findLocations(postalCode: string, near?: Point | null): Promise<StoreLocation[]> {
+    const stores = await loadStores();
+    const zip = normalizeZip(postalCode ?? '');
+    const point = near ?? (zip ? resolveZip(zip, await zipAnchors())?.point ?? null : null);
+
+    const ranked = point
+      ? stores
+          .map((s) => ({ store: s, miles: milesBetween(point, s.point) }))
+          .sort((a, b) => a.miles - b.miles)
+      : stores.slice(0, 25).map((store) => ({ store, miles: null as number | null }));
+
+    return ranked.slice(0, 25).map(({ store, miles }) => ({
+      storeId: 'foodlion' as const,
+      locationId: store.id,
+      name: `${store.city}, ${store.state}`,
+      address: store.street,
+      postalCode: store.postalCode,
+      distanceMiles: miles === null ? null : Math.round(miles * 10) / 10,
+    }));
+  }
+
+  zipAnchors(): Promise<ZipAnchor[]> {
+    return zipAnchors();
   }
 }

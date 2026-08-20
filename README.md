@@ -67,11 +67,33 @@ looks up.
 | `GROCER_MIN_REQUEST_INTERVAL_MS` | `700` | floor between requests to one host |
 | `WEGMANS_STORE` | `24` | default Wegmans store number |
 | `FOODLION_AISLE_TTL_MS` | `1800000` | Food Lion catalogue cache lifetime |
+| `FOODLION_STORES_TTL_MS` | `86400000` | Food Lion store directory cache lifetime |
+| `WEGMANS_STORES_TTL_MS` | `86400000` | Wegmans store list cache lifetime |
 
-Wegmans prices differ substantially between stores — the same gallon of milk
-ranged $2.49 to $5.09 on one day — so pick your store in the search panel
-before watching anything. Food Lion's public catalogue serves one national
-price set, so there is no store to pick there.
+## Picking your stores
+
+Enter a ZIP once and both chains resolve to a real nearby store, nearest first
+with distances. For ZIP 22963 that is Food Lion Palmyra (264 Turkeysag Trail)
+and Wegmans Charlottesville (#127, 11.2 mi).
+
+The two chains mean different things by "your store", and the app says which is
+which rather than blurring them:
+
+- **Wegmans prices per store**, and the spread is large — the same gallon of
+  milk ran $2.49 to $5.09 across stores on one day. Changing the store changes
+  the price, and the watchlist records prices per store.
+- **Food Lion publishes one online catalogue price chain-wide.** Its store
+  choice sets where you'd pick up; it does not change the price. Food Lion rows
+  are labelled `national price`, and every reading is recorded under a single
+  price scope so switching stores never forks the history or shows up as a
+  price change. `docs/BACKEND-MAP.md` has the tests behind that claim and why
+  no per-store Food Lion price is reachable.
+
+ZIP resolution uses the chains' own store coordinates, not a third-party
+geocoder. An exact ZIP match is used as-is; otherwise the centroid of stores
+sharing the three-digit prefix is used and reported as approximate; a ZIP that
+matches nothing leaves the stores unranked rather than showing made-up
+distances.
 
 ## How it gets the data
 
@@ -86,7 +108,9 @@ what each store exposes and what it does not, is in
   which embeds the upstream Peapod product objects (price, regular price, sale
   and BOGO flags, buy-more-save-more tiers, coupons) directly in the page.
   Search is served from a local index built from the same category pages,
-  because that surface publishes no search endpoint.
+  because that surface publishes no search endpoint. Stores come from the open
+  Yext directory at `stores.foodlion.com/index.json` — 1,149 stores with
+  coordinates.
 
 Food Lion's transactional SPA sits behind Cloudflare and DataDome. grocer does
 not touch it.
@@ -102,7 +126,8 @@ challenge solving.
 
 ```
 server/src/
-  adapters/      one module per store, all reading, behind a 3-method contract
+  adapters/      one module per store, all reading, behind a small contract
+  geo.ts         distance + ZIP resolution from the chains' own store data
   price/         the promotion model, parser, and change detection
   jobs/poller.ts scheduled re-read of everything watched
   repo.ts        products, price history, watchlists, alerts
@@ -116,8 +141,8 @@ DESIGN.md        colour, type, spacing, and what each colour is allowed to mean
 
 | method | path | |
 |---|---|---|
-| GET | `/api/search?q=&stores=&wegmansLocation=` | both stores, cheapest comparable first |
-| GET | `/api/stores?postalCode=` | store finder |
+| GET | `/api/search?q=&stores=&wegmansLocation=&foodlionLocation=` | both stores, cheapest comparable first |
+| GET | `/api/stores?postalCode=` | both chains' nearest stores, with distances and whether the chain prices per store |
 | GET/POST | `/api/watchlist` | list / add (add to an existing group to compare) |
 | PATCH/DELETE | `/api/watchlist/:id` | rename, set a target price, remove |
 | DELETE | `/api/watchlist/item/:itemId` | drop one store from a group |

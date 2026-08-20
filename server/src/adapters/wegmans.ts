@@ -6,6 +6,7 @@
  * go to the first-party REST tier. Both are documented in docs/BACKEND-MAP.md.
  */
 import { fetchJson } from './http.js';
+import { milesBetween, normalizeZip, resolveZip, type Point, type ZipAnchor } from '../geo.js';
 import type { SearchOptions, StoreAdapter, StoreLocation } from './types.js';
 import type { Offer, PriceSnapshot, PromoDetail, PromoKind } from '../price/model.js';
 import { centsFromDollars } from '../price/model.js';
@@ -106,6 +107,9 @@ interface StoreApiRow {
   city?: string;
   stateAbbreviation?: string;
   zip?: string;
+  latitude?: number;
+  longitude?: number;
+  openState?: string;
 }
 
 function productUrl(id: string, slug?: string | null): string {
@@ -232,6 +236,12 @@ export class WegmansAdapter implements StoreAdapter {
   readonly id = 'wegmans' as const;
   readonly label = 'Wegmans';
   readonly defaultLocationId = DEFAULT_STORE;
+  /** Observed spread on one gallon of milk in a single day: $2.49 to $5.09. */
+  readonly pricesVaryByLocation = true;
+
+  pricingLocationId(selectedLocationId?: string | null): string {
+    return selectedLocationId ?? this.defaultLocationId;
+  }
 
   async search({ query, locationId, limit = 24 }: SearchOptions): Promise<Offer[]> {
     const store = locationId ?? this.defaultLocationId;
@@ -288,17 +298,57 @@ export class WegmansAdapter implements StoreAdapter {
     };
   }
 
-  async findLocations(postalCode: string): Promise<StoreLocation[]> {
-    const rows = await fetchJson<StoreApiRow[]>(`${SITE}/api/stores`);
-    const prefix = postalCode.trim().slice(0, 3);
+  /** Nearest open stores to a ZIP, by great-circle distance. */
+  async findLocations(postalCode: string, near?: Point | null): Promise<StoreLocation[]> {
+    const rows = (await this.stores()).filter(
+      (r) => r.storeNumber != null && r.openState !== 'Closed',
+    );
+    const zip = normalizeZip(postalCode ?? '');
+    const point = near ?? (zip ? resolveZip(zip, this.anchorsFrom(rows))?.point ?? null : null);
+
+    const ranked = point
+      ? rows
+          .filter((r) => r.latitude != null && r.longitude != null)
+          .map((r) => ({
+            row: r,
+            miles: milesBetween(point, { lat: r.latitude!, lng: r.longitude! }),
+          }))
+          .sort((a, b) => a.miles - b.miles)
+      : rows.map((row) => ({ row, miles: null as number | null }));
+
+    return ranked.slice(0, 25).map(({ row, miles }) => ({
+      storeId: 'wegmans' as const,
+      locationId: String(row.storeNumber),
+      name: row.name ?? `Store ${row.storeNumber}`,
+      address: [row.streetAddress, row.city, row.stateAbbreviation].filter(Boolean).join(', ') || null,
+      postalCode: row.zip ?? null,
+      distanceMiles: miles === null ? null : Math.round(miles * 10) / 10,
+    }));
+  }
+
+  private storeCache: { rows: StoreApiRow[]; fetchedAt: number } | null = null;
+
+  private async stores(): Promise<StoreApiRow[]> {
+    const ttl = Number(process.env.WEGMANS_STORES_TTL_MS ?? 24 * 60 * 60 * 1000);
+    if (this.storeCache && Date.now() - this.storeCache.fetchedAt < ttl) return this.storeCache.rows;
+    try {
+      const rows = await fetchJson<StoreApiRow[]>(`${SITE}/api/stores`);
+      this.storeCache = { rows, fetchedAt: Date.now() };
+      return rows;
+    } catch (err) {
+      if (this.storeCache) return this.storeCache.rows;
+      throw err;
+    }
+  }
+
+  private anchorsFrom(rows: StoreApiRow[]): ZipAnchor[] {
     return rows
-      .filter((r) => r.storeNumber != null && (!prefix || (r.zip ?? '').startsWith(prefix)))
-      .map((r) => ({
-        storeId: 'wegmans' as const,
-        locationId: String(r.storeNumber),
-        name: r.name ?? `Store ${r.storeNumber}`,
-        address: [r.streetAddress, r.city, r.stateAbbreviation].filter(Boolean).join(', ') || null,
-        postalCode: r.zip ?? null,
-      }));
+      .filter((r) => r.zip && r.latitude != null && r.longitude != null)
+      .map((r) => ({ zip: r.zip!.slice(0, 5), point: { lat: r.latitude!, lng: r.longitude! } }));
+  }
+
+  /** ZIP reference points this chain can contribute to a shared lookup. */
+  async zipAnchors(): Promise<ZipAnchor[]> {
+    return this.anchorsFrom(await this.stores());
   }
 }

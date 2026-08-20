@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Alert, StoreInfo, WatchGroup } from './types';
+import type { Alert, StoreId, StoreSelection, StoresResponse, WatchGroup } from './types';
 import { api, relativeTime } from './lib/api';
 import { SearchPanel } from './components/SearchPanel';
+import { StorePicker } from './components/StorePicker';
 import { Watchlist } from './components/Watchlist';
 import { Alerts } from './components/Alerts';
 
@@ -9,10 +10,22 @@ type Tab = 'search' | 'watchlist' | 'alerts';
 
 export function App() {
   const [tab, setTab] = useState<Tab>('search');
-  const [stores, setStores] = useState<StoreInfo[]>([]);
+  const [storeData, setStoreData] = useState<StoresResponse | null>(null);
+  const [storeBusy, setStoreBusy] = useState(false);
+  const [storeError, setStoreError] = useState<string | null>(null);
   const [groups, setGroups] = useState<WatchGroup[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [wegmansStore, setWegmansStore] = useState(localStorage.getItem('grocer.wegmansStore') ?? '24');
+  const [selection, setSelection] = useState<StoreSelection>(() => {
+    const saved = localStorage.getItem('grocer.stores');
+    if (saved) {
+      try {
+        return JSON.parse(saved) as StoreSelection;
+      } catch {
+        /* fall through to the default */
+      }
+    }
+    return { zip: '', foodlion: null, wegmans: null };
+  });
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,14 +37,42 @@ export function App() {
     setAlerts(a.alerts);
   }, []);
 
-  useEffect(() => {
-    void api.stores().then((r) => setStores(r.stores)).catch(() => undefined);
-    void loadWatchlist().catch((e) => setError((e as Error).message));
-  }, [loadWatchlist]);
+  /**
+   * Looks up both chains for a ZIP. Any store the shopper has already chosen
+   * is kept if the new ZIP still offers it; otherwise it falls to the nearest.
+   */
+  const findStores = useCallback(async (zip: string) => {
+    setStoreBusy(true);
+    setStoreError(null);
+    try {
+      const data = await api.stores(zip || undefined);
+      setStoreData(data);
+      setSelection((prev) => {
+        const next: StoreSelection = { ...prev, zip };
+        for (const store of data.stores) {
+          const current = prev[store.id];
+          const stillListed = current && store.locations.some((l) => l.locationId === current);
+          if (!stillListed) next[store.id] = store.locations[0]?.locationId ?? store.defaultLocationId;
+        }
+        return next;
+      });
+    } catch (e) {
+      setStoreError((e as Error).message);
+    } finally {
+      setStoreBusy(false);
+    }
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem('grocer.wegmansStore', wegmansStore);
-  }, [wegmansStore]);
+    void findStores(selection.zip);
+    void loadWatchlist().catch((e) => setError((e as Error).message));
+    // Runs once: later lookups are driven by the ZIP form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('grocer.stores', JSON.stringify(selection));
+  }, [selection]);
 
   /**
    * The server pushes alerts the moment a scheduled poll produces them, so the
@@ -115,13 +156,24 @@ export function App() {
       {error && <div className="error">{error}</div>}
 
       {tab === 'search' && (
-        <SearchPanel
-          stores={stores}
-          groups={groups}
-          wegmansStore={wegmansStore}
-          onWegmansStoreChange={setWegmansStore}
-          onWatchlistChanged={() => void loadWatchlist()}
-        />
+        <>
+          <StorePicker
+            data={storeData}
+            selection={selection}
+            loading={storeBusy}
+            error={storeError}
+            onZipSubmit={(zip) => void findStores(zip)}
+            onPick={(storeId: StoreId, locationId: string) =>
+              setSelection((prev) => ({ ...prev, [storeId]: locationId }))
+            }
+          />
+          <SearchPanel
+            storeData={storeData}
+            selection={selection}
+            groups={groups}
+            onWatchlistChanged={() => void loadWatchlist()}
+          />
+        </>
       )}
       {tab === 'watchlist' && <Watchlist groups={groups} onChanged={() => void loadWatchlist()} />}
       {tab === 'alerts' && <Alerts alerts={alerts} onChanged={() => void loadWatchlist()} />}

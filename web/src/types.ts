@@ -97,11 +97,29 @@ export interface StoreLocation {
   name: string;
   address: string | null;
   postalCode: string | null;
+  distanceMiles?: number | null;
 }
 
 export interface StoreInfo {
   id: StoreId;
   label: string;
   defaultLocationId: string;
+  /** false when the chain publishes one price for every store */
+  pricesVaryByLocation: boolean;
   locations: StoreLocation[];
+  error: string | null;
+}
+
+export interface StoresResponse {
+  zip: string | null;
+  zipResolved: boolean;
+  zipPrecision: 'exact' | 'approximate' | null;
+  stores: StoreInfo[];
+}
+
+/** The store the shopper picked for each chain, plus the ZIP that found them. */
+export interface StoreSelection {
+  zip: string;
+  foodlion: string | null;
+  wegmans: string | null;
 }

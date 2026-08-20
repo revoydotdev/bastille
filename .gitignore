@@ -10,3 +10,4 @@ data/*.db-*
 recon/raw/
 .DS_Store
 .gstack/
+web/tsconfig.tsbuildinfo
