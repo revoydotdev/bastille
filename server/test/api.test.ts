@@ -202,3 +202,103 @@ test('grocer API', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: fal
     assert.equal(body.lastPoll!.error, null);
   });
 });
+
+/**
+ * Alerts need two different readings of the same item, which a live store will
+ * not produce on demand. Wegmans genuinely prices the same product differently
+ * per store, so two real readings of one product at two real stores stand in
+ * for two readings taken days apart. Everything downstream — change detection,
+ * severity, the alert record and the HTTP read path — is the real thing.
+ */
+test('price changes become alerts', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
+  const { WegmansAdapter } = await import('../src/adapters/wegmans.js');
+  const { openDb } = await import('../src/db.js');
+  const { Repo } = await import('../src/repo.js');
+  const { Poller } = await import('../src/jobs/poller.js');
+
+  const dir2 = mkdtempSync(join(tmpdir(), 'grocer-alerts-'));
+  const app2 = Fastify();
+  const db = openDb(join(dir2, 'alerts.db'));
+  const repo = new Repo(db);
+  registerRoutes(app2, repo, new Poller(repo, 60_000));
+  const url = await app2.listen({ port: 0, host: '127.0.0.1' });
+  t.after(async () => {
+    await app2.close();
+    rmSync(dir2, { recursive: true, force: true });
+  });
+
+  const wegmans = new WegmansAdapter();
+  // Wegmans store 1 (Fayetteville NY) and store 8 differ on this product.
+  const cheap = await wegmans.fetchOffer('94427', '1');
+  const dear = await wegmans.fetchOffer('94427', '8');
+  assert.ok(cheap && dear, 'expected the product at both stores');
+  assert.notEqual(
+    cheap!.price.effectiveUnitCents,
+    dear!.price.effectiveUnitCents,
+    'the two stores must disagree on price for this test to mean anything',
+  );
+
+  const product = repo.upsertProduct(cheap!);
+  const group = repo.createGroup('Whole milk', null, true);
+  repo.addToGroup(group.id, product.id, '1');
+
+  repo.insertPrice(product.id, '1', cheap!.price);
+  const changes = repo.recordPrice(product.id, '1', dear!.price);
+
+  assert.ok(changes.length > 0, 'a different price must register as a change');
+  const numeric = changes.find((c) => c.numeric)!;
+  assert.ok(numeric, 'the movement must be reported as numeric');
+  assert.equal(numeric.kind, dear!.price.effectiveUnitCents! > cheap!.price.effectiveUnitCents! ? 'price_rise' : 'price_drop');
+
+  const res = await fetch(`${url}/api/alerts?unread=1`);
+  const body = (await res.json()) as { alerts: { message: string; kind: string; groupId: number | null; numeric: boolean }[] };
+  assert.ok(body.alerts.length > 0, 'the change must surface as an alert over HTTP');
+  const alert = body.alerts[0]!;
+  assert.equal(alert.groupId, group.id, 'the alert must be attributed to the watch group');
+  assert.equal(alert.numeric, true);
+  assert.match(alert.message, /Price (dropped|rose) \$\d+\.\d\d/);
+
+  // Acknowledging it removes it from the unread feed.
+  const ack = await fetch(`${url}/api/alerts/${(body.alerts[0] as unknown as { id: number }).id}/ack`, { method: 'POST' });
+  assert.equal(ack.status, 200);
+  const after = (await (await fetch(`${url}/api/alerts?unread=1`)).json()) as { alerts: unknown[] };
+  assert.equal(after.alerts.length, body.alerts.length - 1);
+});
+
+/** A promotion appearing must alert even when the shelf price is unchanged. */
+test('a starting offer alerts on its own', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
+  const { openDb } = await import('../src/db.js');
+  const { Repo } = await import('../src/repo.js');
+  const { WegmansAdapter } = await import('../src/adapters/wegmans.js');
+
+  const dir3 = mkdtempSync(join(tmpdir(), 'grocer-promo-'));
+  t.after(() => rmSync(dir3, { recursive: true, force: true }));
+  const repo = new Repo(openDb(join(dir3, 'promo.db')));
+
+  // A real Wegmans multibuy, read live.
+  const offer = await new WegmansAdapter().fetchOffer('55683', '1');
+  assert.ok(offer, 'expected the bagels product');
+  assert.equal(offer!.price.promoKind, 'multibuy', 'this product is expected to carry a multibuy offer');
+
+  const product = repo.upsertProduct(offer!);
+  const group = repo.createGroup('Bagels', null, true);
+  repo.addToGroup(group.id, product.id, '1');
+
+  // The same item before the offer started: same shelf price, no promotion.
+  repo.insertPrice(product.id, '1', {
+    ...offer!.price,
+    promoKind: 'none',
+    promoText: null,
+    promoDetail: null,
+    effectiveUnitCents: offer!.price.regularCents,
+  });
+
+  const changes = repo.recordPrice(product.id, '1', offer!.price);
+  const started = changes.find((c) => c.kind === 'promo_started');
+  assert.ok(started, 'the offer starting must be its own change');
+  assert.equal(started!.numeric, false, 'an offer starting is not a numeric movement');
+  assert.match(started!.message, /^New offer: Buy 2 for \$/);
+
+  const alerts = repo.listAlerts({ unacknowledgedOnly: true });
+  assert.ok(alerts.some((a) => a.kind === 'promo_started' && a.numeric === false && a.groupId === group.id));
+});

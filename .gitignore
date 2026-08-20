@@ -9,3 +9,4 @@ data/*.db
 data/*.db-*
 recon/raw/
 .DS_Store
+.gstack/

@@ -152,8 +152,12 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller)
     if (!offer) return reply.code(404).send({ error: 'product not found at that store' });
 
     const product = repo.upsertProduct(offer);
-    // Seed the history so the next poll has something to diff against.
-    repo.insertPrice(product.id, locationId, offer.price);
+    // Seed the history so the next poll has something to diff against — but
+    // only once, so re-adding an item does not stack duplicate readings taken
+    // at the same instant.
+    if (!repo.latestPrice(product.id, locationId)) {
+      repo.insertPrice(product.id, locationId, offer.price);
+    }
 
     const group =
       body.groupId != null

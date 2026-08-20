@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS poll_run (
 );
 `;
 
-export function openDb(path = process.env.GROCER_DB ?? resolve('data/grocer.db')): DB {
+export function openDb(path: string = process.env.GROCER_DB ?? resolve('data/grocer.db')): DB {
   mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
