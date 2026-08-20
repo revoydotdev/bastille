@@ -1,0 +1,86 @@
+/**
+ * Refreshes every watched product on an interval and turns the differences
+ * into alerts. One product at a time — the HTTP client already throttles per
+ * host, and a watchlist is small.
+ */
+import { adapterFor } from '../adapters/index.js';
+import type { Repo } from '../repo.js';
+import type { PriceChange } from '../price/diff.js';
+
+export interface PollResult {
+  itemsPolled: number;
+  changes: PriceChange[];
+  errors: string[];
+}
+
+export class Poller {
+  private timer: NodeJS.Timeout | null = null;
+  private running = false;
+  private listeners = new Set<(result: PollResult) => void>();
+
+  constructor(
+    private repo: Repo,
+    private intervalMs = Number(process.env.GROCER_POLL_INTERVAL_MS ?? 30 * 60 * 1000),
+  ) {}
+
+  onPoll(fn: (result: PollResult) => void): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  start(): void {
+    if (this.timer) return;
+    this.timer = setInterval(() => {
+      void this.pollOnce().catch(() => undefined);
+    }, this.intervalMs);
+    // Do not block startup on a network round trip.
+    this.timer.unref?.();
+  }
+
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.timer = null;
+  }
+
+  get isRunning(): boolean {
+    return this.running;
+  }
+
+  async pollOnce(): Promise<PollResult> {
+    if (this.running) return { itemsPolled: 0, changes: [], errors: ['poll already in progress'] };
+    this.running = true;
+    const runId = this.repo.startPollRun(null);
+    const result: PollResult = { itemsPolled: 0, changes: [], errors: [] };
+
+    try {
+      for (const item of this.repo.listWatchItems()) {
+        const product = this.repo.getProductById(item.productId);
+        if (!product) continue;
+        try {
+          const offer = await adapterFor(product.storeId).fetchOffer(
+            product.storeProductId,
+            item.locationId ?? undefined,
+          );
+          if (!offer) {
+            result.errors.push(`${product.storeId}:${product.storeProductId} not found`);
+            continue;
+          }
+          this.repo.upsertProduct(offer);
+          result.changes.push(...this.repo.recordPrice(product.id, item.locationId, offer.price));
+          result.itemsPolled++;
+        } catch (err) {
+          result.errors.push(`${product.storeId}:${product.storeProductId} ${(err as Error).message}`);
+        }
+      }
+      this.repo.finishPollRun(runId, result.itemsPolled, result.changes.length, result.errors.join('; ') || null);
+    } catch (err) {
+      this.repo.finishPollRun(runId, result.itemsPolled, result.changes.length, (err as Error).message);
+      throw err;
+    } finally {
+      this.running = false;
+    }
+
+    for (const fn of this.listeners) fn(result);
+    return result;
+  }
+}
