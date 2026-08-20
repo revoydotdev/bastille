@@ -1,0 +1,40 @@
+{
+  "auth_headers": [],
+  "base_domain": "foodlion.com",
+  "endpoints": [],
+  "generated_at": "2026-08-20T11:08:06",
+  "operations": {
+    "POST /cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb": {
+      "input_schema": {
+        "properties": {},
+        "type": "object"
+      },
+      "lifecycle_status": "current",
+      "method": "POST",
+      "operation": "POST /cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb",
+      "path": "/cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb",
+      "proof": {
+        "active": null,
+        "observed": {
+          "ok": false,
+          "samples": 1,
+          "status": [
+            200
+          ]
+        }
+      },
+      "queryId_or_hash": null,
+      "response_kinds": [
+        "text"
+      ],
+      "response_media_types": [
+        "text/plain; charset=UTF-8"
+      ],
+      "return_schema": null,
+      "status": "typed-unproven",
+      "transport": "rest",
+      "type": "mutation"
+    }
+  },
+  "schema_version": 2
+}

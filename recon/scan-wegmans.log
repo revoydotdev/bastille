@@ -1,0 +1,47 @@
+── preflight ──────────────────────────────
+  host           local
+  burp_proxy     None
+  byparr         http://127.0.0.1:8191/v1
+  cloakbrowser   0.5.3
+  clairvoyance   True
+  capture_dependencies True
+  tls_http       True
+  openapi_capability False
+  host_status    reachable
+  egress_local   73.31.230.2
+  egress_host    73.31.230.2
+  egress_match   True
+  egress_status  match
+───────────────────────────────────────────
+[scan] running on local …
+[scan] https://www.wegmans.com — discovering sitemap …
+[sitemap] robots.txt declares 1 sitemap(s)
+[sitemap] https://www.wegmans.com/sitemap_index.xml → 2 locs (urls so far: 0)
+[sitemap] https://www.wegmans.com/sitemap.xml :: HTTP Error 404: Not Found
+[sitemap] https://www.wegmans.com/sitemap_pages.xml → 974 locs (urls so far: 969)
+[sitemap] https://www.wegmans.com/sitemap_recipes.xml → 1789 locs (urls so far: 2321)
+[scan] 2322 candidate surfaces
+[scan] https://www.wegmans.com/
+[scan] https://www.wegmans.com/shop/discovery/hot-zone
+[scan] https://www.wegmans.com/shop/discovery/gold-pan-meals
+[scan] https://www.wegmans.com/shop/discovery/steak
+[scan] https://www.wegmans.com/shop/discovery/active-nutrition
+[scan] https://www.wegmans.com/shop/discovery/fall-meals
+[scan] https://www.wegmans.com/https://www.wegmans.com/shop/categories/7063252
+[scan] https://www.wegmans.com/service/mobile-app
+[scan] https://www.wegmans.com/service/specialized-services-at-wegmans
+[scan] https://www.wegmans.com/service/my-wegmans-online
+[scan] https://www.wegmans.com/service/shoppers-club
+[scan] https://www.wegmans.com/service/for-our-suppliers/food-safety
+[scan] https://www.wegmans.com/service/for-our-suppliers/transportation-and-receiving
+[scan] https://www.wegmans.com/events/hatch-chile-fest
+[scan] https://www.wegmans.com/gift-cards
+[scan] https://www.wegmans.com/values-in-action/feel-your-best/meet-our-nutritionists
+[scan] https://www.wegmans.com/values-in-action/feel-your-best/meal-inspiration/dinner-timesavers
+[scan] https://www.wegmans.com/events
+[scan] https://www.wegmans.com/events/lobster-fest
+[scan] JS mining skipped: request ceiling exhausted
+
+✓ /home/revelri/Dev/revelri/grocer/recon/scan-wegmans/scan.json | scan.md | recipe.py
+  review scan.md, then: cp /home/revelri/Dev/revelri/grocer/recon/scan-wegmans/recipe.py surfaces/www.wegmans.com.recipe.py
+  next: webmap map www.wegmans.com --recipe surfaces/www.wegmans.com.recipe.py --no-auth --no-burp --schema

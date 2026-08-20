@@ -1,0 +1,668 @@
+{
+  "authentication_flows": [],
+  "credential_scopes": [],
+  "drifts": [],
+  "endpoints": [
+    {
+      "conflicts": [],
+      "field_evidence": {
+        "origin_id": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "path": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "protocols": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "endpoint_e29598951ab86d84eb11",
+      "origin_id": "origin_afe1464552085407c7a8",
+      "path": "/cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb",
+      "protocols": [
+        "rest"
+      ],
+      "request_media_types": [
+        "text/plain"
+      ],
+      "response_media_types": [
+        "text/plain; charset=UTF-8"
+      ]
+    },
+    {
+      "conflicts": [],
+      "field_evidence": {
+        "origin_id": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "path": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "protocols": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "endpoint_53f6384da708187dac12",
+      "origin_id": "origin_afe1464552085407c7a8",
+      "path": "/groceries/",
+      "protocols": [
+        "rest"
+      ],
+      "request_media_types": [],
+      "response_media_types": [
+        "text/html"
+      ]
+    },
+    {
+      "conflicts": [],
+      "field_evidence": {
+        "origin_id": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "path": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "protocols": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "endpoint_31b73a48a3abbb689532",
+      "origin_id": "origin_afe1464552085407c7a8",
+      "path": "/groceries/browse-aisles/2098-produce",
+      "protocols": [
+        "rest"
+      ],
+      "request_media_types": [],
+      "response_media_types": [
+        "text/html"
+      ]
+    },
+    {
+      "conflicts": [],
+      "field_evidence": {
+        "origin_id": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "path": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "protocols": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "endpoint_46ad3b226297cb62fb77",
+      "origin_id": "origin_afe1464552085407c7a8",
+      "path": "/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+      "protocols": [
+        "rest"
+      ],
+      "request_media_types": [],
+      "response_media_types": [
+        "text/html"
+      ]
+    }
+  ],
+  "event_channels": [],
+  "evidence": [
+    {
+      "endpoint_id": "endpoint_e29598951ab86d84eb11",
+      "failure": null,
+      "id": "evidence_0871ca2012d2c201e9e3",
+      "interaction_id": "interaction-1",
+      "observed_at": "2026-08-20T15:08:06.390212+00:00",
+      "operation_id": "operation_547227bb2ee3423642b4",
+      "request_media_type": "text/plain",
+      "request_shape": "bytes",
+      "resource_type": "xhr",
+      "response_kind": "text",
+      "response_media_type": "text/plain; charset=UTF-8",
+      "response_shape": null,
+      "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+      "source": "capture",
+      "status": 200,
+      "successful": true
+    },
+    {
+      "endpoint_id": "endpoint_53f6384da708187dac12",
+      "failure": null,
+      "id": "evidence_d2187b8fdd00d436e104",
+      "interaction_id": "interaction-3",
+      "observed_at": "2026-08-20T15:08:06.390212+00:00",
+      "operation_id": null,
+      "request_media_type": null,
+      "request_shape": null,
+      "resource_type": "xhr",
+      "response_kind": "html",
+      "response_media_type": "text/html",
+      "response_shape": null,
+      "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+      "source": "capture",
+      "status": 200,
+      "successful": true
+    },
+    {
+      "endpoint_id": "endpoint_53f6384da708187dac12",
+      "failure": null,
+      "id": "evidence_992fae9d0d15fe6d7e84",
+      "interaction_id": "interaction-3",
+      "observed_at": "2026-08-20T15:08:06.390212+00:00",
+      "operation_id": null,
+      "request_media_type": null,
+      "request_shape": null,
+      "resource_type": "xhr",
+      "response_kind": "html",
+      "response_media_type": "text/html",
+      "response_shape": null,
+      "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+      "source": "capture",
+      "status": 200,
+      "successful": true
+    },
+    {
+      "endpoint_id": "endpoint_31b73a48a3abbb689532",
+      "failure": null,
+      "id": "evidence_d6cb35057523247c4008",
+      "interaction_id": "interaction-4",
+      "observed_at": "2026-08-20T15:08:06.390212+00:00",
+      "operation_id": null,
+      "request_media_type": null,
+      "request_shape": null,
+      "resource_type": "xhr",
+      "response_kind": "html",
+      "response_media_type": "text/html",
+      "response_shape": null,
+      "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+      "source": "capture",
+      "status": 200,
+      "successful": true
+    },
+    {
+      "endpoint_id": "endpoint_31b73a48a3abbb689532",
+      "failure": null,
+      "id": "evidence_c1f5b2f0258f532ec752",
+      "interaction_id": "interaction-4",
+      "observed_at": "2026-08-20T15:08:06.390212+00:00",
+      "operation_id": null,
+      "request_media_type": null,
+      "request_shape": null,
+      "resource_type": "xhr",
+      "response_kind": "html",
+      "response_media_type": "text/html",
+      "response_shape": null,
+      "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+      "source": "capture",
+      "status": 200,
+      "successful": true
+    },
+    {
+      "endpoint_id": "endpoint_46ad3b226297cb62fb77",
+      "failure": null,
+      "id": "evidence_8c3ccd4f039fc1f671e7",
+      "interaction_id": "interaction-5",
+      "observed_at": "2026-08-20T15:08:06.390212+00:00",
+      "operation_id": null,
+      "request_media_type": null,
+      "request_shape": null,
+      "resource_type": "xhr",
+      "response_kind": "html",
+      "response_media_type": "text/html",
+      "response_shape": null,
+      "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+      "source": "capture",
+      "status": 200,
+      "successful": true
+    },
+    {
+      "endpoint_id": "endpoint_46ad3b226297cb62fb77",
+      "failure": null,
+      "id": "evidence_7e3fec975835fc452d8d",
+      "interaction_id": "interaction-5",
+      "observed_at": "2026-08-20T15:08:06.390212+00:00",
+      "operation_id": null,
+      "request_media_type": null,
+      "request_shape": null,
+      "resource_type": "xhr",
+      "response_kind": "html",
+      "response_media_type": "text/html",
+      "response_shape": null,
+      "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+      "source": "capture",
+      "status": 200,
+      "successful": true
+    }
+  ],
+  "interactions": [
+    {
+      "caused_evidence_ids": [
+        "evidence_0871ca2012d2c201e9e3"
+      ],
+      "id": "interaction-1",
+      "kind": "navigation",
+      "safe_annotation": "calls=0; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_c0e592f68074e715707e"
+    },
+    {
+      "caused_evidence_ids": [],
+      "id": "interaction-2",
+      "kind": "navigation",
+      "safe_annotation": "calls=0; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_c2fec3cd02a06d3bc1ff"
+    },
+    {
+      "caused_evidence_ids": [
+        "evidence_d2187b8fdd00d436e104",
+        "evidence_992fae9d0d15fe6d7e84"
+      ],
+      "id": "interaction-3",
+      "kind": "navigation",
+      "safe_annotation": "calls=2; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_6a6e62f13ea57ab59e82"
+    },
+    {
+      "caused_evidence_ids": [
+        "evidence_d6cb35057523247c4008",
+        "evidence_c1f5b2f0258f532ec752"
+      ],
+      "id": "interaction-4",
+      "kind": "navigation",
+      "safe_annotation": "calls=2; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_94945029e31297030fc8"
+    },
+    {
+      "caused_evidence_ids": [
+        "evidence_8c3ccd4f039fc1f671e7",
+        "evidence_7e3fec975835fc452d8d"
+      ],
+      "id": "interaction-5",
+      "kind": "navigation",
+      "safe_annotation": "calls=2; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_021f39a0df1da11f5a91"
+    },
+    {
+      "caused_evidence_ids": [],
+      "id": "interaction-6",
+      "kind": "wait",
+      "safe_annotation": "calls=0; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_021f39a0df1da11f5a91"
+    },
+    {
+      "caused_evidence_ids": [],
+      "id": "interaction-7",
+      "kind": "scroll",
+      "safe_annotation": "calls=0; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_021f39a0df1da11f5a91"
+    },
+    {
+      "caused_evidence_ids": [],
+      "id": "interaction-8",
+      "kind": "wait",
+      "safe_annotation": "calls=0; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_021f39a0df1da11f5a91"
+    },
+    {
+      "caused_evidence_ids": [],
+      "id": "interaction-9",
+      "kind": "scroll",
+      "safe_annotation": "calls=0; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_021f39a0df1da11f5a91"
+    },
+    {
+      "caused_evidence_ids": [],
+      "id": "interaction-10",
+      "kind": "wait",
+      "safe_annotation": "calls=0; settled=True; truncation=None",
+      "selector": null,
+      "surface_id": "surface_021f39a0df1da11f5a91"
+    }
+  ],
+  "operations": [
+    {
+      "aliases": [
+        "POST /cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb"
+      ],
+      "conflicts": [],
+      "credential_scope_ids": [],
+      "endpoint_ids": [
+        "endpoint_e29598951ab86d84eb11"
+      ],
+      "field_evidence": {
+        "protocol": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "semantic_kind": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "operation_547227bb2ee3423642b4",
+      "identifiers": [],
+      "input_schema_ids": [
+        "schema_24d3ce49806b4dc3c0a1"
+      ],
+      "lifecycle": {
+        "consecutive_misses": 0,
+        "first_seen_at": "2026-08-20T15:07:36.572320+00:00",
+        "freshness_ttl_seconds": null,
+        "last_seen_at": "2026-08-20T15:08:06.390212+00:00",
+        "last_verified_at": null,
+        "observation_count": 1,
+        "retirement_reason": null,
+        "run_ids": [
+          "639955c2867b4415bda1ad8c6767d0cb"
+        ],
+        "status": "current"
+      },
+      "operation_names": [
+        "POST /cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb"
+      ],
+      "output_schema_ids": [],
+      "proof_ids": [],
+      "protocol": "rest",
+      "request_template_ids": [
+        "template_3ddd9b3db837680ed634"
+      ],
+      "semantic_kind": "unknown"
+    }
+  ],
+  "origins": [
+    {
+      "conflicts": [],
+      "field_evidence": {
+        "host": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "port": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "scheme": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "host": "foodlion.com",
+      "id": "origin_afe1464552085407c7a8",
+      "port": null,
+      "scheme": "https"
+    }
+  ],
+  "proofs": [],
+  "rate_policies": [],
+  "request_templates": [
+    {
+      "body_media_type": null,
+      "body_template": null,
+      "conflicts": [],
+      "endpoint_id": "endpoint_e29598951ab86d84eb11",
+      "extensions": {},
+      "field_evidence": {
+        "endpoint_id": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "method": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ],
+        "parameters": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "template_3ddd9b3db837680ed634",
+      "method": "POST",
+      "operation_name": null,
+      "optional_headers": [],
+      "parameters": [],
+      "path_segments": [
+        "cdn-cgi",
+        "challenge-platform",
+        "h",
+        "g",
+        "jsd",
+        "oneshot",
+        "aae2b9a1c261",
+        "0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M",
+        "a2e24f055e9573eb"
+      ],
+      "query_encoding": "openapi",
+      "required_headers": [],
+      "variables_envelope": null,
+      "volatile_headers": []
+    }
+  ],
+  "runs": [
+    {
+      "completed_at": "2026-08-20T15:08:06.390212+00:00",
+      "completeness": "complete",
+      "failures": [],
+      "id": "639955c2867b4415bda1ad8c6767d0cb",
+      "profile": null,
+      "safety_mode": "read-only",
+      "started_at": "2026-08-20T15:07:36.572320+00:00",
+      "target": "foodlion.com",
+      "truncations": {}
+    }
+  ],
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": 1,
+  "schemas": [
+    {
+      "confidence": 1.0,
+      "dialect": "https://json-schema.org/draft/2020-12/schema",
+      "document": {
+        "properties": {},
+        "type": "object"
+      },
+      "id": "schema_24d3ce49806b4dc3c0a1",
+      "role": "input",
+      "source": "capture"
+    }
+  ],
+  "surfaces": [
+    {
+      "field_evidence": {
+        "url": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "surface_c0e592f68074e715707e",
+      "title": null,
+      "url": "https://www.foodlion.com/product-search/"
+    },
+    {
+      "field_evidence": {
+        "url": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "surface_c2fec3cd02a06d3bc1ff",
+      "title": null,
+      "url": "https://www.foodlion.com/product-search/?search=%3Cpresent%3E"
+    },
+    {
+      "field_evidence": {
+        "url": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "surface_6a6e62f13ea57ab59e82",
+      "title": null,
+      "url": "https://foodlion.com/groceries/"
+    },
+    {
+      "field_evidence": {
+        "url": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "surface_94945029e31297030fc8",
+      "title": null,
+      "url": "https://foodlion.com/groceries/browse-aisles/2098-produce"
+    },
+    {
+      "field_evidence": {
+        "url": [
+          {
+            "confidence": 1.0,
+            "detail": null,
+            "observed_at": null,
+            "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+            "source": "capture"
+          }
+        ]
+      },
+      "id": "surface_021f39a0df1da11f5a91",
+      "title": null,
+      "url": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212"
+    }
+  ],
+  "target": "foodlion.com"
+}

@@ -1,0 +1,254 @@
+{
+  "auth_headers": {},
+  "authentication": {
+    "observations": [],
+    "public_identifier_names": [],
+    "secret_credential_names": []
+  },
+  "base_domain": "foodlion.com",
+  "captured_at": "2026-08-20T15:08:06.390212+00:00",
+  "completed_at": "2026-08-20T15:08:06.390212+00:00",
+  "events": {
+    "byparr": [
+      {
+        "injected": [
+          "cf_clearance"
+        ],
+        "url": "https://www.foodlion.com/product-search/"
+      }
+    ],
+    "cf": [
+      "https://www.foodlion.com/product-search/"
+    ],
+    "introspection": null
+  },
+  "failure_summary": {
+    "by_category": {},
+    "by_stage": {},
+    "by_surface": {},
+    "total": 0
+  },
+  "failures": [],
+  "graphql_endpoints": {},
+  "interactions": [
+    {
+      "burst_gaps_ms": [],
+      "calls": 0,
+      "calls_before": 0,
+      "completed_at": "2026-08-20T15:07:49.243656+00:00",
+      "first_api_at": "2026-08-20T15:07:37.440934+00:00",
+      "first_api_latency_ms": 352.931,
+      "id": "interaction-1",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 1.101261232048273,
+      "settled": true,
+      "started_at": "2026-08-20T15:07:37.087985+00:00",
+      "surface": "https://www.foodlion.com/product-search/",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [],
+      "calls": 0,
+      "calls_before": 1,
+      "completed_at": "2026-08-20T15:07:50.424527+00:00",
+      "id": "interaction-2",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 1.100408772006631,
+      "settled": true,
+      "started_at": "2026-08-20T15:07:49.243723+00:00",
+      "surface": "https://www.foodlion.com/product-search/?search=%3Cpresent%3E",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        27.966
+      ],
+      "calls": 2,
+      "calls_before": 1,
+      "completed_at": "2026-08-20T15:07:52.586927+00:00",
+      "first_api_at": "2026-08-20T15:07:50.979542+00:00",
+      "first_api_latency_ms": 554.955,
+      "id": "interaction-3",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 1.648145513026975,
+      "settled": true,
+      "started_at": "2026-08-20T15:07:50.424579+00:00",
+      "surface": "https://foodlion.com/groceries/",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        152.963
+      ],
+      "calls": 2,
+      "calls_before": 3,
+      "completed_at": "2026-08-20T15:07:55.420393+00:00",
+      "first_api_at": "2026-08-20T15:07:53.703895+00:00",
+      "first_api_latency_ms": 1116.904,
+      "id": "interaction-4",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 2.1431119709741324,
+      "settled": true,
+      "started_at": "2026-08-20T15:07:52.586982+00:00",
+      "surface": "https://foodlion.com/groceries/browse-aisles/2098-produce",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        189.543
+      ],
+      "calls": 2,
+      "calls_before": 5,
+      "completed_at": "2026-08-20T15:07:57.371561+00:00",
+      "first_api_at": "2026-08-20T15:07:55.671421+00:00",
+      "first_api_latency_ms": 250.959,
+      "id": "interaction-5",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 1.820600945968181,
+      "settled": true,
+      "started_at": "2026-08-20T15:07:55.420455+00:00",
+      "surface": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 7,
+      "completed_at": "2026-08-20T15:08:01.372755+00:00",
+      "id": "interaction-6",
+      "kind": "wait",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-20T15:07:57.371641+00:00",
+      "surface": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 7,
+      "completed_at": "2026-08-20T15:08:01.376133+00:00",
+      "id": "interaction-7",
+      "kind": "scroll",
+      "safe_annotation": "load lazy product tiles",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:01.372850+00:00",
+      "surface": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 7,
+      "completed_at": "2026-08-20T15:08:03.880161+00:00",
+      "id": "interaction-8",
+      "kind": "wait",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:01.376204+00:00",
+      "surface": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 7,
+      "completed_at": "2026-08-20T15:08:03.882073+00:00",
+      "id": "interaction-9",
+      "kind": "scroll",
+      "safe_annotation": "load lazy product tiles",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:03.880259+00:00",
+      "surface": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 7,
+      "completed_at": "2026-08-20T15:08:06.386150+00:00",
+      "id": "interaction-10",
+      "kind": "wait",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:03.882139+00:00",
+      "surface": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+      "truncation_reason": null
+    }
+  ],
+  "offline_queues": [],
+  "partial": false,
+  "proxy_interception": false,
+  "records": 7,
+  "request_budgets": {
+    "limits": {
+      "per_operation": 500,
+      "per_origin": 5000,
+      "rate_limit_reserve": 1,
+      "total": 400
+    },
+    "rate_limits": {},
+    "truncation_count": 2,
+    "truncations": [
+      {
+        "operation": "POST /g/collect",
+        "origin": "https://analytics.google.com",
+        "reason": "recipe-egress-policy"
+      },
+      {
+        "operation": "POST /g/collect",
+        "origin": "https://www.google.com",
+        "reason": "recipe-egress-policy"
+      }
+    ],
+    "used": {
+      "operations": {
+        "GET /cdn-cgi/challenge-platform/scripts/jsd/main.js": 1,
+        "GET /groceries/": 3,
+        "GET /groceries/_astro/CategoryListingPage.CLygC1k5.js": 2,
+        "GET /groceries/_astro/ProductDetailPage.BOVwDaY4.js": 1,
+        "GET /groceries/_astro/SiteFooter.Ch6b88I2.js": 3,
+        "GET /groceries/_astro/SiteHeader.BvEFn41f.js": 3,
+        "GET /groceries/_astro/_plugin-vue_export-helper.M3XIgBsJ.js": 3,
+        "GET /groceries/_astro/client.BnZ8R4Mf.js": 3,
+        "GET /groceries/_astro/fdln.DlYR_Jfp.css": 3,
+        "GET /groceries/_astro/formatProductInfo.Dgzqr8rB.js": 3,
+        "GET /groceries/_astro/runtime-dom.esm-bundler.Zu6p3Ygq.js": 3,
+        "GET /groceries/assets/css/whitney.css": 3,
+        "GET /groceries/assets/fonts/whitney/Whitney-Bold.woff": 3,
+        "GET /groceries/assets/fonts/whitney/Whitney-Book.woff": 3,
+        "GET /groceries/assets/fonts/whitney/Whitney-Semibold.woff": 3,
+        "GET /groceries/browse-aisles/2098-produce": 3,
+        "GET /groceries/images/brands/fdln/logo-horizontal.webp": 3,
+        "GET /groceries/product/yellow-bananas-apx-1-2-lb/{id}": 3,
+        "GET /prism3/favicons/fdln-favicon-32x32.png": 3,
+        "GET /product-search/": 3,
+        "GET /tag_path/profile/visit/js/1_0": 6,
+        "POST /cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb": 1
+      },
+      "origins": {
+        "https://foodlion.com": 57,
+        "https://www.foodlion.com": 5
+      },
+      "total": 62
+    }
+  },
+  "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+  "service_workers": [],
+  "started_at": "2026-08-20T15:07:36.572320+00:00",
+  "surfaces": [
+    "https://www.foodlion.com/product-search/",
+    "https://www.foodlion.com/product-search/?search=milk",
+    "https://foodlion.com/groceries/",
+    "https://foodlion.com/groceries/browse-aisles/2098-produce",
+    "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212"
+  ],
+  "tls_verification": "strict",
+  "truncations": {},
+  "websockets": {}
+}

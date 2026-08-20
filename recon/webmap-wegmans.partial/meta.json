@@ -1,0 +1,1238 @@
+{
+  "auth_headers": {},
+  "authentication": {
+    "observations": [],
+    "public_identifier_names": [],
+    "secret_credential_names": []
+  },
+  "base_domain": "www.wegmans.com",
+  "captured_at": "2026-08-20T15:08:56.400773+00:00",
+  "completed_at": "2026-08-20T15:08:56.400773+00:00",
+  "events": {
+    "byparr": [],
+    "cf": [],
+    "introspection": null
+  },
+  "failure_summary": {
+    "by_category": {
+      "body-decode": 4,
+      "browser": 3,
+      "recipe": 1
+    },
+    "by_stage": {
+      "navigation": 2,
+      "offline-queue": 1,
+      "recipe-drive": 1,
+      "response-body": 4
+    },
+    "by_surface": {
+      "https://www.wegmans.com/monitoring": 4,
+      "https://www.wegmans.com/shop/discovery/hot-zone": 1,
+      "https://www.wegmans.com/stores": 1
+    },
+    "total": 8
+  },
+  "failures": [
+    {
+      "category": "body-decode",
+      "context": "https://www.wegmans.com/monitoring?o=%3Cpresent%3E&p=%3Cpresent%3E&r=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-2",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-20T15:08:42.430238+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.wegmans.com/monitoring?o=%3Cpresent%3E&p=%3Cpresent%3E&r=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-3",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-20T15:08:46.152422+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.wegmans.com/monitoring?o=%3Cpresent%3E&p=%3Cpresent%3E&r=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-3",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-20T15:08:46.152547+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.wegmans.com/monitoring?o=%3Cpresent%3E&p=%3Cpresent%3E&r=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-3",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-20T15:08:46.152612+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "browser",
+      "context": "https://www.wegmans.com/shop/discovery/hot-zone",
+      "error_type": "Error",
+      "interaction_id": "interaction-4",
+      "message": "Page.goto: net::ERR_BLOCKED_BY_CLIENT at https://www.wegmans.com/shop/discovery/hot-zone\nCall log:\n  - navigating to \"https://www.wegmans.com/shop/discovery/hot-zone\", waiting until \"domcontentloaded\"\n",
+      "observed_at": "2026-08-20T15:08:47.353789+00:00",
+      "stage": "navigation"
+    },
+    {
+      "category": "browser",
+      "context": "https://www.wegmans.com/stores",
+      "error_type": "Error",
+      "interaction_id": "interaction-5",
+      "message": "Page.goto: net::ERR_BLOCKED_BY_CLIENT at https://www.wegmans.com/stores\nCall log:\n  - navigating to \"https://www.wegmans.com/stores\", waiting until \"domcontentloaded\"\n",
+      "observed_at": "2026-08-20T15:08:47.385074+00:00",
+      "stage": "navigation"
+    },
+    {
+      "category": "recipe",
+      "context": null,
+      "error_type": "ValueError",
+      "interaction_id": "interaction-10",
+      "message": "recipe action navigated outside the allowed origin set",
+      "observed_at": "2026-08-20T15:08:56.398504+00:00",
+      "stage": "recipe-drive"
+    },
+    {
+      "category": "browser",
+      "context": null,
+      "error_type": "Error",
+      "interaction_id": null,
+      "message": "Page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at Object.evaluate (<anonymous>:310:18)\n    at Object.<anonymous> (<anonymous>:1:44)",
+      "observed_at": "2026-08-20T15:08:56.400768+00:00",
+      "stage": "offline-queue"
+    }
+  ],
+  "graphql_endpoints": {},
+  "interactions": [
+    {
+      "burst_gaps_ms": [
+        0.682,
+        0.517,
+        0.376,
+        1.883,
+        58.85,
+        1.186,
+        13.8,
+        59.793,
+        0.629,
+        0.633,
+        9.061,
+        5.435,
+        99.168,
+        41.887,
+        3.622,
+        1.017,
+        87.664,
+        101.511,
+        1.094,
+        0.981,
+        8.931,
+        0.59,
+        5.096,
+        134.766,
+        20.099,
+        6.81,
+        0.365,
+        113.421,
+        0.579,
+        43.75,
+        1.807,
+        116.082,
+        0.548
+      ],
+      "calls": 34,
+      "calls_before": 0,
+      "completed_at": "2026-08-20T15:08:42.186385+00:00",
+      "first_api_at": "2026-08-20T15:08:39.732234+00:00",
+      "first_api_latency_ms": 1663.104,
+      "id": "interaction-1",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 3.4481461489922367,
+      "settled": true,
+      "started_at": "2026-08-20T15:08:38.069113+00:00",
+      "surface": "https://www.wegmans.com/shop/categories",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        927.243,
+        18.878,
+        6.414,
+        0.514,
+        0.483,
+        6.567,
+        24.97,
+        31.075,
+        1.171,
+        63.099,
+        21.677,
+        1.336,
+        3.827,
+        64.54,
+        40.071,
+        4.557,
+        119.188,
+        2.313,
+        126.534,
+        10.947,
+        173.261,
+        0.484,
+        24.654,
+        2.045,
+        24.915,
+        102.232,
+        32.709,
+        40.919,
+        72.931
+      ],
+      "calls": 29,
+      "calls_before": 34,
+      "completed_at": "2026-08-20T15:08:45.901800+00:00",
+      "first_api_at": "2026-08-20T15:08:42.430270+00:00",
+      "first_api_latency_ms": 243.816,
+      "id": "interaction-2",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 3.251584833022207,
+      "settled": true,
+      "started_at": "2026-08-20T15:08:42.186447+00:00",
+      "surface": "https://www.wegmans.com/shop/search?search-term=%3Cpresent%3E",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        0.111,
+        0.06
+      ],
+      "calls": 0,
+      "calls_before": 64,
+      "completed_at": "2026-08-20T15:08:47.347137+00:00",
+      "first_api_at": "2026-08-20T15:08:46.152453+00:00",
+      "first_api_latency_ms": 250.585,
+      "id": "interaction-3",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 1.1002890919917263,
+      "settled": true,
+      "started_at": "2026-08-20T15:08:45.901862+00:00",
+      "surface": "https://www.wegmans.com/shop/search?search-term=%3Cpresent%3E",
+      "truncation_reason": null
+    },
+    {
+      "calls_before": 67,
+      "completed_at": "2026-08-20T15:08:47.353803+00:00",
+      "failure": {
+        "category": "browser",
+        "context": null,
+        "error_type": "Error",
+        "interaction_id": null,
+        "message": "Page.goto: net::ERR_BLOCKED_BY_CLIENT at https://www.wegmans.com/shop/discovery/hot-zone\nCall log:\n  - navigating to \"https://www.wegmans.com/shop/discovery/hot-zone\", waiting until \"domcontentloaded\"\n",
+        "observed_at": "2026-08-20T15:08:47.353829+00:00",
+        "stage": "navigation"
+      },
+      "id": "interaction-4",
+      "kind": "navigation",
+      "started_at": "2026-08-20T15:08:47.347194+00:00",
+      "surface": "https://www.wegmans.com/shop/discovery/hot-zone"
+    },
+    {
+      "calls_before": 67,
+      "completed_at": "2026-08-20T15:08:47.385086+00:00",
+      "failure": {
+        "category": "browser",
+        "context": null,
+        "error_type": "Error",
+        "interaction_id": null,
+        "message": "Page.goto: net::ERR_BLOCKED_BY_CLIENT at https://www.wegmans.com/stores\nCall log:\n  - navigating to \"https://www.wegmans.com/stores\", waiting until \"domcontentloaded\"\n",
+        "observed_at": "2026-08-20T15:08:47.385098+00:00",
+        "stage": "navigation"
+      },
+      "id": "interaction-5",
+      "kind": "navigation",
+      "started_at": "2026-08-20T15:08:47.353945+00:00",
+      "surface": "https://www.wegmans.com/stores"
+    },
+    {
+      "calls": 0,
+      "calls_before": 67,
+      "completed_at": "2026-08-20T15:08:51.388535+00:00",
+      "id": "interaction-6",
+      "kind": "wait",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:47.385189+00:00",
+      "surface": "chrome-error://chromewebdata/",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 67,
+      "completed_at": "2026-08-20T15:08:51.391495+00:00",
+      "id": "interaction-7",
+      "kind": "scroll",
+      "safe_annotation": "load lazy product tiles",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:51.388624+00:00",
+      "surface": "chrome-error://chromewebdata/",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 67,
+      "completed_at": "2026-08-20T15:08:53.893482+00:00",
+      "id": "interaction-8",
+      "kind": "wait",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:51.391550+00:00",
+      "surface": "chrome-error://chromewebdata/",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 67,
+      "completed_at": "2026-08-20T15:08:53.895303+00:00",
+      "id": "interaction-9",
+      "kind": "scroll",
+      "safe_annotation": "load lazy product tiles",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:53.893541+00:00",
+      "surface": "chrome-error://chromewebdata/",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 67,
+      "completed_at": "2026-08-20T15:08:56.398527+00:00",
+      "id": "interaction-10",
+      "kind": "wait",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-20T15:08:53.895335+00:00",
+      "surface": "chrome-error://chromewebdata/",
+      "truncation_reason": null
+    }
+  ],
+  "offline_queues": [],
+  "partial": true,
+  "proxy_interception": false,
+  "records": 67,
+  "request_budgets": {
+    "limits": {
+      "per_operation": 500,
+      "per_origin": 5000,
+      "rate_limit_reserve": 1,
+      "total": 400
+    },
+    "rate_limits": {},
+    "truncation_count": 136,
+    "truncations": [
+      {
+        "operation": "GET /_next/static/chunks/0gb0av4uf4o2-.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0fuwrnktakmum.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/12853xtd8k-qn.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/03zm4s.ki9f7c.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/12.yezb1ss~ms.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/02rxpflvlxoml.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0lvlkhmojuy54.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0w1amiw65_uxc.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/172_wyw0n_l1m.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/15je~upasza4r.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/02ln3-i1v4frp.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/16miak~i3e2gh.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/15e80if898gyy.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0l4ze5cx61afd.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/10h6encex~wne.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/17~641pqnyp1j.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0xu9nbuvj9k9q.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/10hgvtdb~tp85.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/01.cubvc9nifo.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/04cn~~avi0uw7.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0f3caiygbqmiq.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/11m67dmn~tx36.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0x0j7e~orw1na.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0~h-si3fwc04g.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0qjbhleqyt5q7.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/03wnkykn3d5c0.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0rap91r3h10-j.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0_a~~ak8l-e0u.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/02rb0-~bgsqm8.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ic856.e6bre1.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0s7s7iy3i4qbr.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0opl8eoboxwaj.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0c_lod2_qra23.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0o1ydg.dea54s.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/048vm56_xe.6t.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/13p~zf~gwdoz7.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/06-0~w6dht8m4.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ihpl5yjvwu-8.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0qtbvlv-s6rkh.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0zgxnlvk1ph_k.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/01in3dc.-6k_6.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/11m.-lnqym3x3.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/16h351_~8mf18.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/039pdrpslqwdu.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0aorvd4g9lhh8.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ul.nzj5pwxa8.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/04pqhn_gavedt.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/13emtw__ks0gu.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0_oetr-n24~m-.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/04o27mo5v6klp.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0o12ik1-ejrql.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0qooyq.3ps_j~.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0n95.bjro.ax2.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ntmv-gnnsqvn.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0_rb0h2baxc0g.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/10i.yflm7p2ts.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/06hik~n3hsxho.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0jox9wq.kxczg.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0d7c60x2m66l6.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/02wp.k_ec_net.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/05vyxmhcm5rjb.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0w4k6epnhl77s.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/media/logo.0ckgqa_ldnzpt.svg",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0.nt4tbvgypbc.css",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/17x6wa-2v61y0.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/073qk0pw-z2o~.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0fmc~2qejspt8.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0dbjboq7fzfbp.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0o0y3-pdl7rp0.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0rwwge57xnfls.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0tcx9xpe.zpme.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/turbopack-0qi981ip3xpzz.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ess5wmrzn6~t.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/16wq.x5-.zyfa.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0gmpgp36ln1.m.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/130-nat3j5_vi.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/10-gn0ludyh~m.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0uemv3ib1ni7h.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0jk-3_ep6i52q.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0._idh7ufze1w.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/14a4ba5oh8qob.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/042g2wqh-9w6p.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/159bv0qm6162l.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/07105lla7eakb.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/17rdf3ejza~dp.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/13.k19kaj4-ei.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/00ri9sv2~8dua.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/07454je3._p1l.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0y_x2q0zlb142.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0b32sw_iy-5ou.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0qh2iid_aye0v.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/14huupfqy.k7r.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/134ag8ri-8_59.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0l5kdy3djdxfl.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0nbf2801bz5wn.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0~-ul1fy-laj-.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/14po9pzk5-8b1.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/16tdwqbc1-l~6.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0r1h4rxeju-m~.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ugnb2ixd~3-2.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ilz1fqd_m~3x.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0wd-z9rkhrixt.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ki4oia0bxss9.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0i47mug~uzbcp.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0be70us61g9t_.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0w8tanhdvg3h5.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0ri.hoag~6is8.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/11-d5o9wsbvb0.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/03p6pv3gbhtjp.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0kcc0~3q-uti~.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/17g_t5e-sk~yo.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/174a0faeaquao.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0gry.1qpspy91.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0~1225rgj7x9~.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/13q~t6a3c-k1v.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0989po9-zi3~h.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0r1.z92o3~.ay.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/181b6rv08_8t_.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0sq6-j~wke0k~.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/01ss7del7x-o1.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/07xtf0ac6d~3l.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0xgoscm~io0jg.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0g_cxsg5z7ife.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0q62vx8.s.-86.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0rb1do62rxx6r.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/005-m1ukrg~q1.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0mjk~wu~ne46u.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0.prcnb8f6rnc.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/099cdzgmn._pc.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/chunks/0nsrh.ek7o0wk.js",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /_next/static/media/logo.0ckgqa_ldnzpt.svg",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /favicons/favicon-32x32.png",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /favicons/favicon-16x16.png",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /favicon.ico",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /shop/discovery/hot-zone",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      },
+      {
+        "operation": "GET /stores",
+        "origin": "https://www.wegmans.com",
+        "reason": "total-request-budget"
+      }
+    ],
+    "used": {
+      "operations": {
+        "GET /": 4,
+        "GET /_next/static/chunks/0._idh7ufze1w.js": 2,
+        "GET /_next/static/chunks/0.l.end_8ig7g.css": 3,
+        "GET /_next/static/chunks/0.nt4tbvgypbc.css": 2,
+        "GET /_next/static/chunks/0.prcnb8f6rnc.js": 2,
+        "GET /_next/static/chunks/0.y-xdbybd71p.css": 3,
+        "GET /_next/static/chunks/005-m1ukrg~q1.js": 1,
+        "GET /_next/static/chunks/00ri9sv2~8dua.js": 2,
+        "GET /_next/static/chunks/00so31euztea1.css": 3,
+        "GET /_next/static/chunks/01.cubvc9nifo.css": 2,
+        "GET /_next/static/chunks/01in3dc.-6k_6.css": 2,
+        "GET /_next/static/chunks/01ss7del7x-o1.js": 1,
+        "GET /_next/static/chunks/02ln3-i1v4frp.css": 2,
+        "GET /_next/static/chunks/02rb0-~bgsqm8.css": 2,
+        "GET /_next/static/chunks/02rxpflvlxoml.css": 2,
+        "GET /_next/static/chunks/02wp.k_ec_net.css": 2,
+        "GET /_next/static/chunks/039pdrpslqwdu.css": 2,
+        "GET /_next/static/chunks/03p6pv3gbhtjp.js": 2,
+        "GET /_next/static/chunks/03wnkykn3d5c0.css": 2,
+        "GET /_next/static/chunks/03zm4s.ki9f7c.css": 2,
+        "GET /_next/static/chunks/042g2wqh-9w6p.js": 2,
+        "GET /_next/static/chunks/048vm56_xe.6t.css": 2,
+        "GET /_next/static/chunks/04cn~~avi0uw7.css": 2,
+        "GET /_next/static/chunks/04o27mo5v6klp.css": 2,
+        "GET /_next/static/chunks/04pqhn_gavedt.css": 2,
+        "GET /_next/static/chunks/05vyxmhcm5rjb.css": 1,
+        "GET /_next/static/chunks/06-0~w6dht8m4.css": 2,
+        "GET /_next/static/chunks/06hik~n3hsxho.css": 2,
+        "GET /_next/static/chunks/07105lla7eakb.js": 2,
+        "GET /_next/static/chunks/073qk0pw-z2o~.js": 2,
+        "GET /_next/static/chunks/07454je3._p1l.js": 2,
+        "GET /_next/static/chunks/07xtf0ac6d~3l.js": 2,
+        "GET /_next/static/chunks/08x~61otu2kl7.css": 3,
+        "GET /_next/static/chunks/0989po9-zi3~h.js": 2,
+        "GET /_next/static/chunks/099cdzgmn._pc.js": 2,
+        "GET /_next/static/chunks/0_a~~ak8l-e0u.css": 2,
+        "GET /_next/static/chunks/0_nw054fr9ce8.css": 3,
+        "GET /_next/static/chunks/0_oetr-n24~m-.css": 2,
+        "GET /_next/static/chunks/0_rb0h2baxc0g.css": 2,
+        "GET /_next/static/chunks/0aorvd4g9lhh8.css": 2,
+        "GET /_next/static/chunks/0b32sw_iy-5ou.js": 2,
+        "GET /_next/static/chunks/0be70us61g9t_.js": 2,
+        "GET /_next/static/chunks/0c_lod2_qra23.css": 2,
+        "GET /_next/static/chunks/0d7c60x2m66l6.css": 2,
+        "GET /_next/static/chunks/0dbjboq7fzfbp.js": 2,
+        "GET /_next/static/chunks/0ess5wmrzn6~t.js": 2,
+        "GET /_next/static/chunks/0f3caiygbqmiq.css": 2,
+        "GET /_next/static/chunks/0fmc~2qejspt8.js": 2,
+        "GET /_next/static/chunks/0fuwrnktakmum.css": 2,
+        "GET /_next/static/chunks/0g_cxsg5z7ife.js": 1,
+        "GET /_next/static/chunks/0gb0av4uf4o2-.css": 2,
+        "GET /_next/static/chunks/0gmpgp36ln1.m.js": 2,
+        "GET /_next/static/chunks/0gry.1qpspy91.js": 2,
+        "GET /_next/static/chunks/0i47mug~uzbcp.js": 2,
+        "GET /_next/static/chunks/0ic856.e6bre1.css": 2,
+        "GET /_next/static/chunks/0ihpl5yjvwu-8.css": 2,
+        "GET /_next/static/chunks/0ilz1fqd_m~3x.js": 2,
+        "GET /_next/static/chunks/0jk-3_ep6i52q.js": 2,
+        "GET /_next/static/chunks/0jox9wq.kxczg.css": 2,
+        "GET /_next/static/chunks/0jqeuqmvjxl.a.css": 3,
+        "GET /_next/static/chunks/0kcc0~3q-uti~.js": 2,
+        "GET /_next/static/chunks/0ki4oia0bxss9.js": 2,
+        "GET /_next/static/chunks/0l4ze5cx61afd.css": 2,
+        "GET /_next/static/chunks/0l5kdy3djdxfl.js": 2,
+        "GET /_next/static/chunks/0llnyk38ai4q6.js": 1,
+        "GET /_next/static/chunks/0lvlkhmojuy54.css": 2,
+        "GET /_next/static/chunks/0mjk~wu~ne46u.js": 1,
+        "GET /_next/static/chunks/0n95.bjro.ax2.css": 2,
+        "GET /_next/static/chunks/0nbf2801bz5wn.js": 2,
+        "GET /_next/static/chunks/0nsrh.ek7o0wk.js": 2,
+        "GET /_next/static/chunks/0ntmv-gnnsqvn.css": 2,
+        "GET /_next/static/chunks/0o0y3-pdl7rp0.js": 2,
+        "GET /_next/static/chunks/0o12ik1-ejrql.css": 2,
+        "GET /_next/static/chunks/0o1ydg.dea54s.css": 2,
+        "GET /_next/static/chunks/0opl8eoboxwaj.css": 2,
+        "GET /_next/static/chunks/0q62vx8.s.-86.js": 1,
+        "GET /_next/static/chunks/0qh2iid_aye0v.js": 2,
+        "GET /_next/static/chunks/0qjbhleqyt5q7.css": 2,
+        "GET /_next/static/chunks/0qooyq.3ps_j~.css": 2,
+        "GET /_next/static/chunks/0qtbvlv-s6rkh.css": 2,
+        "GET /_next/static/chunks/0r1.z92o3~.ay.js": 2,
+        "GET /_next/static/chunks/0r1h4rxeju-m~.js": 2,
+        "GET /_next/static/chunks/0rap91r3h10-j.css": 2,
+        "GET /_next/static/chunks/0rb1do62rxx6r.js": 1,
+        "GET /_next/static/chunks/0ri.hoag~6is8.js": 2,
+        "GET /_next/static/chunks/0rwwge57xnfls.js": 2,
+        "GET /_next/static/chunks/0s7s7iy3i4qbr.css": 2,
+        "GET /_next/static/chunks/0sq6-j~wke0k~.js": 1,
+        "GET /_next/static/chunks/0tcx9xpe.zpme.js": 2,
+        "GET /_next/static/chunks/0uemv3ib1ni7h.js": 2,
+        "GET /_next/static/chunks/0ugnb2ixd~3-2.js": 2,
+        "GET /_next/static/chunks/0ul.nzj5pwxa8.css": 2,
+        "GET /_next/static/chunks/0utjig5m6xf7t.js": 1,
+        "GET /_next/static/chunks/0w1amiw65_uxc.css": 2,
+        "GET /_next/static/chunks/0w4k6epnhl77s.css": 1,
+        "GET /_next/static/chunks/0w8tanhdvg3h5.js": 2,
+        "GET /_next/static/chunks/0wd-z9rkhrixt.js": 2,
+        "GET /_next/static/chunks/0wda5g_~a_lqz.css": 3,
+        "GET /_next/static/chunks/0wu1l9aac99kr.js": 1,
+        "GET /_next/static/chunks/0x0j7e~orw1na.css": 2,
+        "GET /_next/static/chunks/0xgoscm~io0jg.js": 2,
+        "GET /_next/static/chunks/0xu9nbuvj9k9q.css": 2,
+        "GET /_next/static/chunks/0y_x2q0zlb142.js": 2,
+        "GET /_next/static/chunks/0zalx-jknxuma.js": 1,
+        "GET /_next/static/chunks/0zgxnlvk1ph_k.css": 2,
+        "GET /_next/static/chunks/0~-ul1fy-laj-.js": 2,
+        "GET /_next/static/chunks/0~1225rgj7x9~.js": 2,
+        "GET /_next/static/chunks/0~h-si3fwc04g.css": 2,
+        "GET /_next/static/chunks/10-gn0ludyh~m.js": 2,
+        "GET /_next/static/chunks/10h6encex~wne.css": 2,
+        "GET /_next/static/chunks/10hgvtdb~tp85.css": 2,
+        "GET /_next/static/chunks/10i.yflm7p2ts.css": 2,
+        "GET /_next/static/chunks/11-d5o9wsbvb0.js": 2,
+        "GET /_next/static/chunks/11ivh9r20i5rg.css": 1,
+        "GET /_next/static/chunks/11m.-lnqym3x3.css": 2,
+        "GET /_next/static/chunks/11m67dmn~tx36.css": 2,
+        "GET /_next/static/chunks/12.yezb1ss~ms.css": 2,
+        "GET /_next/static/chunks/124un.y9.lkg3.css": 1,
+        "GET /_next/static/chunks/12853xtd8k-qn.css": 2,
+        "GET /_next/static/chunks/12a_uu84etvgs.js": 1,
+        "GET /_next/static/chunks/13.k19kaj4-ei.js": 2,
+        "GET /_next/static/chunks/130-nat3j5_vi.js": 2,
+        "GET /_next/static/chunks/134ag8ri-8_59.js": 2,
+        "GET /_next/static/chunks/138urzv6yd3aq.css": 1,
+        "GET /_next/static/chunks/13emtw__ks0gu.css": 2,
+        "GET /_next/static/chunks/13p~zf~gwdoz7.css": 2,
+        "GET /_next/static/chunks/13q~t6a3c-k1v.js": 2,
+        "GET /_next/static/chunks/14-ahf2ojomzc.js": 1,
+        "GET /_next/static/chunks/14a4ba5oh8qob.js": 2,
+        "GET /_next/static/chunks/14huupfqy.k7r.js": 2,
+        "GET /_next/static/chunks/14po9pzk5-8b1.js": 2,
+        "GET /_next/static/chunks/159bv0qm6162l.js": 2,
+        "GET /_next/static/chunks/15e80if898gyy.css": 2,
+        "GET /_next/static/chunks/15je~upasza4r.css": 2,
+        "GET /_next/static/chunks/16h351_~8mf18.css": 1,
+        "GET /_next/static/chunks/16miak~i3e2gh.css": 2,
+        "GET /_next/static/chunks/16nhfrvfr8uvz.css": 3,
+        "GET /_next/static/chunks/16tdwqbc1-l~6.js": 2,
+        "GET /_next/static/chunks/16wq.x5-.zyfa.js": 2,
+        "GET /_next/static/chunks/172_wyw0n_l1m.css": 2,
+        "GET /_next/static/chunks/174a0faeaquao.js": 2,
+        "GET /_next/static/chunks/1788yqd49wuu6.css": 3,
+        "GET /_next/static/chunks/17g_t5e-sk~yo.js": 2,
+        "GET /_next/static/chunks/17rdf3ejza~dp.js": 2,
+        "GET /_next/static/chunks/17x6wa-2v61y0.js": 2,
+        "GET /_next/static/chunks/17yyqkytcjg27.css": 3,
+        "GET /_next/static/chunks/17~641pqnyp1j.css": 2,
+        "GET /_next/static/chunks/181b6rv08_8t_.js": 2,
+        "GET /_next/static/chunks/turbopack-0qi981ip3xpzz.js": 2,
+        "GET /_next/static/media/MillerDisplaySemiBold-s.p.183rdwhv_zlqw.woff2": 3,
+        "GET /_next/static/media/Person.0nncdyamcsf27.svg": 2,
+        "GET /_next/static/media/WhitneySSm_Black_Web-s.p.16me5cwt3d5pb.woff2": 3,
+        "GET /_next/static/media/WhitneySSm_Bold_Web-s.p.0lk2z34oq-6wx.woff2": 3,
+        "GET /_next/static/media/WhitneySSm_Book_Web-s.p.0d68xpl.5u0xh.woff2": 3,
+        "GET /_next/static/media/WhitneySSm_MediumItalic_Web-s.p.0p.q-sc95oeqd.woff2": 3,
+        "GET /_next/static/media/WhitneySSm_MediumItalic_Web-s.p.0xwhqexp8_q~k.woff": 3,
+        "GET /_next/static/media/WhitneySSm_Medium_Web-s.p.03bw9zbexn5wl.woff2": 3,
+        "GET /_next/static/media/WhitneySSm_Semibold_Web-s.p.0wpbq-a1xsq.h.woff2": 3,
+        "GET /_next/static/media/logo.0ckgqa_ldnzpt.svg": 2,
+        "GET /_next/static/media/wellness-keys-family-pack-variation.0bwvc30-9wimr.svg": 1,
+        "GET /_next/static/media/wellness-keys-heart-healthy.0.mmyxaml2cc0.svg": 1,
+        "GET /_next/static/media/wellness-keys-organic-variation.0~jy8ev_0i2qo.svg": 1,
+        "GET /_next/static/media/wellness-keys-vegan.02_-afdd22h3v.svg": 1,
+        "GET /api/categories/v3/instore/{id}": 3,
+        "GET /api/content/emergency_banner/all": 2,
+        "GET /api/content/getAjoComponentByUniqueId/ajo_media_block": 1,
+        "GET /api/content/getAjoComponentByUniqueId/shop_collection_ajo": 2,
+        "GET /api/content/getAjoComponentByUniqueId/shop_search_slim_banner": 2,
+        "GET /api/stores": 2,
+        "GET /api/stores/store-number/{id}": 2,
+        "GET /cake": 1,
+        "GET /favicons/favicon-32x32.png": 3,
+        "GET /gift-cards": 1,
+        "GET /items": 4,
+        "GET /my-list": 4,
+        "GET /pharmacy": 4,
+        "GET /privacy": 4,
+        "GET /recipes": 4,
+        "GET /resources/{id}": 1,
+        "GET /resources/{id}/e/64885_1825202492.js": 1,
+        "GET /resources/{id}/e/65226_747628124.js": 1,
+        "GET /resources/{id}/e/65257_1825202430.js": 1,
+        "GET /resources/{id}/e/65319_1825172515.js": 1,
+        "GET /service/mobile-app": 1,
+        "GET /shop/categories": 2,
+        "GET /shop/coupons": 4,
+        "GET /shop/null": 1,
+        "GET /shop/search": 2,
+        "GET /stores": 4,
+        "GET /terms": 4,
+        "GET /values-in-action/feel-your-best": 4,
+        "GET /wine-shop": 4,
+        "POST /monitoring": 6,
+        "POST /resources/{id}/collect": 1
+      },
+      "origins": {
+        "https://www.wegmans.com": 400
+      },
+      "total": 400
+    }
+  },
+  "run_id": "03333506ebaa43b29dfa484a61d3dc4a",
+  "service_workers": [],
+  "started_at": "2026-08-20T15:08:37.578053+00:00",
+  "surfaces": [
+    "https://www.wegmans.com/shop/categories",
+    "https://www.wegmans.com/shop/search?search-term=milk",
+    "https://www.wegmans.com/shop/search?search-term=bread",
+    "https://www.wegmans.com/shop/discovery/hot-zone",
+    "https://www.wegmans.com/stores"
+  ],
+  "tls_verification": "strict",
+  "truncations": {
+    "depth_budget": 18,
+    "node_budget": 246
+  },
+  "websockets": {}
+}

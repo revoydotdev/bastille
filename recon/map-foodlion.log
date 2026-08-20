@@ -1,0 +1,45 @@
+── preflight ──────────────────────────────
+  host           local
+  burp_proxy     None
+  byparr         http://127.0.0.1:8191/v1
+  cloakbrowser   0.5.3
+  clairvoyance   True
+  capture_dependencies True
+  tls_http       True
+  openapi_capability False
+  host_status    reachable
+  egress_local   73.31.230.2
+  egress_host    73.31.230.2
+  egress_match   True
+  egress_status  match
+───────────────────────────────────────────
+[capture] running on local …
+Update available: cloakbrowser 0.5.3 → 0.5.8. Run: pip install --upgrade cloakbrowser
+[visit] https://www.foodlion.com/product-search/ -> settled in 1.6s (1 calls)
+[cf] challenge on https://www.foodlion.com/product-search/ -> byparr
+[byparr-retry] https://www.foodlion.com/product-search/ -> settled in 1.1s (0 calls)
+[byparr] injected ['cf_clearance'], retried
+[visit] https://www.foodlion.com/product-search/ -> https://www.foodlion.com/product-search/ | foodlion.com
+[visit] https://www.foodlion.com/product-search/?search=milk -> settled in 1.1s (0 calls)
+[visit] https://www.foodlion.com/product-search/?search=milk -> https://www.foodlion.com/product-search/ | foodlion.com
+[visit] https://foodlion.com/groceries/ -> settled in 1.6s (2 calls)
+[visit] https://foodlion.com/groceries/ -> https://foodlion.com/groceries/ | All Aisles | Food Lion
+[visit] https://foodlion.com/groceries/browse-aisles/2098-produce -> settled in 2.1s (2 calls)
+[visit] https://foodlion.com/groceries/browse-aisles/2098-produce -> https://foodlion.com/groceries/browse-aisles/2098-produce | Produce | Food Lion
+[visit] https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212 -> settled in 1.8s (2 calls)
+[visit] https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212 -> https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212 | Yellow Bananas | Food Lion
+[declarative] 1/5 wait: bounded read-only action
+[declarative] 2/5 scroll: load lazy product tiles
+[declarative] 3/5 wait: bounded read-only action
+[declarative] 4/5 scroll: load lazy product tiles
+[declarative] 5/5 wait: bounded read-only action
+[done] 7 calls, 0 gql ops (0 identifiers), endpoints=[], ws=0 socket(s)/0 events
+[done] 18 API call(s) to siteintercept.qualtrics.com dropped as off-base
+[done] 1 API call(s) to www.google.com dropped as off-base
+
+[analyze] 0 gql ops, 1 rest -> /home/revelri/Dev/revelri/grocer/recon/.webmap-stage-8j9hvujn/map.md
+[contract] 1 ops | typed-in 0 | typed-ret 0 | observed 0 | active 0 -> /home/revelri/Dev/revelri/grocer/recon/.webmap-stage-8j9hvujn/contract.json
+[drift] +1 -0 ~0
+[cleanup] removed local:/dev/shm/webmap-foodlion_com-1c282e994290-639955c2867b4415bda1ad8c6767d0cb + local cookies
+
+✓ /home/revelri/Dev/revelri/grocer/recon/webmap-foodlion/contract.md (contract of record) | map.md | endpoints.json

@@ -1,0 +1,27 @@
+{
+  "auth_headers": {},
+  "base_domain": "foodlion.com",
+  "graphql_endpoints": [],
+  "graphql_operations": {},
+  "introspection": null,
+  "misc_operations": {},
+  "rest_endpoints": [
+    {
+      "auth_headers": [],
+      "calls": 1,
+      "method": "POST",
+      "path": "/cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb",
+      "response_kinds": [
+        "text"
+      ],
+      "response_media_types": [
+        "text/plain"
+      ],
+      "status": [
+        200
+      ]
+    }
+  ],
+  "websocket_operations": {},
+  "websockets": {}
+}

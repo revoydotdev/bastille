@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "surfaces": [
+    "https://www.foodlion.com/product-search/",
+    "https://www.foodlion.com/product-search/?search=milk",
+    "https://foodlion.com/groceries/",
+    "https://foodlion.com/groceries/browse-aisles/2098-produce",
+    "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212"
+  ],
+  "actions": [
+    {"action": "wait", "milliseconds": 4000},
+    {"action": "scroll", "pixels": 2000, "safe_annotation": "load lazy product tiles"},
+    {"action": "wait", "milliseconds": 2500},
+    {"action": "scroll", "pixels": 2500, "safe_annotation": "load lazy product tiles"},
+    {"action": "wait", "milliseconds": 2500}
+  ]
+}

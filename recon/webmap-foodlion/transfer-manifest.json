@@ -1,0 +1,8 @@
+{
+  "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+  "sha256": {
+    "capture.jsonl": "c2dd21c0212eee6baf8b1e06684cc3529d225475c46b531d01e71ffc158f5a2a",
+    "graphql-names.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "meta.json": "8683985bd786ce0be501e589eb478d6012a1652fc968ffb3064e8f5043ccebf6"
+  }
+}

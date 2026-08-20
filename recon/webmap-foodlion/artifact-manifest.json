@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "adapters": [],
+  "artifact_schema_version": 1,
+  "artifact_type": "capture-pipeline",
+  "artifacts": {
+    "capture.jsonl": "c2dd21c0212eee6baf8b1e06684cc3529d225475c46b531d01e71ffc158f5a2a",
+    "contract.json": "48774e1bab973d02aea9844257f0a0452745e502034837bc8ad5d724c0300445",
+    "contract.md": "5f3d6ce26b420b4f3d40fb541521750639dc7a740a2fad8b3f0bd0c2c75b8c44",
+    "endpoints.json": "9bcd36d0b0671e2c3e43c01393caca3c570a6dae6757e2c70a6a07c91d740eda",
+    "graph.json": "a195f7cabcf61350188fee026fa64252e883e0026c0d78700585e9803c846fcf",
+    "graphql-names.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "map.md": "b0e107c109ed3e4c30748793b3b5f2323b20d7c30dd09c8bc7eb75d743f493ba",
+    "meta.json": "8683985bd786ce0be501e589eb478d6012a1652fc968ffb3064e8f5043ccebf6",
+    "transfer-manifest.json": "3dae0fb7705de953751a35b46782d59729b550cef8a2200d56437b093c3a64f0"
+  },
+  "completed_at": "2026-08-20T15:08:06.390212+00:00",
+  "completeness": "complete",
+  "failures": [],
+  "generated_at": "2026-08-20T15:08:06.683558+00:00",
+  "parent_artifacts": [],
+  "profile": "Default",
+  "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+  "safety_mode": "read-only",
+  "schema_version": 1,
+  "started_at": "2026-08-20T15:07:36.572320+00:00",
+  "target": "foodlion.com",
+  "truncations": {},
+  "webmap_commit": null,
+  "webmap_version": "0.2.0"
+}

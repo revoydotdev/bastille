@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "adapters": [],
+  "artifact_schema_version": 1,
+  "artifact_type": "backend-map",
+  "artifacts": {
+    "discovery.json": "3fa4b0c14538e9cac519a32aab6c29350ff7c59b0306bdbad343e8bb46966437",
+    "endpoints.json": "9bcd36d0b0671e2c3e43c01393caca3c570a6dae6757e2c70a6a07c91d740eda",
+    "graph.json": "a195f7cabcf61350188fee026fa64252e883e0026c0d78700585e9803c846fcf",
+    "map.md": "b0e107c109ed3e4c30748793b3b5f2323b20d7c30dd09c8bc7eb75d743f493ba"
+  },
+  "completed_at": "2026-08-20T15:08:06.390212+00:00",
+  "completeness": "complete",
+  "failures": [],
+  "generated_at": "2026-08-20T15:08:06.632668+00:00",
+  "parent_artifacts": [],
+  "profile": null,
+  "run_id": "639955c2867b4415bda1ad8c6767d0cb",
+  "safety_mode": "read-only",
+  "schema_version": 1,
+  "started_at": "2026-08-20T15:07:36.572320+00:00",
+  "target": "foodlion.com",
+  "truncations": {},
+  "webmap_commit": null,
+  "webmap_version": "0.2.0"
+}

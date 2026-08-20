@@ -1,0 +1,48 @@
+── preflight ──────────────────────────────
+  host           local
+  burp_proxy     None
+  byparr         http://127.0.0.1:8191/v1
+  cloakbrowser   0.5.3
+  clairvoyance   True
+  capture_dependencies True
+  tls_http       True
+  openapi_capability False
+  host_status    reachable
+  egress_local   73.31.230.2
+  egress_host    73.31.230.2
+  egress_match   True
+  egress_status  match
+───────────────────────────────────────────
+[scan] running on local …
+[scan] https://foodlion.com — discovering sitemap …
+[sitemap] robots.txt declares 1 sitemap(s)
+[sitemap] https://foodlion.com/groceries/sitemap.xml → 5 locs (urls so far: 0)
+[sitemap] https://foodlion.com/sitemap.xml :: HTTP Error 403: Forbidden
+[sitemap] https://foodlion.com/groceries/sitemaps/products-0.xml → 10000 locs (urls so far: 10000)
+[sitemap] https://foodlion.com/groceries/sitemaps/products-1.xml → 10000 locs (urls so far: 20000)
+[sitemap] https://foodlion.com/groceries/sitemaps/products-2.xml → 3057 locs (urls so far: 23057)
+[sitemap] https://foodlion.com/groceries/sitemaps/categories-0.xml → 2872 locs (urls so far: 25929)
+[sitemap] https://foodlion.com/groceries/sitemaps/content.xml → 1 locs (urls so far: 25930)
+[scan] 25931 candidate surfaces
+[scan] https://foodlion.com/groceries/product/palmers-cocoa-butter-formula-cream-with-vitamin-e-3-5-oz-jar/206
+[scan] https://foodlion.com/groceries/product/reynolds-wrap-aluminum-foil-12-inch-wide-30-sq-ft/230
+[scan] https://foodlion.com/groceries/product/reynolds-wrap-aluminum-foil-12-inch-wide-75-sq-ft/231
+[scan] https://foodlion.com/groceries/product/reynolds-wrap-aluminum-foil-12-inch-wide-200-sq-ft/232
+[scan] https://foodlion.com/groceries/product/reynolds-wrap-heavy-duty-aluminum-foil-18-inch-wide-75-sq-ft/234
+[scan] https://foodlion.com/groceries/product/reynolds-kitchens-cut-rite-wax-paper-12-inch-wide-75-sq-ft/239
+[scan] https://foodlion.com/groceries/browse-aisles/1-global-primary-category
+[scan] https://foodlion.com/groceries/browse-aisles/2-adult-beverages
+[scan] https://foodlion.com/groceries/browse-aisles/85-bread-bakery
+[scan] https://foodlion.com/groceries/browse-aisles/87-bakery-pies-desserts
+[scan] https://foodlion.com/groceries/browse-aisles/113-pies
+[scan] https://foodlion.com/groceries/browse-aisles/121-artisan-bakery-fresh-bread
+[scan] mining 12 script seeds, 0 web manifests, and framework manifests …
+[scan] 0 unique endpoint paths in 2 bundles
+[scan] 3 script(s) on siteintercept.qualtrics.com denied :: authorize with --allowed-static-host siteintercept.qualtrics.com
+[scan] 2 script(s) on login-ds.dotomi.com denied :: authorize with --allowed-static-host login-ds.dotomi.com
+[scan] 2 script(s) on www.googletagmanager.com denied :: authorize with --allowed-static-host www.googletagmanager.com
+[scan] 1 script(s) on zn3f8e6tceotw1rnn-aholddelhaize.siteintercept.qualtrics.com denied :: authorize with --allowed-static-host zn3f8e6tceotw1rnn-aholddelhaize.siteintercept.qualtrics.com
+
+✓ /home/revelri/Dev/revelri/grocer/recon/scan-foodlion/scan.json | scan.md | recipe.py
+  review scan.md, then: cp /home/revelri/Dev/revelri/grocer/recon/scan-foodlion/recipe.py surfaces/foodlion.com.recipe.py
+  next: webmap map foodlion.com --recipe surfaces/foodlion.com.recipe.py --no-auth --no-burp --schema

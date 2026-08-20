@@ -1,0 +1,334 @@
+{
+  "candidate_count": 14,
+  "candidates": [
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-5",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "74fc8511f1dc0172eb6e7a77",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "7a25f1693be50612e0d97de3",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://foodlion.com/groceries/"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://foodlion.com/groceries/"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-1",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "8eece5d3002104168bdb08ca",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "POST",
+        "request_template": {
+          "method": "POST",
+          "url": "https://www.foodlion.com/cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown",
+        "status": 200
+      },
+      "value": "https://www.foodlion.com/cdn-cgi/challenge-platform/h/g/jsd/oneshot/aae2b9a1c261/0.6944885726659658:1787234715:qfdHoSEoF1p2fgZIJsKscsuA3xmyXHPf1cl2GDUV__M/a2e24f055e9573eb"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "deb4d094d2c5e828720c2c6e",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://foodlion.com/groceries/browse-aisles/2098-produce"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://foodlion.com/groceries/browse-aisles/2098-produce"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.foodlion.com/product-search/",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-1",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-10",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "bounded read-only action"
+      },
+      "value": "wait"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.foodlion.com/product-search/?search=%3Cpresent%3E",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-2",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-3",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 2,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/browse-aisles/2098-produce",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-4",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 2,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-5",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 2,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-6",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "bounded read-only action"
+      },
+      "value": "wait"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-7",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "load lazy product tiles"
+      },
+      "value": "scroll"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-8",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "bounded read-only action"
+      },
+      "value": "wait"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://foodlion.com/groceries/product/yellow-bananas-apx-1-2-lb/340212",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-9",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "load lazy product tiles"
+      },
+      "value": "scroll"
+    }
+  ],
+  "coverage": {
+    "claim": "calibrated-relative-coverage; not absolute backend completeness",
+    "convergence": {
+      "confidence": "unknown",
+      "runs": 1
+    },
+    "navigation_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    },
+    "observed_coverage": {
+      "denominator": "none; observed inventory is a count, not a completeness claim",
+      "observed": 4,
+      "ratio": null
+    },
+    "recipe_action_coverage": {
+      "covered": 10,
+      "ratio": 1.0,
+      "total": 10
+    },
+    "schema_field_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    },
+    "spec_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    },
+    "static_candidate_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    }
+  },
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": 1,
+  "sources": [
+    "browser-traffic",
+    "recipe"
+  ]
+}
