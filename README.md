@@ -74,6 +74,11 @@ A clearance sticker often carries no "was" price. bastille records the price and
 leaves the discount blank rather than inventing a baseline, the same rule the
 grocery side follows for offers that are not numbers.
 
+Walmart returns a second list alongside each shelf, titled "Available for
+shipping" — national stock it will post to you, with no aisle and the same price
+everywhere. That list is discarded. What is recorded is what is on that store's
+rack.
+
 `docs/WALMART-CLEARANCE-API.md` has the full write-up: what is reachable, what
 is not, and why the sweep is deliberately slow.
 

@@ -245,7 +245,13 @@ export class ClearanceSweepJob {
         throw new Error('response carried no store — refusing to record an unscoped shelf');
       }
 
-      if (shelf.items.length === 0) break;
+      // A page can be all shipping-only items, which is not the end of the
+      // shelf — only an empty page from Walmart is.
+      if (shelf.pageItemCount === 0) break;
+      if (shelf.items.length === 0) {
+        if (shelf.pageItemCount < PAGE_SIZE) break;
+        continue;
+      }
 
       const { written, newItemIds } = this.repo.recordFinds(
         date,
@@ -257,7 +263,7 @@ export class ClearanceSweepJob {
       finds += written;
       alerts += this.repo.alertOnNewFinds(date, locationId, newItemIds);
 
-      if (shelf.items.length < PAGE_SIZE) break;
+      if (shelf.pageItemCount < PAGE_SIZE) break;
       if (shelf.totalCount !== null && page * PAGE_SIZE >= shelf.totalCount) break;
     }
 

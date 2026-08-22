@@ -172,6 +172,26 @@ one, so the path cannot be trusted to say what a thing *is*. Which shelf Walmart
 files it on can be. An item on both is recorded as a PC part regardless of the
 order the shelves were swept in.
 
+### Two stacks, and only one of them is a rack
+
+A shelf comes back as `itemStacks[]`, and they do not mean the same thing:
+
+| stack | `meta.beacon` interpretation | title | aisles |
+|---|---|---|---|
+| 0 | `primary` / `primary` | Results for "electronics" | yes |
+| 1 | `secondary_stack` / `inStoreShipFul` | **Available for shipping** | none |
+
+The second stack is what Walmart will post to you, not what is on the rack. Its
+items carry no `productLocation`, and being national, they come back identical at
+every store — so merging them buries the local finds this exists for under noise
+that is the same everywhere. bastille records the primary stack only, decided on
+the beacon's `interpretations[].type` rather than the display title. A stack
+whose beacon cannot be parsed is treated as *not* primary: inventing shelf
+presence is the failure worth avoiding.
+
+The pager still counts every item the page served, or a page that is mostly
+shipping-only would look like the end of the shelf.
+
 ### What an item carries
 
 Items arrive under `itemStacks[].itemsV2` (the older `items` is also read).

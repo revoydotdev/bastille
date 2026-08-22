@@ -215,26 +215,63 @@ export interface ClearanceItem {
 }
 
 export interface ShelfPage {
+  /** items physically on this store's rack — the primary stack only */
   items: ClearanceItem[];
   /** how many the shelf claims in total, across pages */
   totalCount: number | null;
+  /**
+   * Every item the page returned, shelf and shipping alike. Only the pager
+   * uses this: paging must follow the page Walmart actually served, not the
+   * subset that survived filtering.
+   */
+  pageItemCount: number;
+  /** items dropped because they ship rather than sit on the rack */
+  shippedOnly: number;
   /** the store Walmart says it answered for; guards against an unscoped read */
   storeName: string | null;
 }
 
-interface BrowseResponse {
+export interface BrowseResponse {
   data?: {
     search?: {
       searchResult?: {
         aggregatedCount?: number | null;
         pageMetadata?: { storeSelectionHeader?: { storeDislayName?: string } };
-        itemStacks?: {
-          items?: RawItem[];
-          itemsV2?: RawItem[];
-        }[];
+        itemStacks?: RawStack[];
       };
     };
   };
+}
+
+/**
+ * A shelf comes back in stacks. The first is the store's actual rack; Walmart
+ * appends a second titled "Available for shipping" (`secondary_stack` /
+ * `inStoreShipFul`) of things it will post to you instead. Those carry no aisle
+ * and are identical at every store, so recording them would bury the local
+ * finds this exists for under national noise.
+ */
+interface RawStack {
+  items?: RawItem[];
+  itemsV2?: RawItem[];
+  meta?: { beacon?: string | null; title?: string | null } | null;
+}
+
+/**
+ * True when the stack is the store's own rack. The beacon is a JSON string
+ * Walmart uses for its own analytics; its `interpretations[].type` is the
+ * structured statement of what a stack is, and the display title is not.
+ * A stack whose beacon cannot be read is treated as *not* primary — inventing
+ * shelf presence is the failure worth avoiding here.
+ */
+function isPrimaryStack(stack: RawStack): boolean {
+  const beacon = stack.meta?.beacon;
+  if (typeof beacon !== 'string') return false;
+  try {
+    const parsed = JSON.parse(beacon) as { interpretations?: { type?: string }[] };
+    return (parsed.interpretations ?? []).some((i) => i.type === 'primary');
+  } catch {
+    return false;
+  }
 }
 
 /** Money on this tier arrives as dollars, not cents, under a `price` key. */
@@ -411,6 +448,42 @@ function toClearanceItem(raw: RawItem): ClearanceItem | null {
 }
 
 /**
+ * Turns one Browse response into a page of rack. Pure, and exported so the
+ * stack split and the price/aisle mapping can be exercised against captured
+ * payloads without a network in the way.
+ */
+export function parseShelf(body: BrowseResponse): ShelfPage {
+  const result = body.data?.search?.searchResult;
+  const seen = new Set<string>();
+  const items: ClearanceItem[] = [];
+  let pageItemCount = 0;
+  let shippedOnly = 0;
+
+  for (const stack of result?.itemStacks ?? []) {
+    const onShelf = isPrimaryStack(stack);
+    for (const raw of [...(stack.items ?? []), ...(stack.itemsV2 ?? [])]) {
+      pageItemCount++;
+      if (!onShelf) {
+        shippedOnly++;
+        continue;
+      }
+      const item = toClearanceItem(raw);
+      if (!item || seen.has(item.itemId)) continue;
+      seen.add(item.itemId);
+      items.push(item);
+    }
+  }
+
+  return {
+    items,
+    totalCount: result?.aggregatedCount ?? null,
+    pageItemCount,
+    shippedOnly,
+    storeName: result?.pageMetadata?.storeSelectionHeader?.storeDislayName ?? null,
+  };
+}
+
+/**
  * One page of one category's in-store clearance at one store.
  *
  * Items arrive under `items` or `itemsV2` depending on which schema the shelf
@@ -437,21 +510,5 @@ export async function clearanceShelf(opts: {
     },
   );
 
-  const result = body.data?.search?.searchResult;
-  const seen = new Set<string>();
-  const items: ClearanceItem[] = [];
-  for (const stack of result?.itemStacks ?? []) {
-    for (const raw of [...(stack.items ?? []), ...(stack.itemsV2 ?? [])]) {
-      const item = toClearanceItem(raw);
-      if (!item || seen.has(item.itemId)) continue;
-      seen.add(item.itemId);
-      items.push(item);
-    }
-  }
-
-  return {
-    items,
-    totalCount: result?.aggregatedCount ?? null,
-    storeName: result?.pageMetadata?.storeSelectionHeader?.storeDislayName ?? null,
-  };
+  return parseShelf(body);
 }

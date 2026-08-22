@@ -79,9 +79,14 @@ const readShelf: ShelfReader = async ({ locationId, categoryId, page }) => {
   const rack = racks[locationId] ?? [];
   const items =
     categoryId === '3944_1089430' ? rack.filter((i) => onComputersShelf.has(i.itemId)) : rack;
+  const onPage = (page ?? 1) === 1 ? items : [];
   return {
-    items: (page ?? 1) === 1 ? items : [],
+    items: onPage,
     totalCount: items.length,
+    // The real client has already dropped the "Available for shipping" stack by
+    // this point; the pager still counts what Walmart served.
+    pageItemCount: onPage.length,
+    shippedOnly: 0,
     storeName: STORES.find((s) => s.locationId === locationId)?.name ?? null,
   };
 };
