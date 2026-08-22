@@ -122,10 +122,24 @@ store's. Across three Virginia stores swept separately, 101 of 111 items were
 common to all three with **zero** variation in price and **zero** in aisle —
 because all three responses were the same store.
 
-Walmart appears to resolve the store from the requesting address, treating
-`locGuestData` as advisory. Until a working scoping mechanism is found, this
-tier yields *one* store's rack — whichever is local to the egress address — and
-nothing here supports a per-store comparison.
+**It is geolocation on the requesting IP.** The same request, with a cookie
+explicitly naming store 4682 and ZIP 22963, answers differently depending only
+on where it comes from:
+
+| egress | store answered for |
+|---|---|
+| residential, Virginia | Gordonsville Supercenter |
+| Surfshark exit, Amsterdam | Sacramento Supercenter |
+
+The cookie is a **gate, not a selector**: without it the tier returns `412`, and
+with it the contents are ignored — `nodeId` for a Texas store, a Texas ZIP, or
+no `nodeId` at all all return the store local to the caller.
+
+So this tier yields exactly one store's rack: whichever is local to the egress
+address. Per-store comparison is not reachable from a single connection, and
+the only way to read a specific store would be to originate near it — which is
+an infrastructure problem, not a protocol one, and is deliberately not
+attempted here.
 
 The sweep now refuses to record a shelf whose echoed store name does not match
 the store that was asked for, so this fails loudly instead of quietly

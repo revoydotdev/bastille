@@ -37,14 +37,13 @@ A promotion starting on an item whose shelf price did not move still alerts.
 
 ## Walmart in-store clearance
 
-> **Known limitation.** Per-store scoping does not currently work. Walmart
-> accepts the store cookie and echoes the store back, but resolves the actual
-> assortment from the requesting address: a request for a Texas store from
-> Virginia returns the Virginia rack. Measured across three stores, prices and
-> aisles varied not at all, because all three answers were the same shop. The
-> sweep now refuses to record a shelf that comes back under a different store
-> than the one asked for, so this fails loudly — but until scoping is solved,
-> what you get is one store's rack, not a comparison across several.
+> **Known limitation: one store, chosen by your IP.** Walmart picks the store
+> from the requesting address and ignores the store cookie's contents — the same
+> request answered for Gordonsville from a Virginia line and for Sacramento
+> through an Amsterdam exit. So this reads *your nearest* store's rack, and a
+> multi-store comparison is not reachable from one connection. The sweep refuses
+> to record a shelf answered for a different store than the one asked for, so
+> the limitation fails loudly rather than silently mislabelling data.
 
 Walmart's clearance is local in a way its shelf prices are not: the rack in a
 rural supercentre is nothing like the one twenty miles up the road, and the
