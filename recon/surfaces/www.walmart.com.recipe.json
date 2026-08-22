@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "surfaces": [
+    "https://www.walmart.com/store-finder",
+    "https://www.walmart.com/browse/electronics/3944?facet=special_offers%3AClearance%7C%7Cfulfillment_method%3AIn-store",
+    "https://www.walmart.com/browse/food/shop-all-cookies/976759_976787_1001391_2392263",
+    "https://www.walmart.com/shop/savings/food?facet=special_offers%3ARollback"
+  ],
+  "actions": [
+    {"action": "scroll", "pixels": 4000},
+    {"action": "wait", "milliseconds": 2000},
+    {"action": "scroll", "pixels": 4000},
+    {"action": "wait", "milliseconds": 2000}
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "adapters": [],
+  "artifact_schema_version": 1,
+  "artifact_type": "capture-pipeline",
+  "artifacts": {
+    "capture.jsonl": "7be25788ef4136c93f21f03bab658f5d041b16e640fdc998b1860cb0004cf719",
+    "contract.json": "98f19d1949d60765157be7cc8a890d2eefa210bbb04070e14625b7ce24468356",
+    "contract.md": "15d4d08c7fafd5b2d41e2afdfc0e16bd74e47b801e9ce63169c4168139f1d578",
+    "endpoints.json": "6e27e0a12ce5ca00506028ebaaec31bf8460ec31ae30fbd4c241ccb28074605e",
+    "graph.json": "eaffb1adb12d8237bf5ee43e915057ce058f1f83df3df44fdf67d300f5c2afca",
+    "graphql-names.txt": "f740221b6e3e46ea5a092cb9a7458ff487903363fa97e8cb9d28638f37068ca2",
+    "map.md": "9d36472625d88e9df2de03ca150009dbc94c7ca220e8f1ed59f1f396888ee729",
+    "meta.json": "cbbb8ef6b98b5eae07c226ecf4df8d757cb6069f3c7b62b0a715e3a1c2000612",
+    "transfer-manifest.json": "b1f0c4004465323387cfe18c7f0d0eeb172002c8a24dd6cbe63d914254888f8b"
+  },
+  "completed_at": "2026-08-22T02:55:52.309416+00:00",
+  "completeness": "complete",
+  "failures": [
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/swag/graphql",
+      "error_type": "Error",
+      "interaction_id": "interaction-2",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:41.656251+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-2",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:41.656399+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-2",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:41.656484+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-3",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:44.536113+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-3",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:44.536505+00:00",
+      "stage": "response-body"
+    }
+  ],
+  "generated_at": "2026-08-22T02:55:52.860132+00:00",
+  "parent_artifacts": [],
+  "profile": "Default",
+  "run_id": "5ebd8ddc41504129bcde0f8d294bc93f",
+  "safety_mode": "read-only",
+  "schema_version": 1,
+  "started_at": "2026-08-22T02:55:32.699442+00:00",
+  "target": "www.walmart.com",
+  "truncations": {
+    "depth_budget": 171,
+    "key_budget": 5,
+    "node_budget": 166
+  },
+  "webmap_commit": null,
+  "webmap_version": "0.2.0"
+}

@@ -1,0 +1,2201 @@
+{
+  "auth_headers": {
+    "accept-language": 16
+  },
+  "base_domain": "www.walmart.com",
+  "graphql_endpoints": [
+    "/orchestra/cartxo/graphql",
+    "/orchestra/home/graphql",
+    "/swag/graphql"
+  ],
+  "graphql_operations": {
+    "23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb": {
+      "calls": 2,
+      "directives": [],
+      "http_method": "GET",
+      "input_schema": {
+        "properties": {
+          "input": {
+            "properties": {
+              "accessTypes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "nodeTypes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "postalCode": {
+                "type": "string"
+              },
+              "radius": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "accessTypes",
+              "nodeTypes",
+              "radius"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "input"
+        ],
+        "type": "object"
+      },
+      "input_shape": {
+        "input": {
+          "accessTypes": [
+            "str"
+          ],
+          "nodeTypes": [
+            "str"
+          ],
+          "postalCode": "str",
+          "radius": "int"
+        }
+      },
+      "operation": "23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb",
+      "parse_confidence": "legacy",
+      "persistedHash": "storeFinderNearbyNodesQuery",
+      "protocol": "graphql-x-persisted",
+      "query": null,
+      "request_media_type": null,
+      "request_template": {},
+      "request_url": "https://www.walmart.com/orchestra/home/graphql/storeFinderNearbyNodesQuery/23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb?variables=%3Cpresent%3E",
+      "returns": [
+        "nearByNodes"
+      ],
+      "root_fields": [],
+      "semantic_kind": "unknown",
+      "type": "unknown",
+      "variables": [
+        "input"
+      ]
+    },
+    "51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154": {
+      "calls": 1,
+      "directives": [],
+      "http_method": "GET",
+      "input_schema": {
+        "properties": {
+          "cartInput": {
+            "properties": {
+              "cartId": {
+                "type": "string"
+              },
+              "enableCartSplitClarity": {
+                "type": "boolean"
+              },
+              "enableLiquorBox": {
+                "type": "boolean"
+              },
+              "features": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "forceRefresh": {
+                "type": "boolean"
+              }
+            },
+            "type": "object"
+          },
+          "enable3pEGiftCardPersonalization": {
+            "type": "boolean"
+          },
+          "enableACCScheduling": {
+            "type": "boolean"
+          },
+          "enableAEBadge": {
+            "type": "boolean"
+          },
+          "enableAOSLineItemId": {
+            "type": "boolean"
+          },
+          "enableAOSModuleAttribute": {
+            "type": "boolean"
+          },
+          "enableAOSPriceChangeExp": {
+            "type": "boolean"
+          },
+          "enableAOSRearchitect": {
+            "type": "boolean"
+          },
+          "enableAOSWplusDiscount": {
+            "type": "boolean"
+          },
+          "enableAOSWplusPriceChange": {
+            "type": "boolean"
+          },
+          "enableAccQuantityNudge": {
+            "type": "boolean"
+          },
+          "enableAlcoholRestrictions": {
+            "type": "boolean"
+          },
+          "enableAllowItemQtyEditable": {
+            "type": "boolean"
+          },
+          "enableAllowItemRemoval": {
+            "type": "boolean"
+          },
+          "enableAllowSaveForLaterForItem": {
+            "type": "boolean"
+          },
+          "enableAppleCareFreeTrials": {
+            "type": "boolean"
+          },
+          "enableAvailableFinancingOptions": {
+            "type": "boolean"
+          },
+          "enableB2BCategoryRestriction": {
+            "type": "boolean"
+          },
+          "enableBadges": {
+            "type": "boolean"
+          },
+          "enableBenefitSavings": {
+            "type": "boolean"
+          },
+          "enableCCAFlow": {
+            "type": "boolean"
+          },
+          "enableCartBookslotShortcut": {
+            "type": "boolean"
+          },
+          "enableCartLevelMSI": {
+            "type": "boolean"
+          },
+          "enableCartLevelPromotions": {
+            "type": "boolean"
+          },
+          "enableCheckoutableErrorAttributes": {
+            "type": "boolean"
+          },
+          "enableClipRewards": {
+            "type": "boolean"
+          },
+          "enableColdChainExpansion": {
+            "type": "boolean"
+          },
+          "enableCustomizableItemsBundles": {
+            "type": "boolean"
+          },
+          "enableCustomizableItemsPhase1": {
+            "type": "boolean"
+          },
+          "enableDestinationTax": {
+            "type": "boolean"
+          },
+          "enableDiscountedOrHolidayExpress": {
+            "type": "boolean"
+          },
+          "enableDroneDelivery": {
+            "type": "boolean"
+          },
+          "enableDynamicExpressSlotType": {
+            "type": "boolean"
+          },
+          "enableE2EPickupEnhancement": {
+            "type": "boolean"
+          },
+          "enableEachWeightItem": {
+            "type": "boolean"
+          },
+          "enableEligibleCareplans": {
+            "type": "boolean"
+          },
+          "enableExpressAvailability": {
+            "type": "boolean"
+          },
+          "enableExpressPickup": {
+            "type": "boolean"
+          },
+          "enableExpressReservationEndTime": {
+            "type": "boolean"
+          },
+          "enableExpressStoreBadge": {
+            "type": "boolean"
+          },
+          "enableFIGCartFulfillmentOption": {
+            "type": "boolean"
+          },
+          "enableFamilyCart": {
+            "type": "boolean"
+          },
+          "enableFeeThresholdBar": {
+            "type": "boolean"
+          },
+          "enableFlowerDelivery": {
+            "type": "boolean"
+          },
+          "enableFreeDeliveryThreshold": {
+            "type": "boolean"
+          },
+          "enableGEP": {
+            "type": "boolean"
+          },
+          "enableGepGeoPreciseLocation": {
+            "type": "boolean"
+          },
+          "enableHotCartFeature": {
+            "type": "boolean"
+          },
+          "enableI18nWave1": {
+            "type": "boolean"
+          },
+          "enableIntentControl": {
+            "type": "boolean"
+          },
+          "enableIsEligibleForFreeTrialV1": {
+            "type": "boolean"
+          },
+          "enableIsTobaccoField": {
+            "type": "boolean"
+          },
+          "enableItemDeliveryPrice": {
+            "type": "boolean"
+          },
+          "enableItemLevelAttributes": {
+            "type": "boolean"
+          },
+          "enableItemLevelCheckout": {
+            "type": "boolean"
+          },
+          "enableItemTypeAttributes": {
+            "type": "boolean"
+          },
+          "enableLatLonForAddress": {
+            "type": "boolean"
+          },
+          "enableLocalizedStringForReservation": {
+            "type": "boolean"
+          },
+          "enableMOQ": {
+            "type": "boolean"
+          },
+          "enableMOQVariants": {
+            "type": "boolean"
+          },
+          "enableMaxItemAllowedForRegularSlot": {
+            "type": "boolean"
+          },
+          "enableMaximumThreshold": {
+            "type": "boolean"
+          },
+          "enableMinFeeThresholdMessage": {
+            "type": "boolean"
+          },
+          "enableMsiMci": {
+            "type": "boolean"
+          },
+          "enableMultiStorePickup": {
+            "type": "boolean"
+          },
+          "enableOptimisticWeightUpdate": {
+            "type": "boolean"
+          },
+          "enableOrderCutOffTime": {
+            "type": "boolean"
+          },
+          "enableOutOfCountry": {
+            "type": "boolean"
+          },
+          "enablePFS": {
+            "type": "boolean"
+          },
+          "enablePayForSpeed": {
+            "type": "boolean"
+          },
+          "enablePaymentMethodPromotion": {
+            "type": "boolean"
+          },
+          "enablePetRxManualRefill": {
+            "type": "boolean"
+          },
+          "enablePickupNotAvailable": {
+            "type": "boolean"
+          },
+          "enablePreferredStore": {
+            "type": "boolean"
+          },
+          "enablePriceDetailsSavings": {
+            "type": "boolean"
+          },
+          "enablePromoDiscount": {
+            "type": "boolean"
+          },
+          "enablePromotionalMetaData": {
+            "type": "boolean"
+          },
+          "enableQsr4w": {
+            "type": "boolean"
+          },
+          "enableRemoveAvailabilityStatus": {
+            "type": "boolean"
+          },
+          "enableReturnsLabel": {
+            "type": "boolean"
+          },
+          "enableRxpd": {
+            "type": "boolean"
+          },
+          "enableRxpdLunchHours": {
+            "type": "boolean"
+          },
+          "enableSavingsBreakup": {
+            "type": "boolean"
+          },
+          "enableSellerFeeBreakdown": {
+            "type": "boolean"
+          },
+          "enableShippingFeeClarity": {
+            "type": "boolean"
+          },
+          "enableShippingOptions": {
+            "type": "boolean"
+          },
+          "enableShopAllNode": {
+            "type": "boolean"
+          },
+          "enableShowACCSchedulingInCart": {
+            "type": "boolean"
+          },
+          "enableShowSavingsGrandTotal": {
+            "type": "boolean"
+          },
+          "enableSparkStore": {
+            "type": "boolean"
+          },
+          "enableSpecialOrderMultiline": {
+            "type": "boolean"
+          },
+          "enableSpendLimit": {
+            "type": "boolean"
+          },
+          "enableStarRatings": {
+            "type": "boolean"
+          },
+          "enableStaticMessageType": {
+            "type": "boolean"
+          },
+          "enableStreamlinedBadges": {
+            "type": "boolean"
+          },
+          "enableSubscribeToSaveNudge": {
+            "type": "boolean"
+          },
+          "enableSubscriptionDiscounts": {
+            "type": "boolean"
+          },
+          "enableSubscriptionsInTransaction": {
+            "type": "boolean"
+          },
+          "enableSubscriptionsInTransactionDiscount": {
+            "type": "boolean"
+          },
+          "enableSuggestedSlotAvailability": {
+            "type": "boolean"
+          },
+          "enableTaxBreakdown": {
+            "type": "boolean"
+          },
+          "enableTheFarmersDog": {
+            "type": "boolean"
+          },
+          "enableUnifiedBadges": {
+            "type": "boolean"
+          },
+          "enableUnscheduledPickup": {
+            "type": "boolean"
+          },
+          "enableUnscheduledShippingOptions": {
+            "type": "boolean"
+          },
+          "enableVPForACCItems": {
+            "type": "boolean"
+          },
+          "enableVolumePricing": {
+            "type": "boolean"
+          },
+          "enableWFSGlobal": {
+            "type": "boolean"
+          },
+          "enableWPlusAutoOptIn": {
+            "type": "boolean"
+          },
+          "enableWalmartPlusFreeDiscountedExpress": {
+            "type": "boolean"
+          },
+          "enableWcpEligibility": {
+            "type": "boolean"
+          },
+          "enableWeeklyReservationCartBookslot": {
+            "type": "boolean"
+          },
+          "enableWic": {
+            "type": "boolean"
+          },
+          "enableWplusACCPayForServiceOnline": {
+            "type": "boolean"
+          },
+          "enableWplusPetBenefit": {
+            "type": "boolean"
+          },
+          "enableWplusSubscribeAndSave": {
+            "type": "boolean"
+          },
+          "getPriceInfoDetails": {
+            "type": "boolean"
+          },
+          "includeExpressSla": {
+            "type": "boolean"
+          },
+          "includeFitment": {
+            "type": "boolean"
+          },
+          "includeFulfillmentSwitchOptions": {
+            "type": "boolean"
+          },
+          "includeItemPackaging": {
+            "type": "boolean"
+          },
+          "includePartialFulfillmentSwitching": {
+            "type": "boolean"
+          },
+          "includeProductPriceInfoUnitPrice": {
+            "type": "boolean"
+          },
+          "includeQueueing": {
+            "type": "boolean"
+          },
+          "subscriptionInTransactionAndDetailed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "input_shape": {
+        "cartInput": {
+          "cartId": "str",
+          "enableCartSplitClarity": "bool",
+          "enableLiquorBox": "bool",
+          "features": [
+            "str"
+          ],
+          "forceRefresh": "bool"
+        },
+        "enable3pEGiftCardPersonalization": "bool",
+        "enableACCScheduling": "bool",
+        "enableAEBadge": "bool",
+        "enableAOSLineItemId": "bool",
+        "enableAOSModuleAttribute": "bool",
+        "enableAOSPriceChangeExp": "bool",
+        "enableAOSRearchitect": "bool",
+        "enableAOSWplusDiscount": "bool",
+        "enableAOSWplusPriceChange": "bool",
+        "enableAccQuantityNudge": "bool",
+        "enableAlcoholRestrictions": "bool",
+        "enableAllowItemQtyEditable": "bool",
+        "enableAllowItemRemoval": "bool",
+        "enableAllowSaveForLaterForItem": "bool",
+        "enableAppleCareFreeTrials": "bool",
+        "enableAvailableFinancingOptions": "bool",
+        "enableB2BCategoryRestriction": "bool",
+        "enableBadges": "bool",
+        "enableBenefitSavings": "bool",
+        "enableCCAFlow": "bool",
+        "enableCartBookslotShortcut": "bool",
+        "enableCartLevelMSI": "bool",
+        "enableCartLevelPromotions": "bool",
+        "enableCheckoutableErrorAttributes": "bool",
+        "enableClipRewards": "bool",
+        "enableColdChainExpansion": "bool",
+        "enableCustomizableItemsBundles": "bool",
+        "enableCustomizableItemsPhase1": "bool",
+        "enableDestinationTax": "bool",
+        "enableDiscountedOrHolidayExpress": "bool",
+        "enableDroneDelivery": "bool",
+        "enableDynamicExpressSlotType": "bool",
+        "enableE2EPickupEnhancement": "bool",
+        "enableEachWeightItem": "bool",
+        "enableEligibleCareplans": "bool",
+        "enableExpressAvailability": "bool",
+        "enableExpressPickup": "bool",
+        "enableExpressReservationEndTime": "bool",
+        "enableExpressStoreBadge": "bool",
+        "enableFIGCartFulfillmentOption": "bool",
+        "enableFamilyCart": "bool",
+        "enableFeeThresholdBar": "bool",
+        "enableFlowerDelivery": "bool",
+        "enableFreeDeliveryThreshold": "bool",
+        "enableGEP": "bool",
+        "enableGepGeoPreciseLocation": "bool",
+        "enableHotCartFeature": "bool",
+        "enableI18nWave1": "bool",
+        "enableIntentControl": "bool",
+        "enableIsEligibleForFreeTrialV1": "bool",
+        "enableIsTobaccoField": "bool",
+        "enableItemDeliveryPrice": "bool",
+        "enableItemLevelAttributes": "bool",
+        "enableItemLevelCheckout": "bool",
+        "enableItemTypeAttributes": "bool",
+        "enableLatLonForAddress": "bool",
+        "enableLocalizedStringForReservation": "bool",
+        "enableMOQ": "bool",
+        "enableMOQVariants": "bool",
+        "enableMaxItemAllowedForRegularSlot": "bool",
+        "enableMaximumThreshold": "bool",
+        "enableMinFeeThresholdMessage": "bool",
+        "enableMsiMci": "bool",
+        "enableMultiStorePickup": "bool",
+        "enableOptimisticWeightUpdate": "bool",
+        "enableOrderCutOffTime": "bool",
+        "enableOutOfCountry": "bool",
+        "enablePFS": "bool",
+        "enablePayForSpeed": "bool",
+        "enablePaymentMethodPromotion": "bool",
+        "enablePetRxManualRefill": "bool",
+        "enablePickupNotAvailable": "bool",
+        "enablePreferredStore": "bool",
+        "enablePriceDetailsSavings": "bool",
+        "enablePromoDiscount": "bool",
+        "enablePromotionalMetaData": "bool",
+        "enableQsr4w": "bool",
+        "enableRemoveAvailabilityStatus": "bool",
+        "enableReturnsLabel": "bool",
+        "enableRxpd": "bool",
+        "enableRxpdLunchHours": "bool",
+        "enableSavingsBreakup": "bool",
+        "enableSellerFeeBreakdown": "bool",
+        "enableShippingFeeClarity": "bool",
+        "enableShippingOptions": "bool",
+        "enableShopAllNode": "bool",
+        "enableShowACCSchedulingInCart": "bool",
+        "enableShowSavingsGrandTotal": "bool",
+        "enableSparkStore": "bool",
+        "enableSpecialOrderMultiline": "bool",
+        "enableSpendLimit": "bool",
+        "enableStarRatings": "bool",
+        "enableStaticMessageType": "bool",
+        "enableStreamlinedBadges": "bool",
+        "enableSubscribeToSaveNudge": "bool",
+        "enableSubscriptionDiscounts": "bool",
+        "enableSubscriptionsInTransaction": "bool",
+        "enableSubscriptionsInTransactionDiscount": "bool",
+        "enableSuggestedSlotAvailability": "bool",
+        "enableTaxBreakdown": "bool",
+        "enableTheFarmersDog": "bool",
+        "enableUnifiedBadges": "bool",
+        "enableUnscheduledPickup": "bool",
+        "enableUnscheduledShippingOptions": "bool",
+        "enableVPForACCItems": "bool",
+        "enableVolumePricing": "bool",
+        "enableWFSGlobal": "bool",
+        "enableWPlusAutoOptIn": "bool",
+        "enableWalmartPlusFreeDiscountedExpress": "bool",
+        "enableWcpEligibility": "bool",
+        "enableWeeklyReservationCartBookslot": "bool",
+        "enableWic": "bool",
+        "enableWplusACCPayForServiceOnline": "bool",
+        "enableWplusPetBenefit": "bool",
+        "enableWplusSubscribeAndSave": "bool",
+        "getPriceInfoDetails": "bool",
+        "includeExpressSla": "bool",
+        "includeFitment": "bool",
+        "includeFulfillmentSwitchOptions": "bool",
+        "includeItemPackaging": "bool",
+        "includePartialFulfillmentSwitching": "bool",
+        "includeProductPriceInfoUnitPrice": "bool",
+        "includeQueueing": "bool",
+        "subscriptionInTransactionAndDetailed": "bool"
+      },
+      "operation": "51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154",
+      "parse_confidence": "legacy",
+      "persistedHash": "getCart",
+      "protocol": "graphql-x-persisted",
+      "query": null,
+      "request_media_type": null,
+      "request_template": {},
+      "request_url": "https://www.walmart.com/orchestra/home/graphql/getCart/51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154?variables=%3Cpresent%3E",
+      "returns": [
+        "cart"
+      ],
+      "root_fields": [],
+      "semantic_kind": "unknown",
+      "type": "unknown",
+      "variables": [
+        "cartInput",
+        "enable3pEGiftCardPersonalization",
+        "enableACCScheduling",
+        "enableAEBadge",
+        "enableAOSLineItemId",
+        "enableAOSModuleAttribute",
+        "enableAOSPriceChangeExp",
+        "enableAOSRearchitect",
+        "enableAOSWplusDiscount",
+        "enableAOSWplusPriceChange",
+        "enableAccQuantityNudge",
+        "enableAlcoholRestrictions",
+        "enableAllowItemQtyEditable",
+        "enableAllowItemRemoval",
+        "enableAllowSaveForLaterForItem",
+        "enableAppleCareFreeTrials",
+        "enableAvailableFinancingOptions",
+        "enableB2BCategoryRestriction",
+        "enableBadges",
+        "enableBenefitSavings",
+        "enableCCAFlow",
+        "enableCartBookslotShortcut",
+        "enableCartLevelMSI",
+        "enableCartLevelPromotions",
+        "enableCheckoutableErrorAttributes",
+        "enableClipRewards",
+        "enableColdChainExpansion",
+        "enableCustomizableItemsBundles",
+        "enableCustomizableItemsPhase1",
+        "enableDestinationTax",
+        "enableDiscountedOrHolidayExpress",
+        "enableDroneDelivery",
+        "enableDynamicExpressSlotType",
+        "enableE2EPickupEnhancement",
+        "enableEachWeightItem",
+        "enableEligibleCareplans",
+        "enableExpressAvailability",
+        "enableExpressPickup",
+        "enableExpressReservationEndTime",
+        "enableExpressStoreBadge",
+        "enableFIGCartFulfillmentOption",
+        "enableFamilyCart",
+        "enableFeeThresholdBar",
+        "enableFlowerDelivery",
+        "enableFreeDeliveryThreshold",
+        "enableGEP",
+        "enableGepGeoPreciseLocation",
+        "enableHotCartFeature",
+        "enableI18nWave1",
+        "enableIntentControl",
+        "enableIsEligibleForFreeTrialV1",
+        "enableIsTobaccoField",
+        "enableItemDeliveryPrice",
+        "enableItemLevelAttributes",
+        "enableItemLevelCheckout",
+        "enableItemTypeAttributes",
+        "enableLatLonForAddress",
+        "enableLocalizedStringForReservation",
+        "enableMOQ",
+        "enableMOQVariants",
+        "enableMaxItemAllowedForRegularSlot",
+        "enableMaximumThreshold",
+        "enableMinFeeThresholdMessage",
+        "enableMsiMci",
+        "enableMultiStorePickup",
+        "enableOptimisticWeightUpdate",
+        "enableOrderCutOffTime",
+        "enableOutOfCountry",
+        "enablePFS",
+        "enablePayForSpeed",
+        "enablePaymentMethodPromotion",
+        "enablePetRxManualRefill",
+        "enablePickupNotAvailable",
+        "enablePreferredStore",
+        "enablePriceDetailsSavings",
+        "enablePromoDiscount",
+        "enablePromotionalMetaData",
+        "enableQsr4w",
+        "enableRemoveAvailabilityStatus",
+        "enableReturnsLabel",
+        "enableRxpd",
+        "enableRxpdLunchHours",
+        "enableSavingsBreakup",
+        "enableSellerFeeBreakdown",
+        "enableShippingFeeClarity",
+        "enableShippingOptions",
+        "enableShopAllNode",
+        "enableShowACCSchedulingInCart",
+        "enableShowSavingsGrandTotal",
+        "enableSparkStore",
+        "enableSpecialOrderMultiline",
+        "enableSpendLimit",
+        "enableStarRatings",
+        "enableStaticMessageType",
+        "enableStreamlinedBadges",
+        "enableSubscribeToSaveNudge",
+        "enableSubscriptionDiscounts",
+        "enableSubscriptionsInTransaction",
+        "enableSubscriptionsInTransactionDiscount",
+        "enableSuggestedSlotAvailability",
+        "enableTaxBreakdown",
+        "enableTheFarmersDog",
+        "enableUnifiedBadges",
+        "enableUnscheduledPickup",
+        "enableUnscheduledShippingOptions",
+        "enableVPForACCItems",
+        "enableVolumePricing",
+        "enableWFSGlobal",
+        "enableWPlusAutoOptIn",
+        "enableWalmartPlusFreeDiscountedExpress",
+        "enableWcpEligibility",
+        "enableWeeklyReservationCartBookslot",
+        "enableWic",
+        "enableWplusACCPayForServiceOnline",
+        "enableWplusPetBenefit",
+        "enableWplusSubscribeAndSave",
+        "getPriceInfoDetails",
+        "includeExpressSla",
+        "includeFitment",
+        "includeFulfillmentSwitchOptions",
+        "includeItemPackaging",
+        "includePartialFulfillmentSwitching",
+        "includeProductPriceInfoUnitPrice",
+        "includeQueueing",
+        "subscriptionInTransactionAndDetailed"
+      ]
+    },
+    "95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6": {
+      "calls": 4,
+      "directives": [],
+      "http_method": "POST",
+      "input_schema": {
+        "properties": {
+          "detailed": {
+            "type": "boolean"
+          },
+          "enable3pEGiftCardPersonalization": {
+            "type": "boolean"
+          },
+          "enableACCScheduling": {
+            "type": "boolean"
+          },
+          "enableAEBadge": {
+            "type": "boolean"
+          },
+          "enableAOSLineItemId": {
+            "type": "boolean"
+          },
+          "enableAOSPriceChangeExp": {
+            "type": "boolean"
+          },
+          "enableAOSWplusDiscount": {
+            "type": "boolean"
+          },
+          "enableAOSWplusPriceChange": {
+            "type": "boolean"
+          },
+          "enableAccQuantityNudge": {
+            "type": "boolean"
+          },
+          "enableAlcoholRestrictions": {
+            "type": "boolean"
+          },
+          "enableAllowItemQtyEditable": {
+            "type": "boolean"
+          },
+          "enableAllowItemRemoval": {
+            "type": "boolean"
+          },
+          "enableAllowSaveForLaterForItem": {
+            "type": "boolean"
+          },
+          "enableAppleCareFreeTrials": {
+            "type": "boolean"
+          },
+          "enableAvailableFinancingOptions": {
+            "type": "boolean"
+          },
+          "enableB2BCategoryRestriction": {
+            "type": "boolean"
+          },
+          "enableBadges": {
+            "type": "boolean"
+          },
+          "enableBenefitSavings": {
+            "type": "boolean"
+          },
+          "enableCCAFlow": {
+            "type": "boolean"
+          },
+          "enableCPCIdOnCidMismatch": {
+            "type": "boolean"
+          },
+          "enableCartBookslotShortcut": {
+            "type": "boolean"
+          },
+          "enableCartIdForAnonymousUser": {
+            "type": "boolean"
+          },
+          "enableCartLevelMSI": {
+            "type": "boolean"
+          },
+          "enableCartLevelPromotions": {
+            "type": "boolean"
+          },
+          "enableCartLight": {
+            "type": "boolean"
+          },
+          "enableCheckoutableErrorAttributes": {
+            "type": "boolean"
+          },
+          "enableColdChainExpansion": {
+            "type": "boolean"
+          },
+          "enableCustomizableItemsBundles": {
+            "type": "boolean"
+          },
+          "enableCustomizableItemsPhase1": {
+            "type": "boolean"
+          },
+          "enableDestinationTax": {
+            "type": "boolean"
+          },
+          "enableDiscountedOrHolidayExpress": {
+            "type": "boolean"
+          },
+          "enableDroneDelivery": {
+            "type": "boolean"
+          },
+          "enableDynamicExpressSlotType": {
+            "type": "boolean"
+          },
+          "enableE2EPickupEnhancement": {
+            "type": "boolean"
+          },
+          "enableEachWeightItem": {
+            "type": "boolean"
+          },
+          "enableEligibleCareplans": {
+            "type": "boolean"
+          },
+          "enableExpressAvailability": {
+            "type": "boolean"
+          },
+          "enableExpressPickup": {
+            "type": "boolean"
+          },
+          "enableExpressReservationEndTime": {
+            "type": "boolean"
+          },
+          "enableExpressStoreBadge": {
+            "type": "boolean"
+          },
+          "enableFIGCartFulfillmentOption": {
+            "type": "boolean"
+          },
+          "enableFamilyCart": {
+            "type": "boolean"
+          },
+          "enableFeeThresholdBar": {
+            "type": "boolean"
+          },
+          "enableFloatingAddToOrder": {
+            "type": "boolean"
+          },
+          "enableFlowerDelivery": {
+            "type": "boolean"
+          },
+          "enableFreeDeliveryThreshold": {
+            "type": "boolean"
+          },
+          "enableGEP": {
+            "type": "boolean"
+          },
+          "enableGepGeoPreciseLocation": {
+            "type": "boolean"
+          },
+          "enableHotCartFeature": {
+            "type": "boolean"
+          },
+          "enableI18nWave1": {
+            "type": "boolean"
+          },
+          "enableIntentControl": {
+            "type": "boolean"
+          },
+          "enableIsEligibleForFreeTrialV1": {
+            "type": "boolean"
+          },
+          "enableIsTobaccoField": {
+            "type": "boolean"
+          },
+          "enableItemDeliveryPrice": {
+            "type": "boolean"
+          },
+          "enableItemLevelAttributes": {
+            "type": "boolean"
+          },
+          "enableItemLevelCheckout": {
+            "type": "boolean"
+          },
+          "enableItemTypeAttributes": {
+            "type": "boolean"
+          },
+          "enableLatLonForAddress": {
+            "type": "boolean"
+          },
+          "enableLiquorBox": {
+            "type": "boolean"
+          },
+          "enableLocalizedStringForReservation": {
+            "type": "boolean"
+          },
+          "enableMOQ": {
+            "type": "boolean"
+          },
+          "enableMOQVariants": {
+            "type": "boolean"
+          },
+          "enableMaxItemAllowedForRegularSlot": {
+            "type": "boolean"
+          },
+          "enableMaximumThreshold": {
+            "type": "boolean"
+          },
+          "enableMergeCartOptimization": {
+            "type": "boolean"
+          },
+          "enableMinFeeThresholdMessage": {
+            "type": "boolean"
+          },
+          "enableMsiMci": {
+            "type": "boolean"
+          },
+          "enableMultiStorePickup": {
+            "type": "boolean"
+          },
+          "enableOptimisticWeightUpdate": {
+            "type": "boolean"
+          },
+          "enableOrderCutOffTime": {
+            "type": "boolean"
+          },
+          "enableOutOfCountry": {
+            "type": "boolean"
+          },
+          "enablePFS": {
+            "type": "boolean"
+          },
+          "enablePayForSpeed": {
+            "type": "boolean"
+          },
+          "enablePaymentMethodPromotion": {
+            "type": "boolean"
+          },
+          "enablePersistedCartId": {
+            "type": "boolean"
+          },
+          "enablePetRxManualRefill": {
+            "type": "boolean"
+          },
+          "enablePickupNotAvailable": {
+            "type": "boolean"
+          },
+          "enablePreferredStore": {
+            "type": "boolean"
+          },
+          "enablePriceDetailsSavings": {
+            "type": "boolean"
+          },
+          "enablePromoDiscount": {
+            "type": "boolean"
+          },
+          "enablePromotionalMetaData": {
+            "type": "boolean"
+          },
+          "enableQsr4w": {
+            "type": "boolean"
+          },
+          "enableReturnsLabel": {
+            "type": "boolean"
+          },
+          "enableRxpd": {
+            "type": "boolean"
+          },
+          "enableRxpdLunchHours": {
+            "type": "boolean"
+          },
+          "enableSavingsBreakup": {
+            "type": "boolean"
+          },
+          "enableSellerFeeBreakdown": {
+            "type": "boolean"
+          },
+          "enableShippingFeeClarity": {
+            "type": "boolean"
+          },
+          "enableShippingOptions": {
+            "type": "boolean"
+          },
+          "enableShopAllNode": {
+            "type": "boolean"
+          },
+          "enableShowACCSchedulingInCart": {
+            "type": "boolean"
+          },
+          "enableShowSavingsGrandTotal": {
+            "type": "boolean"
+          },
+          "enableSparkStore": {
+            "type": "boolean"
+          },
+          "enableSpecialOrderMultiline": {
+            "type": "boolean"
+          },
+          "enableStarRatings": {
+            "type": "boolean"
+          },
+          "enableStaticMessageType": {
+            "type": "boolean"
+          },
+          "enableStreamlinedBadges": {
+            "type": "boolean"
+          },
+          "enableSubscribeToSaveNudge": {
+            "type": "boolean"
+          },
+          "enableSubscriptionDiscounts": {
+            "type": "boolean"
+          },
+          "enableSubscriptionsInTransaction": {
+            "type": "boolean"
+          },
+          "enableSubscriptionsInTransactionDiscount": {
+            "type": "boolean"
+          },
+          "enableSuggestedSlotAvailability": {
+            "type": "boolean"
+          },
+          "enableTaxBreakdown": {
+            "type": "boolean"
+          },
+          "enableTheFarmersDog": {
+            "type": "boolean"
+          },
+          "enableUnifiedBadges": {
+            "type": "boolean"
+          },
+          "enableUnscheduledPickup": {
+            "type": "boolean"
+          },
+          "enableUnscheduledShippingOptions": {
+            "type": "boolean"
+          },
+          "enableVPForACCItems": {
+            "type": "boolean"
+          },
+          "enableVolumePricing": {
+            "type": "boolean"
+          },
+          "enableWFSGlobal": {
+            "type": "boolean"
+          },
+          "enableWalmartPlusFreeDiscountedExpress": {
+            "type": "boolean"
+          },
+          "enableWcpEligibility": {
+            "type": "boolean"
+          },
+          "enableWeightedItems": {
+            "type": "boolean"
+          },
+          "enableWic": {
+            "type": "boolean"
+          },
+          "enableWplusACCPayForServiceOnline": {
+            "type": "boolean"
+          },
+          "enableWplusPetBenefit": {
+            "type": "boolean"
+          },
+          "enableWplusSubscribeAndSave": {
+            "type": "boolean"
+          },
+          "fetchAddOnServices": {
+            "type": "boolean"
+          },
+          "getPriceInfoDetails": {
+            "type": "boolean"
+          },
+          "includeClipRewards": {
+            "type": "boolean"
+          },
+          "includeExpressSla": {
+            "type": "boolean"
+          },
+          "includeExtras": {
+            "type": "boolean"
+          },
+          "includeFitment": {
+            "type": "boolean"
+          },
+          "includeFulfillmentSwitchOptions": {
+            "type": "boolean"
+          },
+          "includeGepShippingThresholdData": {
+            "type": "boolean"
+          },
+          "includeGrandAndSavedSubtotal": {
+            "type": "boolean"
+          },
+          "includeItemPackaging": {
+            "type": "boolean"
+          },
+          "includeOtherDetailed": {
+            "type": "boolean"
+          },
+          "includePartialFulfillmentSwitching": {
+            "type": "boolean"
+          },
+          "includeProductPriceInfoUnitPrice": {
+            "type": "boolean"
+          },
+          "includeQueueing": {
+            "type": "boolean"
+          },
+          "includeWeeklyReservation": {
+            "type": "boolean"
+          },
+          "input": {
+            "properties": {
+              "cartId": {},
+              "enableCartSplitClarity": {
+                "type": "boolean"
+              },
+              "enableLiquorBox": {
+                "type": "boolean"
+              },
+              "features": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "strategy": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "cartId",
+              "enableCartSplitClarity",
+              "enableLiquorBox",
+              "features",
+              "strategy"
+            ],
+            "type": "object"
+          },
+          "subscriptionInTransactionAndDetailed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "detailed",
+          "enable3pEGiftCardPersonalization",
+          "enableACCScheduling",
+          "enableAEBadge",
+          "enableAOSLineItemId",
+          "enableAOSPriceChangeExp",
+          "enableAOSWplusDiscount",
+          "enableAOSWplusPriceChange",
+          "enableAccQuantityNudge",
+          "enableAlcoholRestrictions",
+          "enableAllowItemQtyEditable",
+          "enableAllowItemRemoval",
+          "enableAllowSaveForLaterForItem",
+          "enableAppleCareFreeTrials",
+          "enableAvailableFinancingOptions",
+          "enableB2BCategoryRestriction",
+          "enableBadges",
+          "enableBenefitSavings",
+          "enableCCAFlow",
+          "enableCPCIdOnCidMismatch",
+          "enableCartBookslotShortcut",
+          "enableCartIdForAnonymousUser",
+          "enableCartLevelMSI",
+          "enableCartLevelPromotions",
+          "enableCartLight",
+          "enableCheckoutableErrorAttributes",
+          "enableColdChainExpansion",
+          "enableCustomizableItemsBundles",
+          "enableCustomizableItemsPhase1",
+          "enableDestinationTax",
+          "enableDiscountedOrHolidayExpress",
+          "enableDroneDelivery",
+          "enableDynamicExpressSlotType",
+          "enableE2EPickupEnhancement",
+          "enableEachWeightItem",
+          "enableEligibleCareplans",
+          "enableExpressAvailability",
+          "enableExpressPickup",
+          "enableExpressReservationEndTime",
+          "enableExpressStoreBadge",
+          "enableFIGCartFulfillmentOption",
+          "enableFamilyCart",
+          "enableFeeThresholdBar",
+          "enableFloatingAddToOrder",
+          "enableFlowerDelivery",
+          "enableFreeDeliveryThreshold",
+          "enableGEP",
+          "enableGepGeoPreciseLocation",
+          "enableHotCartFeature",
+          "enableI18nWave1",
+          "enableIntentControl",
+          "enableIsEligibleForFreeTrialV1",
+          "enableIsTobaccoField",
+          "enableItemDeliveryPrice",
+          "enableItemLevelAttributes",
+          "enableItemLevelCheckout",
+          "enableItemTypeAttributes",
+          "enableLatLonForAddress",
+          "enableLiquorBox",
+          "enableLocalizedStringForReservation",
+          "enableMOQ",
+          "enableMOQVariants",
+          "enableMaxItemAllowedForRegularSlot",
+          "enableMaximumThreshold",
+          "enableMergeCartOptimization",
+          "enableMinFeeThresholdMessage",
+          "enableMsiMci",
+          "enableMultiStorePickup",
+          "enableOptimisticWeightUpdate",
+          "enableOrderCutOffTime",
+          "enableOutOfCountry",
+          "enablePFS",
+          "enablePayForSpeed",
+          "enablePaymentMethodPromotion",
+          "enablePersistedCartId",
+          "enablePetRxManualRefill",
+          "enablePickupNotAvailable",
+          "enablePreferredStore",
+          "enablePriceDetailsSavings",
+          "enablePromoDiscount",
+          "enablePromotionalMetaData",
+          "enableQsr4w",
+          "enableReturnsLabel",
+          "enableRxpd",
+          "enableRxpdLunchHours",
+          "enableSavingsBreakup",
+          "enableSellerFeeBreakdown",
+          "enableShippingFeeClarity",
+          "enableShippingOptions",
+          "enableShopAllNode",
+          "enableShowACCSchedulingInCart",
+          "enableShowSavingsGrandTotal",
+          "enableSparkStore",
+          "enableSpecialOrderMultiline",
+          "enableStarRatings",
+          "enableStaticMessageType",
+          "enableStreamlinedBadges",
+          "enableSubscribeToSaveNudge",
+          "enableSubscriptionDiscounts",
+          "enableSubscriptionsInTransaction",
+          "enableSubscriptionsInTransactionDiscount",
+          "enableSuggestedSlotAvailability",
+          "enableTaxBreakdown",
+          "enableTheFarmersDog",
+          "enableUnifiedBadges",
+          "enableUnscheduledPickup",
+          "enableUnscheduledShippingOptions",
+          "enableVPForACCItems",
+          "enableVolumePricing",
+          "enableWFSGlobal",
+          "enableWalmartPlusFreeDiscountedExpress",
+          "enableWcpEligibility",
+          "enableWeightedItems",
+          "enableWic",
+          "enableWplusACCPayForServiceOnline",
+          "enableWplusPetBenefit",
+          "enableWplusSubscribeAndSave",
+          "fetchAddOnServices",
+          "getPriceInfoDetails",
+          "includeClipRewards",
+          "includeExpressSla",
+          "includeExtras",
+          "includeFitment",
+          "includeFulfillmentSwitchOptions",
+          "includeGepShippingThresholdData",
+          "includeGrandAndSavedSubtotal",
+          "includeItemPackaging",
+          "includeOtherDetailed",
+          "includePartialFulfillmentSwitching",
+          "includeProductPriceInfoUnitPrice",
+          "includeQueueing",
+          "includeWeeklyReservation",
+          "input",
+          "subscriptionInTransactionAndDetailed"
+        ],
+        "type": "object"
+      },
+      "input_shape": {
+        "detailed": "bool",
+        "enable3pEGiftCardPersonalization": "bool",
+        "enableACCScheduling": "bool",
+        "enableAEBadge": "bool",
+        "enableAOSLineItemId": "bool",
+        "enableAOSPriceChangeExp": "bool",
+        "enableAOSWplusDiscount": "bool",
+        "enableAOSWplusPriceChange": "bool",
+        "enableAccQuantityNudge": "bool",
+        "enableAlcoholRestrictions": "bool",
+        "enableAllowItemQtyEditable": "bool",
+        "enableAllowItemRemoval": "bool",
+        "enableAllowSaveForLaterForItem": "bool",
+        "enableAppleCareFreeTrials": "bool",
+        "enableAvailableFinancingOptions": "bool",
+        "enableB2BCategoryRestriction": "bool",
+        "enableBadges": "bool",
+        "enableBenefitSavings": "bool",
+        "enableCCAFlow": "bool",
+        "enableCPCIdOnCidMismatch": "bool",
+        "enableCartBookslotShortcut": "bool",
+        "enableCartIdForAnonymousUser": "bool",
+        "enableCartLevelMSI": "bool",
+        "enableCartLevelPromotions": "bool",
+        "enableCartLight": "bool",
+        "enableCheckoutableErrorAttributes": "bool",
+        "enableColdChainExpansion": "bool",
+        "enableCustomizableItemsBundles": "bool",
+        "enableCustomizableItemsPhase1": "bool",
+        "enableDestinationTax": "bool",
+        "enableDiscountedOrHolidayExpress": "bool",
+        "enableDroneDelivery": "bool",
+        "enableDynamicExpressSlotType": "bool",
+        "enableE2EPickupEnhancement": "bool",
+        "enableEachWeightItem": "bool",
+        "enableEligibleCareplans": "bool",
+        "enableExpressAvailability": "bool",
+        "enableExpressPickup": "bool",
+        "enableExpressReservationEndTime": "bool",
+        "enableExpressStoreBadge": "bool",
+        "enableFIGCartFulfillmentOption": "bool",
+        "enableFamilyCart": "bool",
+        "enableFeeThresholdBar": "bool",
+        "enableFloatingAddToOrder": "bool",
+        "enableFlowerDelivery": "bool",
+        "enableFreeDeliveryThreshold": "bool",
+        "enableGEP": "bool",
+        "enableGepGeoPreciseLocation": "bool",
+        "enableHotCartFeature": "bool",
+        "enableI18nWave1": "bool",
+        "enableIntentControl": "bool",
+        "enableIsEligibleForFreeTrialV1": "bool",
+        "enableIsTobaccoField": "bool",
+        "enableItemDeliveryPrice": "bool",
+        "enableItemLevelAttributes": "bool",
+        "enableItemLevelCheckout": "bool",
+        "enableItemTypeAttributes": "bool",
+        "enableLatLonForAddress": "bool",
+        "enableLiquorBox": "bool",
+        "enableLocalizedStringForReservation": "bool",
+        "enableMOQ": "bool",
+        "enableMOQVariants": "bool",
+        "enableMaxItemAllowedForRegularSlot": "bool",
+        "enableMaximumThreshold": "bool",
+        "enableMergeCartOptimization": "bool",
+        "enableMinFeeThresholdMessage": "bool",
+        "enableMsiMci": "bool",
+        "enableMultiStorePickup": "bool",
+        "enableOptimisticWeightUpdate": "bool",
+        "enableOrderCutOffTime": "bool",
+        "enableOutOfCountry": "bool",
+        "enablePFS": "bool",
+        "enablePayForSpeed": "bool",
+        "enablePaymentMethodPromotion": "bool",
+        "enablePersistedCartId": "bool",
+        "enablePetRxManualRefill": "bool",
+        "enablePickupNotAvailable": "bool",
+        "enablePreferredStore": "bool",
+        "enablePriceDetailsSavings": "bool",
+        "enablePromoDiscount": "bool",
+        "enablePromotionalMetaData": "bool",
+        "enableQsr4w": "bool",
+        "enableReturnsLabel": "bool",
+        "enableRxpd": "bool",
+        "enableRxpdLunchHours": "bool",
+        "enableSavingsBreakup": "bool",
+        "enableSellerFeeBreakdown": "bool",
+        "enableShippingFeeClarity": "bool",
+        "enableShippingOptions": "bool",
+        "enableShopAllNode": "bool",
+        "enableShowACCSchedulingInCart": "bool",
+        "enableShowSavingsGrandTotal": "bool",
+        "enableSparkStore": "bool",
+        "enableSpecialOrderMultiline": "bool",
+        "enableStarRatings": "bool",
+        "enableStaticMessageType": "bool",
+        "enableStreamlinedBadges": "bool",
+        "enableSubscribeToSaveNudge": "bool",
+        "enableSubscriptionDiscounts": "bool",
+        "enableSubscriptionsInTransaction": "bool",
+        "enableSubscriptionsInTransactionDiscount": "bool",
+        "enableSuggestedSlotAvailability": "bool",
+        "enableTaxBreakdown": "bool",
+        "enableTheFarmersDog": "bool",
+        "enableUnifiedBadges": "bool",
+        "enableUnscheduledPickup": "bool",
+        "enableUnscheduledShippingOptions": "bool",
+        "enableVPForACCItems": "bool",
+        "enableVolumePricing": "bool",
+        "enableWFSGlobal": "bool",
+        "enableWalmartPlusFreeDiscountedExpress": "bool",
+        "enableWcpEligibility": "bool",
+        "enableWeightedItems": "bool",
+        "enableWic": "bool",
+        "enableWplusACCPayForServiceOnline": "bool",
+        "enableWplusPetBenefit": "bool",
+        "enableWplusSubscribeAndSave": "bool",
+        "fetchAddOnServices": "bool",
+        "getPriceInfoDetails": "bool",
+        "includeClipRewards": "bool",
+        "includeExpressSla": "bool",
+        "includeExtras": "bool",
+        "includeFitment": "bool",
+        "includeFulfillmentSwitchOptions": "bool",
+        "includeGepShippingThresholdData": "bool",
+        "includeGrandAndSavedSubtotal": "bool",
+        "includeItemPackaging": "bool",
+        "includeOtherDetailed": "bool",
+        "includePartialFulfillmentSwitching": "bool",
+        "includeProductPriceInfoUnitPrice": "bool",
+        "includeQueueing": "bool",
+        "includeWeeklyReservation": "bool",
+        "input": {
+          "cartId": "null",
+          "enableCartSplitClarity": "bool",
+          "enableLiquorBox": "bool",
+          "features": [
+            "str"
+          ],
+          "strategy": "str"
+        },
+        "subscriptionInTransactionAndDetailed": "bool"
+      },
+      "operation": "95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6",
+      "parse_confidence": "legacy",
+      "persistedHash": "MergeAndGetCart",
+      "protocol": "graphql-x-persisted",
+      "query": null,
+      "request_media_type": "application/json",
+      "request_template": {},
+      "request_url": "https://www.walmart.com/orchestra/cartxo/graphql/MergeAndGetCart/95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6",
+      "returns": [
+        "mergeAndGetCart"
+      ],
+      "root_fields": [],
+      "semantic_kind": "unknown",
+      "type": "unknown",
+      "variables": [
+        "detailed",
+        "enable3pEGiftCardPersonalization",
+        "enableACCScheduling",
+        "enableAEBadge",
+        "enableAOSLineItemId",
+        "enableAOSPriceChangeExp",
+        "enableAOSWplusDiscount",
+        "enableAOSWplusPriceChange",
+        "enableAccQuantityNudge",
+        "enableAlcoholRestrictions",
+        "enableAllowItemQtyEditable",
+        "enableAllowItemRemoval",
+        "enableAllowSaveForLaterForItem",
+        "enableAppleCareFreeTrials",
+        "enableAvailableFinancingOptions",
+        "enableB2BCategoryRestriction",
+        "enableBadges",
+        "enableBenefitSavings",
+        "enableCCAFlow",
+        "enableCPCIdOnCidMismatch",
+        "enableCartBookslotShortcut",
+        "enableCartIdForAnonymousUser",
+        "enableCartLevelMSI",
+        "enableCartLevelPromotions",
+        "enableCartLight",
+        "enableCheckoutableErrorAttributes",
+        "enableColdChainExpansion",
+        "enableCustomizableItemsBundles",
+        "enableCustomizableItemsPhase1",
+        "enableDestinationTax",
+        "enableDiscountedOrHolidayExpress",
+        "enableDroneDelivery",
+        "enableDynamicExpressSlotType",
+        "enableE2EPickupEnhancement",
+        "enableEachWeightItem",
+        "enableEligibleCareplans",
+        "enableExpressAvailability",
+        "enableExpressPickup",
+        "enableExpressReservationEndTime",
+        "enableExpressStoreBadge",
+        "enableFIGCartFulfillmentOption",
+        "enableFamilyCart",
+        "enableFeeThresholdBar",
+        "enableFloatingAddToOrder",
+        "enableFlowerDelivery",
+        "enableFreeDeliveryThreshold",
+        "enableGEP",
+        "enableGepGeoPreciseLocation",
+        "enableHotCartFeature",
+        "enableI18nWave1",
+        "enableIntentControl",
+        "enableIsEligibleForFreeTrialV1",
+        "enableIsTobaccoField",
+        "enableItemDeliveryPrice",
+        "enableItemLevelAttributes",
+        "enableItemLevelCheckout",
+        "enableItemTypeAttributes",
+        "enableLatLonForAddress",
+        "enableLiquorBox",
+        "enableLocalizedStringForReservation",
+        "enableMOQ",
+        "enableMOQVariants",
+        "enableMaxItemAllowedForRegularSlot",
+        "enableMaximumThreshold",
+        "enableMergeCartOptimization",
+        "enableMinFeeThresholdMessage",
+        "enableMsiMci",
+        "enableMultiStorePickup",
+        "enableOptimisticWeightUpdate",
+        "enableOrderCutOffTime",
+        "enableOutOfCountry",
+        "enablePFS",
+        "enablePayForSpeed",
+        "enablePaymentMethodPromotion",
+        "enablePersistedCartId",
+        "enablePetRxManualRefill",
+        "enablePickupNotAvailable",
+        "enablePreferredStore",
+        "enablePriceDetailsSavings",
+        "enablePromoDiscount",
+        "enablePromotionalMetaData",
+        "enableQsr4w",
+        "enableReturnsLabel",
+        "enableRxpd",
+        "enableRxpdLunchHours",
+        "enableSavingsBreakup",
+        "enableSellerFeeBreakdown",
+        "enableShippingFeeClarity",
+        "enableShippingOptions",
+        "enableShopAllNode",
+        "enableShowACCSchedulingInCart",
+        "enableShowSavingsGrandTotal",
+        "enableSparkStore",
+        "enableSpecialOrderMultiline",
+        "enableStarRatings",
+        "enableStaticMessageType",
+        "enableStreamlinedBadges",
+        "enableSubscribeToSaveNudge",
+        "enableSubscriptionDiscounts",
+        "enableSubscriptionsInTransaction",
+        "enableSubscriptionsInTransactionDiscount",
+        "enableSuggestedSlotAvailability",
+        "enableTaxBreakdown",
+        "enableTheFarmersDog",
+        "enableUnifiedBadges",
+        "enableUnscheduledPickup",
+        "enableUnscheduledShippingOptions",
+        "enableVPForACCItems",
+        "enableVolumePricing",
+        "enableWFSGlobal",
+        "enableWalmartPlusFreeDiscountedExpress",
+        "enableWcpEligibility",
+        "enableWeightedItems",
+        "enableWic",
+        "enableWplusACCPayForServiceOnline",
+        "enableWplusPetBenefit",
+        "enableWplusSubscribeAndSave",
+        "fetchAddOnServices",
+        "getPriceInfoDetails",
+        "includeClipRewards",
+        "includeExpressSla",
+        "includeExtras",
+        "includeFitment",
+        "includeFulfillmentSwitchOptions",
+        "includeGepShippingThresholdData",
+        "includeGrandAndSavedSubtotal",
+        "includeItemPackaging",
+        "includeOtherDetailed",
+        "includePartialFulfillmentSwitching",
+        "includeProductPriceInfoUnitPrice",
+        "includeQueueing",
+        "includeWeeklyReservation",
+        "input",
+        "subscriptionInTransactionAndDetailed"
+      ]
+    },
+    "AdV2DisplayDSP": {
+      "calls": 2,
+      "directives": [],
+      "http_method": "POST",
+      "input_schema": {
+        "properties": {
+          "adRequestComposite": {
+            "description": "GraphQL type AdRequestCompositeIn",
+            "properties": {
+              "adsConfig": {
+                "properties": {
+                  "subModuleType": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "subModuleType"
+                ],
+                "type": "object"
+              },
+              "clientCapabilities": {
+                "properties": {
+                  "eventTrackers": {
+                    "properties": {
+                      "event": {
+                        "type": "integer"
+                      },
+                      "methods": {
+                        "items": {
+                          "type": "integer"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "event",
+                      "methods"
+                    ],
+                    "type": "object"
+                  },
+                  "templateIds": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "variantIds": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "eventTrackers",
+                  "templateIds",
+                  "variantIds"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "adsConfig",
+              "clientCapabilities"
+            ],
+            "type": "object"
+          },
+          "adsContext": {
+            "description": "GraphQL type AdsContextIn",
+            "properties": {
+              "dedupeList": {
+                "type": "array"
+              }
+            },
+            "required": [
+              "dedupeList"
+            ],
+            "type": "object"
+          },
+          "enableAdsUnifiedProductTile": {
+            "type": "boolean"
+          },
+          "locationContext": {
+            "description": "GraphQL type LocationContextIn",
+            "properties": {
+              "intentStrength": {
+                "type": "string"
+              },
+              "stateCode": {
+                "type": "string"
+              },
+              "storeFrontIds": {
+                "items": {
+                  "properties": {
+                    "anchorStore": {
+                      "type": "boolean"
+                    },
+                    "deliveryStore": {
+                      "type": "boolean"
+                    },
+                    "deliveryWICAgencies": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "pickupStore": {
+                      "type": "boolean"
+                    },
+                    "pickupWICAgencies": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "stateOrProvinceCode": {
+                      "type": "string"
+                    },
+                    "storeId": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "anchorStore",
+                    "deliveryStore",
+                    "deliveryWICAgencies",
+                    "pickupStore",
+                    "pickupWICAgencies",
+                    "stateOrProvinceCode",
+                    "storeId"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "storeId": {
+                "type": "string"
+              },
+              "zipCode": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "intentStrength",
+              "stateCode",
+              "storeFrontIds",
+              "storeId",
+              "zipCode"
+            ],
+            "type": "object"
+          },
+          "moduleConfigs": {
+            "description": "GraphQL type JSON",
+            "properties": {
+              "lazy": {
+                "type": "string"
+              },
+              "moduleLocation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "lazy",
+              "moduleLocation"
+            ],
+            "type": "object"
+          },
+          "moduleType": {
+            "description": "GraphQL type ModuleType",
+            "type": "string"
+          },
+          "pageContext": {
+            "description": "GraphQL type PageContextIn",
+            "properties": {
+              "customerContext": {
+                "properties": {
+                  "customerId": {},
+                  "isActiveMember": {
+                    "type": "boolean"
+                  },
+                  "isPaidMember": {
+                    "type": "boolean"
+                  },
+                  "paymentMethodMetaData": {
+                    "type": "array"
+                  },
+                  "purseTags": {
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "customerId",
+                  "isActiveMember",
+                  "isPaidMember",
+                  "paymentMethodMetaData",
+                  "purseTags"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "customerContext"
+            ],
+            "type": "object"
+          },
+          "pageId": {
+            "type": "string"
+          },
+          "pageType": {
+            "description": "GraphQL type PageType",
+            "type": "string"
+          },
+          "platform": {
+            "description": "GraphQL type Platform",
+            "type": "string"
+          },
+          "tenant": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "moduleType",
+          "pageId",
+          "pageType",
+          "platform",
+          "tenant"
+        ],
+        "type": "object"
+      },
+      "input_shape": {
+        "adRequestComposite": {
+          "adsConfig": {
+            "subModuleType": "str"
+          },
+          "clientCapabilities": {
+            "eventTrackers": {
+              "event": "int",
+              "methods": [
+                "int"
+              ]
+            },
+            "templateIds": [
+              "str"
+            ],
+            "variantIds": [
+              "str"
+            ]
+          }
+        },
+        "adsContext": {
+          "dedupeList": []
+        },
+        "enableAdsUnifiedProductTile": "bool",
+        "locationContext": {
+          "intentStrength": "str",
+          "stateCode": "str",
+          "storeFrontIds": [
+            {
+              "anchorStore": "bool",
+              "deliveryStore": "bool",
+              "deliveryWICAgencies": [
+                "str"
+              ],
+              "pickupStore": "bool",
+              "pickupWICAgencies": [
+                "str"
+              ],
+              "stateOrProvinceCode": "str",
+              "storeId": "str"
+            }
+          ],
+          "storeId": "str",
+          "zipCode": "str"
+        },
+        "moduleConfigs": {
+          "lazy": "str",
+          "moduleLocation": "str"
+        },
+        "moduleType": "str",
+        "pageContext": {
+          "customerContext": {
+            "customerId": "null",
+            "isActiveMember": "bool",
+            "isPaidMember": "bool",
+            "paymentMethodMetaData": [],
+            "purseTags": []
+          }
+        },
+        "pageId": "str",
+        "pageType": "str",
+        "platform": "str",
+        "tenant": "str"
+      },
+      "operation": "AdV2DisplayDSP",
+      "parse_confidence": "parsed",
+      "persistedHash": null,
+      "protocol": "graphql-inline",
+      "query": "query AdV2DisplayDSP( $platform:Platform! $pageId:String! $pageType:PageType! $tenant:String! $moduleType:ModuleType! $pageContext:PageContextIn $locationContext:LocationContextIn $moduleConfigs:JSON $adsContext:AdsContextIn $adRequestComposite:AdRequestCompositeIn ){adV2( platform:$platform pageId:$pageId pageType:$pageType tenant:$tenant moduleType:$moduleType locationContext:$locationContext pageContext:$pageContext moduleConfigs:$moduleConfigs adsContext:$adsContext adRequestComposite:$adRequestComposite ){status adContent{type data{__typename...AdDataDisplayAdFragment __typename...AdDataDisplayAdDSPFragment}}}}fragment AdDataDisplayAdDSPFragment on AdData{...on MultiImpDspAd{ads{assets eventTrackers link metaData templateId variantId availableVariantIds}}...on DisplayAdDSP{assets eventTrackers link metaData templateId variantId availableVariantIds}}fragment AdDataDisplayAdFragment on AdData{...on DisplayAd{json status}}",
+      "request_media_type": "application/json",
+      "request_template": {},
+      "request_url": "https://www.walmart.com/swag/graphql",
+      "returns": [
+        "adV2"
+      ],
+      "root_fields": [
+        "adV2"
+      ],
+      "semantic_kind": "query",
+      "type": "query",
+      "variables": [
+        "adRequestComposite",
+        "adsContext",
+        "enableAdsUnifiedProductTile",
+        "locationContext",
+        "moduleConfigs",
+        "moduleType",
+        "pageContext",
+        "pageId",
+        "pageType",
+        "platform",
+        "tenant"
+      ]
+    },
+    "f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c": {
+      "calls": 3,
+      "directives": [],
+      "http_method": "GET",
+      "input_schema": {
+        "properties": {
+          "contentLayoutVersion": {
+            "type": "string"
+          },
+          "enableAnnualLapsedMemberPromo": {
+            "type": "boolean"
+          },
+          "enableDepotStore": {
+            "type": "boolean"
+          },
+          "enableDroneDelivery": {
+            "type": "boolean"
+          },
+          "enableGEP": {
+            "type": "boolean"
+          },
+          "enableGICSpeedFilter": {
+            "type": "boolean"
+          },
+          "enableHolidayFreeExpressDeliveryOptIn": {
+            "type": "boolean"
+          },
+          "enableMultipleInhomeAddresses": {
+            "type": "boolean"
+          },
+          "enablePreferredStore": {
+            "type": "boolean"
+          },
+          "enableShopAllNode": {
+            "type": "boolean"
+          },
+          "enableSparkStore": {
+            "type": "boolean"
+          },
+          "enableStoreBrandTag": {
+            "type": "boolean"
+          },
+          "enableStoreChooserDefaultAlertFromGIC": {
+            "type": "boolean"
+          },
+          "enableTempoFreeExpressDelivery": {
+            "type": "boolean"
+          },
+          "fetchNavLinks": {
+            "type": "boolean"
+          },
+          "pageType": {
+            "type": "string"
+          },
+          "postProcessingVersion": {
+            "type": "integer"
+          },
+          "tenant": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "contentLayoutVersion",
+          "enableAnnualLapsedMemberPromo",
+          "enableDepotStore",
+          "enableDroneDelivery",
+          "enableGEP",
+          "enableGICSpeedFilter",
+          "enableHolidayFreeExpressDeliveryOptIn",
+          "enableMultipleInhomeAddresses",
+          "enablePreferredStore",
+          "enableShopAllNode",
+          "enableSparkStore",
+          "enableStoreBrandTag",
+          "enableStoreChooserDefaultAlertFromGIC",
+          "enableTempoFreeExpressDelivery",
+          "fetchNavLinks",
+          "pageType",
+          "postProcessingVersion",
+          "tenant"
+        ],
+        "type": "object"
+      },
+      "input_shape": {
+        "contentLayoutVersion": "str",
+        "enableAnnualLapsedMemberPromo": "bool",
+        "enableDepotStore": "bool",
+        "enableDroneDelivery": "bool",
+        "enableGEP": "bool",
+        "enableGICSpeedFilter": "bool",
+        "enableHolidayFreeExpressDeliveryOptIn": "bool",
+        "enableMultipleInhomeAddresses": "bool",
+        "enablePreferredStore": "bool",
+        "enableShopAllNode": "bool",
+        "enableSparkStore": "bool",
+        "enableStoreBrandTag": "bool",
+        "enableStoreChooserDefaultAlertFromGIC": "bool",
+        "enableTempoFreeExpressDelivery": "bool",
+        "fetchNavLinks": "bool",
+        "pageType": "str",
+        "postProcessingVersion": "int",
+        "tenant": "str"
+      },
+      "operation": "f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c",
+      "parse_confidence": "legacy",
+      "persistedHash": "GlobalIntentCenter",
+      "protocol": "graphql-x-persisted",
+      "query": null,
+      "request_media_type": null,
+      "request_template": {},
+      "request_url": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E",
+      "returns": [
+        "contentLayout"
+      ],
+      "root_fields": [],
+      "semantic_kind": "unknown",
+      "type": "unknown",
+      "variables": [
+        "contentLayoutVersion",
+        "enableAnnualLapsedMemberPromo",
+        "enableDepotStore",
+        "enableDroneDelivery",
+        "enableGEP",
+        "enableGICSpeedFilter",
+        "enableHolidayFreeExpressDeliveryOptIn",
+        "enableMultipleInhomeAddresses",
+        "enablePreferredStore",
+        "enableShopAllNode",
+        "enableSparkStore",
+        "enableStoreBrandTag",
+        "enableStoreChooserDefaultAlertFromGIC",
+        "enableTempoFreeExpressDelivery",
+        "fetchNavLinks",
+        "pageType",
+        "postProcessingVersion",
+        "tenant"
+      ]
+    },
+    "fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb": {
+      "calls": 3,
+      "directives": [],
+      "http_method": "GET",
+      "input_schema": {
+        "properties": {},
+        "type": "object"
+      },
+      "input_shape": null,
+      "operation": "fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb",
+      "parse_confidence": "legacy",
+      "persistedHash": "shippingCountryList",
+      "protocol": "graphql-x-persisted",
+      "query": null,
+      "request_media_type": null,
+      "request_template": {},
+      "request_url": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E",
+      "returns": [
+        "shippingCountryList"
+      ],
+      "root_fields": [],
+      "semantic_kind": "unknown",
+      "type": "unknown",
+      "variables": []
+    }
+  },
+  "introspection": {
+    "enabled": false,
+    "endpoint": "https://www.walmart.com/orchestra/home/graphql/storeFinderNearbyNodesQuery/23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb",
+    "error": "<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don't have permission to access the requested resource on this server.<P>\nR",
+    "status": 418,
+    "types": 0
+  },
+  "misc_operations": {
+    "service-worker:https://www.walmart.com/~partytown/partytown-sw.js": {
+      "calls": 1,
+      "disabled_reason": "inventory-only browser worker channel",
+      "executable": false,
+      "id": "service-worker:https://www.walmart.com/~partytown/partytown-sw.js",
+      "method": "REGISTER",
+      "protocol": "service-worker",
+      "url": "https://www.walmart.com/~partytown/partytown-sw.js"
+    }
+  },
+  "rest_endpoints": [
+    {
+      "auth_headers": [
+        "accept-language"
+      ],
+      "calls": 1,
+      "method": "GET",
+      "path": "/orchestra/api/ccm/v3/bootstrap",
+      "response_kinds": [
+        "json-api"
+      ],
+      "response_media_types": [
+        "application/json"
+      ],
+      "status": [
+        200
+      ]
+    },
+    {
+      "auth_headers": [],
+      "calls": 1,
+      "method": "POST",
+      "path": "/log.gif",
+      "response_kinds": [
+        "binary"
+      ],
+      "response_media_types": [
+        "image/gif"
+      ],
+      "status": [
+        200
+      ]
+    },
+    {
+      "auth_headers": [],
+      "calls": 111,
+      "method": "POST",
+      "path": "/~{uid}/proxytown",
+      "response_kinds": [
+        "json-api"
+      ],
+      "response_media_types": [
+        "application/json"
+      ],
+      "status": [
+        200
+      ]
+    },
+    {
+      "auth_headers": [],
+      "calls": 1,
+      "method": "POST",
+      "path": "/si/elh9ie/obs",
+      "response_kinds": [
+        "json-api"
+      ],
+      "response_media_types": [
+        "application/json"
+      ],
+      "status": [
+        200
+      ]
+    }
+  ],
+  "websocket_operations": {},
+  "websockets": {}
+}

@@ -1,0 +1,400 @@
+{
+  "auth_headers": {
+    "accept-language": 16
+  },
+  "authentication": {
+    "observations": [
+      {
+        "credential_name": "accept-language",
+        "event": "observed",
+        "interaction_id": "interaction-1",
+        "surface": "https://www.walmart.com/shop/savings/food?facet=%3Cpresent%3E"
+      }
+    ],
+    "public_identifier_names": [
+      "accept-language"
+    ],
+    "secret_credential_names": []
+  },
+  "base_domain": "www.walmart.com",
+  "captured_at": "2026-08-22T02:55:52.309416+00:00",
+  "completed_at": "2026-08-22T02:55:52.309416+00:00",
+  "events": {
+    "byparr": [],
+    "cf": [],
+    "introspection": {
+      "enabled": false,
+      "endpoint": "https://www.walmart.com/orchestra/home/graphql/storeFinderNearbyNodesQuery/23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb",
+      "error": "<HTML><HEAD>\n<TITLE>Access Denied</TITLE>\n</HEAD><BODY>\n<H1>Access Denied</H1>\n \nYou don't have permission to access the requested resource on this server.<P>\nR",
+      "status": 418,
+      "types": 0
+    }
+  },
+  "failure_summary": {
+    "by_category": {
+      "body-decode": 5
+    },
+    "by_stage": {
+      "response-body": 5
+    },
+    "by_surface": {
+      "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c": 2,
+      "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb": 2,
+      "https://www.walmart.com/swag/graphql": 1
+    },
+    "total": 5
+  },
+  "failures": [
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/swag/graphql",
+      "error_type": "Error",
+      "interaction_id": "interaction-2",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:41.656251+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-2",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:41.656399+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-2",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:41.656484+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-3",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:44.536113+00:00",
+      "stage": "response-body"
+    },
+    {
+      "category": "body-decode",
+      "context": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E",
+      "error_type": "Error",
+      "interaction_id": "interaction-3",
+      "message": "Response.json: Protocol error (Network.getResponseBody): No resource with given identifier found",
+      "observed_at": "2026-08-22T02:55:44.536505+00:00",
+      "stage": "response-body"
+    }
+  ],
+  "graphql_endpoints": {
+    "/orchestra/cartxo/graphql": {
+      "count": 4
+    },
+    "/orchestra/home/graphql": {
+      "count": 9
+    },
+    "/swag/graphql": {
+      "count": 2
+    }
+  },
+  "interactions": [
+    {
+      "burst_gaps_ms": [],
+      "calls": 0,
+      "calls_before": 0,
+      "completed_at": "2026-08-22T02:55:39.554029+00:00",
+      "first_api_at": "2026-08-22T02:55:38.863256+00:00",
+      "first_api_latency_ms": 5121.451,
+      "id": "interaction-1",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 1.1016968749972875,
+      "settled": true,
+      "started_at": "2026-08-22T02:55:33.741774+00:00",
+      "surface": "https://www.walmart.com/shop/savings/food?facet=%3Cpresent%3E",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        1716.69,
+        0.1,
+        0.094
+      ],
+      "calls": 0,
+      "calls_before": 2,
+      "completed_at": "2026-08-22T02:55:43.937464+00:00",
+      "first_api_at": "2026-08-22T02:55:39.939635+00:00",
+      "first_api_latency_ms": 385.448,
+      "id": "interaction-2",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 1.1022639840011834,
+      "settled": true,
+      "started_at": "2026-08-22T02:55:39.554171+00:00",
+      "surface": "https://www.walmart.com/shop/savings/food?facet=%3Cpresent%3E&mosaicPage=%3Cpresent%3E",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        581.545,
+        0.376,
+        837.361,
+        253.609,
+        0.776,
+        3.007,
+        35.507,
+        11.758,
+        2.532,
+        1.836,
+        1.394,
+        40.795,
+        160.728,
+        95.712,
+        3.522,
+        2.117,
+        0.093,
+        9.578,
+        1.362,
+        0.904,
+        3.451,
+        1.35,
+        0.773,
+        0.943,
+        3.528,
+        3.347,
+        1.759,
+        1.721,
+        1.725,
+        1.637,
+        2.837,
+        0.12,
+        0.104,
+        5.812,
+        4.442,
+        1.361,
+        2.329,
+        0.153,
+        0.919,
+        0.178,
+        19.701,
+        6.495,
+        6.793,
+        2.857,
+        0.869,
+        1.256,
+        15.777,
+        1.384,
+        2.232,
+        15.144,
+        1.934,
+        1.473,
+        12.495,
+        2.01,
+        1.899,
+        15.15,
+        2.282,
+        2.263,
+        15.62,
+        2.128,
+        1.985,
+        17.906,
+        8.483,
+        2.93,
+        19.637,
+        1.716,
+        0.852,
+        14.443,
+        1.887,
+        1.851,
+        13.386,
+        2.429,
+        2.184,
+        13.662,
+        2.082,
+        2.002,
+        1.903,
+        1.707,
+        1.566,
+        2.058,
+        1.521,
+        1.631,
+        3.065,
+        1.048,
+        2.337,
+        4.477,
+        1.45,
+        1.327,
+        2.425,
+        3.96,
+        1.84,
+        1.943,
+        1.104,
+        0.163,
+        0.795,
+        1.067,
+        1.831,
+        2.0,
+        1.901,
+        1.813,
+        5.412,
+        1.899,
+        1.191,
+        0.836,
+        1.627,
+        1.959,
+        3.109,
+        1.793,
+        1.782,
+        1.809,
+        1.842,
+        2.603,
+        1.87,
+        1.854,
+        1.793,
+        1.131,
+        162.876,
+        0.111
+      ],
+      "calls": 116,
+      "calls_before": 7,
+      "completed_at": "2026-08-22T02:55:48.245548+00:00",
+      "first_api_at": "2026-08-22T02:55:43.954652+00:00",
+      "first_api_latency_ms": 17.11,
+      "id": "interaction-3",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 3.0271734760026447,
+      "settled": true,
+      "started_at": "2026-08-22T02:55:43.937531+00:00",
+      "surface": "https://www.walmart.com/browse/food/dairy-eggs/976759_9145503",
+      "truncation_reason": null
+    },
+    {
+      "burst_gaps_ms": [
+        76.162,
+        0.206,
+        300.29,
+        135.935
+      ],
+      "calls": 5,
+      "calls_before": 126,
+      "completed_at": "2026-08-22T02:55:51.670375+00:00",
+      "first_api_at": "2026-08-22T02:55:49.418456+00:00",
+      "first_api_latency_ms": 1172.776,
+      "id": "interaction-4",
+      "kind": "navigation",
+      "quiet_threshold_ms": 1500,
+      "settle_ceiling_ms": 6000,
+      "settle_seconds": 2.5161024170010933,
+      "settled": true,
+      "started_at": "2026-08-22T02:55:48.245667+00:00",
+      "surface": "https://www.walmart.com/store-finder",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 131,
+      "completed_at": "2026-08-22T02:55:51.828145+00:00",
+      "id": "interaction-5",
+      "kind": "scroll",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-22T02:55:51.670460+00:00",
+      "surface": "https://www.walmart.com/store-finder?location=%3Cpresent%3E",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 131,
+      "completed_at": "2026-08-22T02:55:51.904041+00:00",
+      "id": "interaction-6",
+      "kind": "scroll",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-22T02:55:51.828266+00:00",
+      "surface": "https://www.walmart.com/store-finder?location=%3Cpresent%3E",
+      "truncation_reason": null
+    },
+    {
+      "calls": 0,
+      "calls_before": 131,
+      "completed_at": "2026-08-22T02:55:51.987336+00:00",
+      "id": "interaction-7",
+      "kind": "scroll",
+      "safe_annotation": "bounded read-only action",
+      "settled": true,
+      "started_at": "2026-08-22T02:55:51.904157+00:00",
+      "surface": "https://www.walmart.com/store-finder?location=%3Cpresent%3E",
+      "truncation_reason": null
+    }
+  ],
+  "offline_queues": [],
+  "partial": false,
+  "proxy_interception": false,
+  "records": 131,
+  "request_budgets": {
+    "limits": {
+      "per_operation": 500,
+      "per_origin": 300,
+      "rate_limit_reserve": 1,
+      "total": 400
+    },
+    "rate_limits": {},
+    "truncation_count": 0,
+    "truncations": [],
+    "used": {
+      "operations": {
+        "GET /browse/food/dairy-eggs/976759_9145503": 1,
+        "GET /orchestra/api/ccm/v3/bootstrap": 1,
+        "GET /orchestra/home/graphql/GlobalIntentCenter/{id}": 3,
+        "GET /orchestra/home/graphql/getCart/{id}": 1,
+        "GET /orchestra/home/graphql/shippingCountryList/{id}": 3,
+        "GET /orchestra/home/graphql/storeFinderNearbyNodesQuery/{id}": 2,
+        "GET /px/PXu6b0qd2S/init.js": 4,
+        "GET /rum.gif": 4,
+        "GET /rum.js": 4,
+        "GET /shop/savings/food": 2,
+        "GET /si/snr.js": 1,
+        "GET /store-finder": 2,
+        "GET /~partytown/partytown-media.js": 1,
+        "GET /~partytown/partytown-sw.js": 1,
+        "POST /log.gif": 9,
+        "POST /orchestra/cartxo/graphql/MergeAndGetCart/{id}": 4,
+        "POST /rum.gif": 36,
+        "POST /si/elh9ie/obs": 1,
+        "POST /swag/graphql": 2
+      },
+      "origins": {
+        "https://b.www.walmart.com": 53,
+        "https://www.walmart.com": 29
+      },
+      "total": 82
+    }
+  },
+  "run_id": "5ebd8ddc41504129bcde0f8d294bc93f",
+  "service_workers": [
+    "https://www.walmart.com/~partytown/partytown-sw.js"
+  ],
+  "started_at": "2026-08-22T02:55:32.699442+00:00",
+  "surfaces": [
+    "https://www.walmart.com/shop/savings/food?facet=special_offers%3ARollback",
+    "https://www.walmart.com/shop/savings/food?facet=special_offers%3ARollback&mosaicPage=2",
+    "https://www.walmart.com/browse/food/dairy-eggs/976759_9145503",
+    "https://www.walmart.com/store-finder"
+  ],
+  "tls_verification": "strict",
+  "truncations": {
+    "depth_budget": 171,
+    "key_budget": 5,
+    "node_budget": 166
+  },
+  "websockets": {}
+}

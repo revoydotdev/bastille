@@ -1,0 +1,848 @@
+{
+  "candidate_count": 32,
+  "candidates": [
+    {
+      "confidence": 0.9996,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.98,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "0c2153681f893dcc9434feb8",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E"
+    },
+    {
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-1",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.98,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.98,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.98,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "10450822c681a87cbceb345d",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "POST",
+        "request_template": {
+          "method": "POST",
+          "url": "https://www.walmart.com/orchestra/cartxo/graphql/MergeAndGetCart/95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/orchestra/cartxo/graphql/MergeAndGetCart/95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "12b076b170dba81308dded8c",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://www.walmart.com/store-finder?location=%3Cpresent%3E"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 204
+      },
+      "value": "https://www.walmart.com/store-finder?location=%3Cpresent%3E"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "1e41426ea71662925391df59",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "POST",
+        "request_template": {
+          "method": "POST",
+          "url": "https://www.walmart.com/si/elh9ie/obs"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/si/elh9ie/obs"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-1",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "5bc415e0c2870ca861507ea9",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://www.walmart.com/orchestra/api/ccm/v3/bootstrap?configNames=%3Cpresent%3E"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/orchestra/api/ccm/v3/bootstrap?configNames=%3Cpresent%3E"
+    },
+    {
+      "confidence": 0.9996,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.98,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "6dc127991a2089b364bba673",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "70b3eec022c349ee4d2046c6",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "POST",
+        "request_template": {
+          "method": "POST",
+          "url": "https://www.walmart.com/~partytown/proxytown"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/~partytown/proxytown"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "c0f74e31bb3b4f236e253489",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://www.walmart.com/si/snr.js"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/si/snr.js"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "ca04704c8449f0a99bc158eb",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "POST",
+        "request_template": {
+          "method": "POST",
+          "url": "https://www.walmart.com/swag/graphql"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/swag/graphql"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "d38753577edf947b33141e98",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "POST",
+        "request_template": {
+          "method": "POST",
+          "url": "https://b.www.walmart.com/log.gif"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown",
+        "status": 200
+      },
+      "value": "https://b.www.walmart.com/log.gif"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "e145174c70f2abcb61174628",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://www.walmart.com/orchestra/home/graphql/storeFinderNearbyNodesQuery/23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb?variables=%3Cpresent%3E"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/orchestra/home/graphql/storeFinderNearbyNodesQuery/23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb?variables=%3Cpresent%3E"
+    },
+    {
+      "confidence": 0.98,
+      "evidence": [
+        {
+          "confidence": 0.98,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "e60cdb734da0372c9295c71b",
+      "kind": "endpoint",
+      "metadata": {
+        "method": "GET",
+        "request_template": {
+          "method": "GET",
+          "url": "https://www.walmart.com/orchestra/home/graphql/getCart/51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154?variables=%3Cpresent%3E"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query",
+        "status": 200
+      },
+      "value": "https://www.walmart.com/orchestra/home/graphql/getCart/51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154?variables=%3Cpresent%3E"
+    },
+    {
+      "confidence": 0.99,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "4c57aa29ee9c685693d32777",
+      "kind": "graphql-operation-name",
+      "metadata": {
+        "persisted_identifier": "getCart",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/getCart/51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154"
+    },
+    {
+      "confidence": 0.9999,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "526f403fdb51265c7b043794",
+      "kind": "graphql-operation-name",
+      "metadata": {
+        "persisted_identifier": "GlobalIntentCenter",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c"
+    },
+    {
+      "confidence": 0.9999,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "a9d5d1bdb8d2a0575b11e9fc",
+      "kind": "graphql-operation-name",
+      "metadata": {
+        "persisted_identifier": "shippingCountryList",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb"
+    },
+    {
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-1",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "cdabac0cda5f56e0e4d0ecea",
+      "kind": "graphql-operation-name",
+      "metadata": {
+        "persisted_identifier": "MergeAndGetCart",
+        "request_template": {
+          "method": "POST",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/cartxo/graphql/MergeAndGetCart/95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6"
+    },
+    {
+      "confidence": 0.99,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "f48d688d319585c89043413b",
+      "kind": "graphql-operation-name",
+      "metadata": {
+        "persisted_identifier": "storeFinderNearbyNodesQuery",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/storeFinderNearbyNodesQuery/23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb"
+    },
+    {
+      "confidence": 0.99,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "eligible",
+      "key": "f4a4b79e180252c7984085fe",
+      "kind": "graphql-operation-name",
+      "metadata": {
+        "request_template": {
+          "method": "POST",
+          "protocol": "graphql-inline",
+          "url": "https://www.walmart.com/swag/graphql"
+        },
+        "safety_proven": true,
+        "semantic_kind": "query"
+      },
+      "value": "AdV2DisplayDSP"
+    },
+    {
+      "confidence": 0.999,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/swag/graphql",
+          "source": "observed-error"
+        },
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E",
+          "source": "observed-error"
+        },
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E",
+          "source": "observed-error"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "5a60f625d954b2ea56b0c52e",
+      "kind": "observed-error",
+      "metadata": {},
+      "value": "body-decode"
+    },
+    {
+      "confidence": 0.9999,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "4ba1d38d1d20a41829d7f9ee",
+      "kind": "persisted-identifier",
+      "metadata": {
+        "operation_name": "fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/shippingCountryList/fc56a9c78c53597db122a9cdf8cb2a7d87d5df700f9e7a411bc915491c3fb6eb?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "shippingCountryList"
+    },
+    {
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-1",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "74c2d4bda31b41f5fa4fd1b4",
+      "kind": "persisted-identifier",
+      "metadata": {
+        "operation_name": "95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6",
+        "request_template": {
+          "method": "POST",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/cartxo/graphql/MergeAndGetCart/95f34a1adfe86d93ea7bc3d4e3952bbd81f89bf48cb91cf60451c5b190100cc6"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "MergeAndGetCart"
+    },
+    {
+      "confidence": 0.99,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "a2e7ccbccc1d9f75abe9eada",
+      "kind": "persisted-identifier",
+      "metadata": {
+        "operation_name": "51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/getCart/51f190b5d0f51e4da475b93fc9c4416b2b63b79e534ffb5cbea2b2649d8ad154?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "getCart"
+    },
+    {
+      "confidence": 0.9999,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-2",
+          "source": "browser-traffic"
+        },
+        {
+          "confidence": 0.99,
+          "locator": "interaction-3",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "c6c3d1977ce81d21aedcc878",
+      "kind": "persisted-identifier",
+      "metadata": {
+        "operation_name": "f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/GlobalIntentCenter/f523ec35e2c5807e29159a81f210ce5246ee2a0743408d3bfe407f4f46f2379c?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "GlobalIntentCenter"
+    },
+    {
+      "confidence": 0.99,
+      "evidence": [
+        {
+          "confidence": 0.99,
+          "locator": "interaction-4",
+          "source": "browser-traffic"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "da43d2014a9469774f24417c",
+      "kind": "persisted-identifier",
+      "metadata": {
+        "operation_name": "23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb",
+        "request_template": {
+          "method": "GET",
+          "protocol": "graphql-x-persisted",
+          "url": "https://www.walmart.com/orchestra/home/graphql/storeFinderNearbyNodesQuery/23594c3a307d6359f419a4247d6212be409ec7b74fb8963f5402147bed22e7fb?variables=%3Cpresent%3E"
+        },
+        "safety_proven": false,
+        "semantic_kind": "unknown"
+      },
+      "value": "storeFinderNearbyNodesQuery"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/shop/savings/food?facet=%3Cpresent%3E",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-1",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/shop/savings/food?facet=%3Cpresent%3E&mosaicPage=%3Cpresent%3E",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-2",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/browse/food/dairy-eggs/976759_9145503",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-3",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 116,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/store-finder",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-4",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 5,
+        "completed": true,
+        "safe_annotation": null
+      },
+      "value": "navigation"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/store-finder?location=%3Cpresent%3E",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-5",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "bounded read-only action"
+      },
+      "value": "scroll"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/store-finder?location=%3Cpresent%3E",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-6",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "bounded read-only action"
+      },
+      "value": "scroll"
+    },
+    {
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "confidence": 0.9,
+          "locator": "https://www.walmart.com/store-finder?location=%3Cpresent%3E",
+          "source": "recipe"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "interaction-7",
+      "kind": "recipe-action",
+      "metadata": {
+        "calls": 0,
+        "completed": true,
+        "safe_annotation": "bounded read-only action"
+      },
+      "value": "scroll"
+    },
+    {
+      "confidence": 0.95,
+      "evidence": [
+        {
+          "confidence": 0.95,
+          "source": "service-worker"
+        }
+      ],
+      "execution_state": "inventory-only",
+      "key": "d35e58989da2058a7522c522",
+      "kind": "service-worker",
+      "metadata": {},
+      "value": "https://www.walmart.com/~partytown/partytown-sw.js"
+    }
+  ],
+  "coverage": {
+    "claim": "calibrated-relative-coverage; not absolute backend completeness",
+    "convergence": {
+      "confidence": "unknown",
+      "runs": 1
+    },
+    "navigation_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    },
+    "observed_coverage": {
+      "denominator": "none; observed inventory is a count, not a completeness claim",
+      "observed": 23,
+      "ratio": null
+    },
+    "recipe_action_coverage": {
+      "covered": 7,
+      "ratio": 1.0,
+      "total": 7
+    },
+    "schema_field_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    },
+    "spec_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    },
+    "static_candidate_coverage": {
+      "covered": 0,
+      "ratio": null,
+      "total": 0
+    }
+  },
+  "schema_dialect": "https://json-schema.org/draft/2020-12/schema",
+  "schema_version": 1,
+  "sources": [
+    "browser-traffic",
+    "observed-error",
+    "recipe",
+    "service-worker"
+  ]
+}

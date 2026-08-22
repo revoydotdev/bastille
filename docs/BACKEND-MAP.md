@@ -1,5 +1,10 @@
 # Backend surface map — Food Lion & Wegmans
 
+> Walmart is mapped separately, in
+> [`WALMART-CLEARANCE-API.md`](WALMART-CLEARANCE-API.md): it is read for
+> per-store clearance rather than for comparable shelf prices, and its usable
+> surface is a persisted-query GraphQL tier rather than server-rendered HTML.
+
 Produced with the sibling `webmap` tool (`~/Dev/revelri/webmap`) plus targeted
 follow-up probing. Everything below was observed against the live sites on
 2026-08-20 from an anonymous session; nothing here requires an account, and

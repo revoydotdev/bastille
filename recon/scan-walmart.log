@@ -1,0 +1,82 @@
+── preflight ──────────────────────────────
+  host           local
+  burp_proxy     None
+  byparr         http://127.0.0.1:8191/v1
+  cloakbrowser   0.5.3
+  clairvoyance   True
+  capture_dependencies True
+  tls_http       True
+  openapi_capability False
+  host_status    reachable
+  egress_local   73.31.230.2
+  egress_host    73.31.230.2
+  egress_match   True
+  egress_status  match
+───────────────────────────────────────────
+[scan] running on local …
+[scan] https://www.walmart.com — discovering sitemap …
+[sitemap] robots.txt declares 34 sitemap(s)
+[sitemap] https://www.walmart.com/sitemap_category.xml → 12344 locs (urls so far: 12344)
+[sitemap] https://www.walmart.com/sitemap_store_main.xml → 4 locs (urls so far: 12348)
+[sitemap] https://www.walmart.com/help/sitemap_gm.xml → 182 locs (urls so far: 12530)
+[sitemap] https://www.walmart.com/sitemap_browse_fst.xml → 49252 locs (urls so far: 40280)
+[sitemap] https://www.walmart.com/sitemap_store_dept.xml → 101 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_tp_legacy.xml → 4 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_tp_at.xml → 4 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_tp_br.xml → 17 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_tp_kp.xml → 64 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_02.xml → 66 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_03.xml → 74 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_04.xml → 49 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_05.xml → 69 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_06.xml → 38 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_07.xml → 1 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_08.xml → 3 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_brp_09.xml → 1 locs (urls so far: 40381)
+[sitemap] https://www.walmart.com/sitemap_itp_01.xml → 87 locs (urls so far: 40466)
+[sitemap] https://www.walmart.com/sitemap_itp_02.xml → 172 locs (urls so far: 40638)
+[sitemap] https://www.walmart.com/sitemap_product_03.xml → 5565 locs (urls so far: 46203)
+[sitemap] https://www.walmart.com/sitemap_rp_01.xml → 56 locs (urls so far: 46259)
+[sitemap] https://www.walmart.com/sitemap_rp_02.xml → 13 locs (urls so far: 46272)
+[sitemap] https://www.walmart.com/sitemap_rp_03.xml → 6 locs (urls so far: 46278)
+[sitemap] https://www.walmart.com/sitemap_rp_04.xml → 3 locs (urls so far: 46281)
+[sitemap] https://www.walmart.com/sitemap_rp_05.xml → 6 locs (urls so far: 46287)
+[sitemap] https://www.walmart.com/sitemap_slp_01.xml → 4 locs (urls so far: 46291)
+[sitemap] https://www.walmart.com/sitemap_slp_02.xml → 4 locs (urls so far: 46295)
+[sitemap] https://www.walmart.com/sitemap_auto_dir.xml → 1990 locs (urls so far: 48285)
+[sitemap] https://www.walmart.com/sitemap_brndshp_brand.xml → 1 locs (urls so far: 48285)
+[sitemap] https://www.walmart.com/sitemap_sp.xml → 407 locs (urls so far: 48686)
+[sitemap] https://www.walmart.com/sitemap_hi_ip.xml → 3 locs (urls so far: 48686)
+[sitemap] https://www.walmart.com/sitemap_hi_tp.xml → 2 locs (urls so far: 48686)
+[sitemap] https://www.walmart.com/sitemap_hi_bp.xml → 1 locs (urls so far: 48686)
+[sitemap] https://www.walmart.com/sitemap_hi_mp.xml → 455 locs (urls so far: 48686)
+[sitemap] https://www.walmart.com/sitemap_tp_legacy_1.xml → 50000 locs (urls so far: 98686)
+[sitemap] https://www.walmart.com/sitemap_tp_legacy_2.xml → 50000 locs (urls so far: 148686)
+[sitemap] https://www.walmart.com/sitemap_tp_legacy_3.xml → 50000 locs (urls so far: 198686)
+[sitemap] https://www.walmart.com/sitemap_tp_legacy_4.xml → 1490 locs (urls so far: 200176)
+[sitemap] https://www.walmart.com/sitemap_tp_at_1.xml → 50000 locs (urls so far: 250176)
+[sitemap] https://www.walmart.com/sitemap_tp_at_2.xml → 50000 locs (urls so far: 300176)
+[sitemap] https://www.walmart.com/sitemap_tp_at_3.xml → 50000 locs (urls so far: 350176)
+[sitemap] https://www.walmart.com/sitemap_tp_at_4.xml → 30125 locs (urls so far: 380301)
+[sitemap] https://www.walmart.com/sitemap_tp_br_1.xml → 50000 locs (urls so far: 430301)
+[sitemap] https://www.walmart.com/sitemap_tp_br_2.xml → 50000 locs (urls so far: 480301)
+[sitemap] https://www.walmart.com/sitemap_tp_br_3.xml → 50000 locs (urls so far: 530301)
+[sitemap] https://www.walmart.com/sitemap_tp_br_4.xml → 50000 locs (urls so far: 580301)
+[sitemap] https://www.walmart.com/sitemap_tp_br_5.xml → 50000 locs (urls so far: 630301)
+[sitemap] https://www.walmart.com/sitemap_tp_br_6.xml → 50000 locs (urls so far: 680301)
+[scan] 680302 candidate surfaces
+[scan] https://www.walmart.com/shop/deals
+[scan] https://www.walmart.com/shop/deals/all-home/bath
+[scan] https://www.walmart.com/shop/deals/all-home/appliances
+[scan] https://www.walmart.com/shop/deals/all-home/arts-crafts-and-sewing
+[scan] https://www.walmart.com/shop/deals/all-home/floor-care
+[scan] https://www.walmart.com/shop/deals/all-home/entryway
+[scan] https://www.walmart.com/help/article/track-your-order/143cf6e1d8cb48e6a1ed840409881235
+[scan] https://www.walmart.com/help/article/edit-or-cancel-an-order/2c7e3d99812044f8aaa65aee0eae3d1c
+[scan] mining 202 script seeds, 0 web manifests, and framework manifests …
+[scan] 244 unique endpoint paths in 59 bundles
+[scan] 1 script(s) on edge.fullstory.com denied :: authorize with --allowed-static-host edge.fullstory.com
+
+✓ /tmp/claude-1000/-home-revelri-Dev-revelri-grocer/28fa90a4-3dd4-48f4-8b2e-c0e19cca9c3b/scratchpad/recon/scan-walmart-grocery/scan.json | scan.md | recipe.py
+  review scan.md, then: cp /tmp/claude-1000/-home-revelri-Dev-revelri-grocer/28fa90a4-3dd4-48f4-8b2e-c0e19cca9c3b/scratchpad/recon/scan-walmart-grocery/recipe.py surfaces/www.walmart.com.recipe.py
+  next: webmap map www.walmart.com --recipe surfaces/www.walmart.com.recipe.py --no-auth --no-burp --schema
