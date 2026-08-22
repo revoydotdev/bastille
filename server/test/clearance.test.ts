@@ -164,17 +164,48 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
     assert.equal(body.enabledStores, 2);
   });
 
-  await t.test('the first sweep records each store its own rack', async () => {
+  await t.test('stocks the racks used by the sweeps below', async () => {
     racks = {
       '4682': [item({ itemId: 'A1', name: 'ASUS RTX 4060 graphics card', nowCents: 19900, wasCents: 39900, aisle: 'K14' })],
       '1780': [item({ itemId: 'B1', name: 'Logitech mouse', nowCents: 500, wasCents: 2000, aisle: 'L3' })],
     };
+    onComputersShelf = new Set(['A1']);
+    assert.equal(Object.keys(racks).length, 2);
+  });
+
+  await t.test('a run takes the stalest stores, not all of them', async () => {
+    // Both stores are unswept, so a run capped at one takes the nearer of them
+    // and leaves the other at the front of the queue.
+    const { body } = await api<{ storesSwept: number }>('/api/clearance/sweep', {
+      method: 'POST',
+      body: JSON.stringify({ wait: true, maxStores: 1 }),
+    });
+    assert.equal(body.storesSwept, 1);
+
+    const stores = await api<{ stores: { locationId: string; lastSweptAt: string | null }[] }>(
+      '/api/clearance/stores',
+    );
+    const swept = stores.body.stores.filter((s) => s.lastSweptAt !== null);
+    assert.deepEqual(swept.map((s) => s.locationId), ['4682']);
+
+    // The next run therefore picks up the one that was skipped.
+    const second = await api<{ storesSwept: number }>('/api/clearance/sweep', {
+      method: 'POST',
+      body: JSON.stringify({ wait: true, maxStores: 1 }),
+    });
+    assert.equal(second.body.storesSwept, 1);
+    const after = await api<{ stores: { locationId: string; lastSweptAt: string | null }[] }>(
+      '/api/clearance/stores',
+    );
+    assert.equal(after.body.stores.every((s) => s.lastSweptAt !== null), true);
+  });
+
+  await t.test('the first sweep records each store its own rack', async () => {
     // Only the graphics card is on the Computers shelf; the mouse is not, which
     // is how a find ends up in one group rather than the other.
-    onComputersShelf = new Set(['A1']);
     const { body } = await api<{ storesSwept: number; finds: number; alerts: number }>('/api/clearance/sweep', {
       method: 'POST',
-      body: JSON.stringify({ wait: true }),
+      body: JSON.stringify({ wait: true, maxStores: 10 }),
     });
     assert.equal(body.storesSwept, 2);
     // Every category is swept, and the double returns the same rack for each,

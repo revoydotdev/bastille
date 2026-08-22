@@ -212,7 +212,8 @@ export function Clearance() {
         <div>
           <h2 className="section-heading">Walmart in-store clearance</h2>
           <p className="meta">
-            {date ? `swept ${date}` : 'never swept'} · {enabledCount} of {stores.length} stores enabled
+            {date ? `latest sweep ${date}` : 'never swept'} · {enabledCount} of {stores.length} stores enabled
+            {enabledCount > 0 && `, ${stores.filter((s) => s.enabled && s.lastSweptAt).length} read at least once`}
             {lastSweep?.finishedAt && ` · last run ${relativeTime(lastSweep.finishedAt)}`}
             {lastSweep?.error && ' · last run reported problems'}
           </p>
@@ -256,8 +257,10 @@ export function Clearance() {
             </button>
           </div>
           <p className="meta">
-            Newly found stores start switched off. Each enabled store is a separate pass over every
-            category, and Walmart rate-limits, so a sweep of many stores takes a while.
+            Newly found stores start switched off. Walmart stops answering after roughly twenty
+            reads however far apart they are spaced, so one run covers only the few stores whose
+            racks are stalest — enable as many as you like and they come round over several nights.
+            Each row says when its rack was last actually read.
           </p>
           <ul className="store-list">
             {stores.map((s) => (
@@ -268,6 +271,8 @@ export function Clearance() {
                   <span className="meta">
                     {s.city}, {s.state}
                     {s.distanceMiles != null && ` · ${s.distanceMiles.toFixed(1)} mi`}
+                    {' · '}
+                    {s.lastSweptAt ? `swept ${relativeTime(s.lastSweptAt)}` : 'never swept'}
                   </span>
                 </label>
               </li>

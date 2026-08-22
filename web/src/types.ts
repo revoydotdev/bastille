@@ -191,6 +191,7 @@ export interface ClearanceStore {
   distanceMiles: number | null;
   enabled: boolean;
   discoveredZip: string | null;
+  lastSweptAt: string | null;
 }
 
 export interface ClearanceRow {

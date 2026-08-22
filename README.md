@@ -56,13 +56,21 @@ Saved terms (`rtx`, `nvme`, `ryzen`) are matched against each night's new finds
 and raise an alert, so a graphics card appearing on a rack 8 miles away does not
 depend on you opening the app.
 
-The sweep takes its time: 20-32 seconds between reads, one store at a time, no
-concurrency. Two dozen stores is therefore an hour-plus job, which is why
-`POST /api/clearance/sweep` starts the run and returns rather than holding the
-connection, and why the Clearance tab polls for progress. If Walmart's edge does
-push back, the run stands down for five minutes rather than spending the rest of
-the night failing every remaining store, and gives up after four consecutive
-refusals.
+**One run does not visit every store, and cannot.** Measured against the live
+edge, Walmart starts refusing after roughly twenty reads regardless of how far
+apart they are spaced — the limit is on the count, not the cadence. A 24-store
+pass was tried: three stores came through, then four consecutive refusals and
+the run stopped.
+
+So each run takes the four stores whose racks are stalest, and the next run
+takes the next four. Enable as many stores as you like; they come round over
+several nights, and every row carries the date its rack was actually read. A
+store that gets refused stays at the front of the queue and is retried first.
+
+Within a run: 20-32 seconds between reads, one store at a time, no concurrency,
+a five-minute stand-down on a refusal, and the run abandons after four in a row.
+`POST /api/clearance/sweep` starts it and returns rather than holding the
+connection open; the Clearance tab polls for progress.
 
 Items are split into **PC parts & computers** and **other electronics** by which
 of Walmart's own shelves they appear on, not by a keyword match on the title.
@@ -128,6 +136,7 @@ looks up.
 | `WALMART_REQUEST_JITTER_MS` | `12000` | extra random spread on top of that floor |
 | `WALMART_RATE_LIMIT_COOLDOWN_MS` | `300000` | how long the sweep stands down after a refusal |
 | `WALMART_MAX_CONSECUTIVE_RATE_LIMITS` | `4` | consecutive refusals after which the run gives up |
+| `WALMART_STORES_PER_SWEEP` | `4` | stores one run visits, stalest first |
 | `WALMART_SWEEP_MAX_PAGES` | `8` | pages of 40 items per category per store |
 | `WALMART_STORE_FINDER_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
 | `WALMART_BROWSE_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |

@@ -41,10 +41,14 @@ Walmart's sitemap lists category chains that 404 or return an empty shelf.
 - `robots.txt` disallows `/api/`, `/search`, `/typeahead/` and
   `/store/electrode/api/*`. It does **not** disallow `/orchestra/*`. bastille
   uses only `/orchestra/*`, and does not touch the search surface.
-- **The edge rate-limits hard.** Roughly twenty reads inside a few minutes earns
-  a `412` carrying a PerimeterX block payload, and it persists for tens of
-  minutes. This is the binding constraint on the design: the sweep is a nightly
-  job that waits seconds between reads, not a live query path.
+- **The edge rate-limits hard, and on count rather than cadence.** Roughly
+  twenty reads earns a `412` carrying a PerimeterX block payload, which persists
+  for tens of minutes. Spacing them further apart does not help past a point:
+  the same threshold was hit at 8s spacing and at 20-32s. A full 24-store pass
+  was attempted at the wider spacing — three stores completed, then four
+  consecutive refusals ended the run. This is the binding constraint on the
+  design, and the reason a run sweeps a rotating slice of stores rather than all
+  of them.
 
 ## Operations used
 

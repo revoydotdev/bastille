@@ -154,7 +154,8 @@ CREATE TABLE IF NOT EXISTS walmart_store (
   distance_miles REAL,                   -- from the ZIP it was discovered with
   discovered_zip TEXT,
   enabled        INTEGER NOT NULL DEFAULT 1,
-  added_at       TEXT NOT NULL
+  added_at       TEXT NOT NULL,
+  last_swept_at  TEXT                    -- ISO-8601; null until a sweep reads it
 );
 
 -- One row per item per store per sweep day. Append-only and idempotent, so a
@@ -230,9 +231,28 @@ CREATE TABLE IF NOT EXISTS poll_run (
 );
 `;
 
+/**
+ * Columns added after a table shipped. `CREATE TABLE IF NOT EXISTS` leaves an
+ * existing table alone, so a new column has to be added explicitly — and
+ * idempotently, since this runs on every open.
+ */
+const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
+  { table: 'walmart_store', column: 'last_swept_at', definition: 'TEXT' },
+];
+
+function applyAddedColumns(db: DB): void {
+  for (const { table, column, definition } of ADDED_COLUMNS) {
+    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
+    if (columns.length === 0) continue; // table not created yet on this open
+    if (columns.some((c) => c.name === column)) continue;
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 export function openDb(path: string = process.env.BASTILLE_DB ?? resolve('data/bastille.db')): DB {
   mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
+  applyAddedColumns(db);
   return db;
 }

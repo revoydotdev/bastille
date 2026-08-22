@@ -116,20 +116,24 @@ export function registerClearanceRoutes(
   }));
 
   /**
-   * Starts a sweep. A full run across a dozen stores takes the better part of
-   * an hour — far longer than any HTTP client will hold a connection open — so
-   * this returns as soon as the run is under way and the caller polls
+   * Starts a sweep of the stores whose racks are stalest — not all of them; see
+   * the rotation note in `clearance-sweep.ts`. `stores` overrides the selection,
+   * `maxStores` its size.
+   *
+   * Returns as soon as the run is under way, because even four stores is far
+   * longer than an HTTP client will hold a connection open; the caller polls
    * `/api/clearance/status`. `wait: true` blocks for the result instead, which
-   * is what the tests and a short single-store run want.
+   * is what the tests and a single-store run want.
    */
   app.post('/api/clearance/sweep', async (req, reply) => {
     if (sweep.isRunning) return reply.code(409).send({ error: 'a sweep is already running' });
-    const body = (req.body ?? {}) as { stores?: string; wait?: boolean };
+    const body = (req.body ?? {}) as { stores?: string; wait?: boolean; maxStores?: number };
     const locationIds = body.stores ? parseList(body.stores) : undefined;
+    const maxStores = typeof body.maxStores === 'number' ? Math.max(1, Math.round(body.maxStores)) : undefined;
 
     if (body.wait) {
       try {
-        return await sweep.runOnce({ locationIds });
+        return await sweep.runOnce({ locationIds, maxStores });
       } catch (err) {
         return reply.code(500).send({ error: (err as Error).message });
       }
@@ -137,7 +141,7 @@ export function registerClearanceRoutes(
 
     // Failures land in `sweep_run` and in the run's own error list, which
     // `/status` reports; nothing is lost by not awaiting here.
-    void sweep.runOnce({ locationIds }).catch(() => undefined);
+    void sweep.runOnce({ locationIds, maxStores }).catch(() => undefined);
     return reply.code(202).send({ started: true, progress: sweep.currentProgress });
   });
 

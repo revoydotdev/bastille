@@ -15,6 +15,14 @@
  * than spending the rest of the run failing every remaining store against a
  * closed door — and gives up entirely after enough consecutive refusals, on the
  * grounds that a job which cannot get an answer should stop asking.
+ *
+ * That refusal is the reason a run does not try to visit every store. Measured
+ * against the live edge, roughly twenty reads earns a 412 no matter how far
+ * apart they are spaced — spacing buys nothing past a point, because the limit
+ * is on the count, not the cadence. So each run takes a slice: the stores whose
+ * racks are the most stale, `WALMART_STORES_PER_SWEEP` of them, and the next
+ * run takes the next slice. Two dozen stores come round over several nights,
+ * every one of them carrying the date its rack was actually read.
  */
 import { CLEARANCE_CATEGORIES, type ClearanceCategory } from '../clearance/categories.js';
 import { backOffUntil, clearanceShelf } from '../clearance/walmart-api.js';
@@ -69,6 +77,12 @@ const PAGE_SIZE = 40;
 const RATE_LIMIT_COOLDOWN_MS = Number(process.env.WALMART_RATE_LIMIT_COOLDOWN_MS ?? 5 * 60 * 1000);
 /** Consecutive refusals after which the run gives up rather than keep knocking. */
 const MAX_CONSECUTIVE_RATE_LIMITS = Number(process.env.WALMART_MAX_CONSECUTIVE_RATE_LIMITS ?? 4);
+/**
+ * Stores per run. Three came through cleanly before the edge started refusing,
+ * so four is the honest ceiling with a little slack; raising it does not get
+ * more data, it just gets more 412s and a longer run.
+ */
+const STORES_PER_SWEEP = Number(process.env.WALMART_STORES_PER_SWEEP ?? 4);
 
 /** 412 is Walmart's edge; 429 is the ordinary spelling. Either means "later". */
 function isRateLimit(err: unknown): boolean {
@@ -131,7 +145,7 @@ export class ClearanceSweepJob {
     this.timer = null;
   }
 
-  async runOnce(opts: { locationIds?: string[] } = {}): Promise<SweepResult> {
+  async runOnce(opts: { locationIds?: string[]; maxStores?: number } = {}): Promise<SweepResult> {
     if (this.running) throw new Error('a sweep is already running');
     this.running = true;
 
@@ -146,10 +160,11 @@ export class ClearanceSweepJob {
     let abandoned = false;
 
     try {
-      const enabled = this.repo.listStores(true);
+      // An explicit list is taken at its word — that is a deliberate ask. With
+      // no list, the run takes the stalest slice.
       const stores = opts.locationIds && opts.locationIds.length > 0
-        ? enabled.filter((s) => opts.locationIds!.includes(s.locationId))
-        : enabled;
+        ? this.repo.listStores(true).filter((s) => opts.locationIds!.includes(s.locationId))
+        : this.repo.storesDueForSweep(opts.maxStores ?? STORES_PER_SWEEP);
       const categories = CLEARANCE_CATEGORIES;
 
       if (stores.length === 0) {
@@ -202,7 +217,13 @@ export class ClearanceSweepJob {
             await new Promise((r) => setTimeout(r, RATE_LIMIT_COOLDOWN_MS));
           }
         }
-        if (sweptAnything) storesSwept++;
+        // Only a store that actually answered counts as swept, and only that
+        // store moves to the back of the rotation queue. One that was refused
+        // stays at the front and is retried first next run.
+        if (sweptAnything) {
+          storesSwept++;
+          this.repo.markSwept(store.locationId);
+        }
         this.progress.storesDone++;
         this.progress.finds = finds;
         this.publish();

@@ -13,6 +13,8 @@ import type { CategoryGroup } from './categories.js';
 export interface SweptStore extends WalmartStore {
   enabled: boolean;
   discoveredZip: string | null;
+  /** when a sweep last actually read this store's rack, or null */
+  lastSweptAt: string | null;
 }
 
 export interface ClearanceRow {
@@ -152,7 +154,35 @@ export class ClearanceRepo {
     const sql = `SELECT * FROM walmart_store ${onlyEnabled ? 'WHERE enabled = 1' : ''}
                  ORDER BY distance_miles IS NULL, distance_miles ASC, name ASC`;
     const rows = this.db.prepare(sql).all() as unknown as Record<string, unknown>[];
-    return rows.map((r) => ({
+    return rows.map((r) => this.toStore(r));
+  }
+
+  /**
+   * The stores a run should visit: least-recently-swept first, never-swept
+   * first of all. Walmart's edge only allows so many reads before it starts
+   * refusing, so a run takes a slice and the next run takes the next — over a
+   * few nights every enabled store gets covered.
+   */
+  storesDueForSweep(limit: number): SweptStore[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM walmart_store WHERE enabled = 1
+         ORDER BY last_swept_at IS NOT NULL, last_swept_at ASC,
+                  distance_miles IS NULL, distance_miles ASC
+         LIMIT ?`,
+      )
+      .all(limit) as unknown as Record<string, unknown>[];
+    return rows.map((r) => this.toStore(r));
+  }
+
+  markSwept(locationId: string): void {
+    this.db
+      .prepare('UPDATE walmart_store SET last_swept_at = ? WHERE location_id = ?')
+      .run(new Date().toISOString(), locationId);
+  }
+
+  private toStore(r: Record<string, unknown>): SweptStore {
+    return {
       locationId: r['location_id'] as string,
       name: r['name'] as string,
       address: (r['address'] as string | null) ?? '',
@@ -163,7 +193,8 @@ export class ClearanceRepo {
       distanceMiles: (r['distance_miles'] as number | null) ?? null,
       enabled: r['enabled'] === 1,
       discoveredZip: (r['discovered_zip'] as string | null) ?? null,
-    }));
+      lastSweptAt: (r['last_swept_at'] as string | null) ?? null,
+    };
   }
 
   setStoreEnabled(locationId: string, enabled: boolean): boolean {
