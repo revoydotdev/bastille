@@ -124,7 +124,7 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
   await t.test('a ZIP with no stores yet sweeps nothing and says so', async () => {
     const { body } = await api<{ storesSwept: number; errors: string[] }>('/api/clearance/sweep', {
       method: 'POST',
-      body: '{}',
+      body: JSON.stringify({ wait: true }),
     });
     assert.equal(body.storesSwept, 0);
     assert.ok(body.errors.some((e) => e.includes('no stores enabled')));
@@ -169,7 +169,7 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
     onComputersShelf = new Set(['A1']);
     const { body } = await api<{ storesSwept: number; finds: number; alerts: number }>('/api/clearance/sweep', {
       method: 'POST',
-      body: '{}',
+      body: JSON.stringify({ wait: true }),
     });
     assert.equal(body.storesSwept, 2);
     // Every category is swept, and the double returns the same rack for each,
@@ -247,7 +247,7 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
 
     const { body } = await api<{ alerts: number; finds: number }>('/api/clearance/sweep', {
       method: 'POST',
-      body: '{}',
+      body: JSON.stringify({ wait: true }),
     });
     // Same calendar day: the run is an update, so nothing counts as new yet.
     assert.ok(body.finds >= 3);
@@ -255,6 +255,19 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
 
     const feed = await api<{ total: number; rows: { itemId: string }[] }>('/api/clearance');
     assert.equal(feed.body.total, 3);
+  });
+
+  await t.test('a sweep started without wait returns immediately', async () => {
+    const { status, body } = await api<{ started: boolean }>('/api/clearance/sweep', {
+      method: 'POST',
+      body: '{}',
+    });
+    assert.equal(status, 202);
+    assert.equal(body.started, true);
+    // It is already finished — the doubles answer instantly — but the point is
+    // that the response did not wait to find out.
+    const after = await api<{ sweeping: boolean }>('/api/clearance/status');
+    assert.equal(typeof after.body.sweeping, 'boolean');
   });
 
   await t.test('removing a watch takes it off the list', async () => {

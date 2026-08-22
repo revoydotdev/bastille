@@ -3,6 +3,7 @@ import type {
   ClearanceGroup,
   ClearanceGroupOption,
   ClearanceFilters,
+  SweepProgress,
   ClearanceRow,
   ClearanceStore,
   ClearanceWatch,
@@ -56,6 +57,7 @@ export function Clearance() {
   const [watches, setWatches] = useState<ClearanceWatch[]>([]);
   const [lastSweep, setLastSweep] = useState<SweepRun | null>(null);
   const [sweeping, setSweeping] = useState(false);
+  const [progress, setProgress] = useState<SweepProgress | null>(null);
 
   const [zip, setZip] = useState('');
   const [discovering, setDiscovering] = useState(false);
@@ -75,6 +77,7 @@ export function Clearance() {
     setStores(s.stores);
     setLastSweep(s.lastSweep);
     setSweeping(s.sweeping);
+    setProgress(s.progress);
     setGroups(c.groups);
     setWatches(w.watches);
     // Nothing to sweep yet: open the store panel rather than showing an empty
@@ -109,6 +112,24 @@ export function Clearance() {
     void loadRows(0);
   }, [loadRows]);
 
+  // While a sweep is in flight, follow it. The interval is slack on purpose:
+  // the run itself is paced in tens of seconds, so polling faster would only
+  // show the same answer again.
+  useEffect(() => {
+    if (!sweeping) return;
+    const tick = async () => {
+      const st = await api.clearanceStatus();
+      setProgress(st.progress);
+      if (!st.sweeping) {
+        setSweeping(false);
+        setLastSweep(st.lastSweep);
+        await loadRows(0);
+      }
+    };
+    const id = setInterval(() => void tick().catch(() => undefined), 10_000);
+    return () => clearInterval(id);
+  }, [sweeping, loadRows]);
+
   const enabledCount = useMemo(() => stores.filter((s) => s.enabled).length, [stores]);
 
   async function discover() {
@@ -136,25 +157,17 @@ export function Clearance() {
     }
   }
 
+  /**
+   * A full sweep runs for the better part of an hour, so the request only
+   * starts it; where it has got to comes from polling.
+   */
   async function sweepNow() {
-    setSweeping(true);
     setError(null);
     try {
-      const res = await api.runSweep();
-      setLastSweep({
-        date: res.date,
-        startedAt: new Date().toISOString(),
-        finishedAt: new Date().toISOString(),
-        storesSwept: res.storesSwept,
-        finds: res.finds,
-        error: res.errors.length ? res.errors.join('; ') : null,
-      });
-      if (res.errors.length) setError(res.errors.join('; '));
-      await loadRows(0);
+      await api.startSweep();
+      setSweeping(true);
     } catch (e) {
       setError((e as Error).message);
-    } finally {
-      setSweeping(false);
     }
   }
 
@@ -201,6 +214,7 @@ export function Clearance() {
           <p className="meta">
             {date ? `swept ${date}` : 'never swept'} · {enabledCount} of {stores.length} stores enabled
             {lastSweep?.finishedAt && ` · last run ${relativeTime(lastSweep.finishedAt)}`}
+            {lastSweep?.error && ' · last run reported problems'}
           </p>
         </div>
         <span className="spacer" />
@@ -211,6 +225,17 @@ export function Clearance() {
           {sweeping ? 'Sweeping…' : 'Sweep now'}
         </button>
       </header>
+
+      {sweeping && progress && (
+        <p className="meta sweep-progress" role="status">
+          Store {Math.min(progress.storesDone + 1, progress.storesTotal)} of {progress.storesTotal}
+          {progress.currentStore && ` — ${progress.currentStore}`}
+          {progress.currentCategory && ` · ${progress.currentCategory}`}
+          {' · '}
+          {progress.finds} recorded
+          {progress.rateLimited > 0 && ` · backed off ${progress.rateLimited}×`}
+        </p>
+      )}
 
       {error && <div className="error">{error}</div>}
 

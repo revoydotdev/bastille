@@ -202,10 +202,19 @@ discount null rather than inventing a baseline.
 ## Conduct
 
 Read-only throughout. One request at a time, with a floor of
-`WALMART_REQUEST_INTERVAL_MS` (default 8s) between them — an order of magnitude
-slower than the grocery adapters, because this edge asks for it. Backoff on
-412/429/5xx, a browser `User-Agent`, no accounts, no cart, no checkout, no
-challenge solving. The sweep runs once a night.
+`WALMART_REQUEST_INTERVAL_MS` (default 20s) plus up to `WALMART_REQUEST_JITTER_MS`
+(default 12s) of spread — two orders of magnitude slower than the grocery
+adapters, because this edge asks for it. The jitter is there to spread load off
+a fixed cadence, not to disguise anything: the client's identity, headers and
+fingerprint are the same on every request, and it says who it is.
+
+On a refusal the sweep stands down for `WALMART_RATE_LIMIT_COOLDOWN_MS`
+(default 5 minutes) and abandons the run after
+`WALMART_MAX_CONSECUTIVE_RATE_LIMITS` (default 4) in a row — a job that cannot
+get an answer should stop asking.
+
+Backoff on 412/429/5xx, a browser `User-Agent`, no accounts, no cart, no
+checkout, no challenge solving. The sweep runs once a night.
 
 ## What was tried and rejected
 

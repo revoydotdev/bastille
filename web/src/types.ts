@@ -234,9 +234,20 @@ export interface SweepRun {
   error: string | null;
 }
 
+export interface SweepProgress {
+  storesTotal: number;
+  storesDone: number;
+  currentStore: string | null;
+  currentCategory: string | null;
+  finds: number;
+  rateLimited: number;
+  startedAt: string;
+}
+
 export interface ClearanceStatus {
   lastSweep: SweepRun | null;
   sweeping: boolean;
+  progress: SweepProgress | null;
   latestDate: string | null;
   enabledStores: number;
 }

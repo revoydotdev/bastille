@@ -39,17 +39,33 @@ const BROWSE_HASH =
 export const CLEARANCE_FACET = 'special_offers:Clearance||fulfillment_method:In-store';
 
 /**
- * Akamai answers a burst with 412. A store sweep is a background job with all
- * night to finish, so it waits seconds between reads rather than the
- * milliseconds the grocery adapters use.
+ * Walmart's edge answers a burst with 412, and measured here it takes about
+ * twenty reads inside a few minutes to earn one. A store sweep is a background
+ * job with all night to finish, so it waits tens of seconds between reads
+ * rather than the milliseconds the grocery adapters use.
+ *
+ * The extra jitter spreads the load off a fixed cadence — a run that fires
+ * every 20.000s puts a sharper spike on any one minute-bucket than one that
+ * fires every 20-32s. It is load-spreading, not disguise: nothing here varies
+ * the client's identity, headers or fingerprint between requests.
  */
-const REQUEST_INTERVAL_MS = Number(process.env.WALMART_REQUEST_INTERVAL_MS ?? 8_000);
+const REQUEST_INTERVAL_MS = Number(process.env.WALMART_REQUEST_INTERVAL_MS ?? 20_000);
+const REQUEST_JITTER_MS = Number(process.env.WALMART_REQUEST_JITTER_MS ?? 12_000);
 let nextRequestAt = 0;
 
 async function pace(): Promise<void> {
   const wait = nextRequestAt - Date.now();
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  nextRequestAt = Date.now() + REQUEST_INTERVAL_MS;
+  nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
+}
+
+/**
+ * Pushes the next read out by `ms`, so a caller that has just been rate-limited
+ * can stand down without the pacer immediately letting the following request
+ * through.
+ */
+export function backOffUntil(ms: number): void {
+  nextRequestAt = Math.max(nextRequestAt, Date.now() + ms);
 }
 
 function correlationId(): string {

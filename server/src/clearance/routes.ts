@@ -46,6 +46,7 @@ export function registerClearanceRoutes(
     stores: repo.listStores(),
     lastSweep: repo.lastSweep(),
     sweeping: sweep.isRunning,
+    progress: sweep.currentProgress,
   }));
 
   /**
@@ -107,20 +108,37 @@ export function registerClearanceRoutes(
   app.get('/api/clearance/status', async () => ({
     lastSweep: repo.lastSweep(),
     sweeping: sweep.isRunning,
+    // A full sweep runs for the better part of an hour, so "is it running" is
+    // not enough to go on — where it has got to is the useful answer.
+    progress: sweep.currentProgress,
     latestDate: repo.latestSweepDate(),
     enabledStores: repo.listStores(true).length,
   }));
 
+  /**
+   * Starts a sweep. A full run across a dozen stores takes the better part of
+   * an hour — far longer than any HTTP client will hold a connection open — so
+   * this returns as soon as the run is under way and the caller polls
+   * `/api/clearance/status`. `wait: true` blocks for the result instead, which
+   * is what the tests and a short single-store run want.
+   */
   app.post('/api/clearance/sweep', async (req, reply) => {
     if (sweep.isRunning) return reply.code(409).send({ error: 'a sweep is already running' });
-    const body = (req.body ?? {}) as { stores?: string };
-    try {
-      return await sweep.runOnce({
-        locationIds: body.stores ? parseList(body.stores) : undefined,
-      });
-    } catch (err) {
-      return reply.code(500).send({ error: (err as Error).message });
+    const body = (req.body ?? {}) as { stores?: string; wait?: boolean };
+    const locationIds = body.stores ? parseList(body.stores) : undefined;
+
+    if (body.wait) {
+      try {
+        return await sweep.runOnce({ locationIds });
+      } catch (err) {
+        return reply.code(500).send({ error: (err as Error).message });
+      }
     }
+
+    // Failures land in `sweep_run` and in the run's own error list, which
+    // `/status` reports; nothing is lost by not awaiting here.
+    void sweep.runOnce({ locationIds }).catch(() => undefined);
+    return reply.code(202).send({ started: true, progress: sweep.currentProgress });
   });
 
   app.get('/api/clearance/watches', async () => ({ watches: repo.listWatches() }));

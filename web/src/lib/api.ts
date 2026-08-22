@@ -1,6 +1,6 @@
 import type {
   Alert, SearchResult, StoresResponse, WatchGroup, PriceSnapshot, DealsResponse, DealFilters, SnapshotStatus,
-  ClearanceCategory, ClearanceGroupOption, ClearanceStore, ClearanceResponse, ClearanceStatus, ClearanceWatch, ClearanceFilters, SweepRun,
+  ClearanceCategory, ClearanceGroupOption, ClearanceStore, SweepProgress, ClearanceResponse, ClearanceStatus, ClearanceWatch, ClearanceFilters, SweepRun,
 } from '../types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -95,7 +95,9 @@ export const api = {
     json<{ categories: ClearanceCategory[]; groups: ClearanceGroupOption[] }>('/api/clearance/categories'),
 
   clearanceStores: () =>
-    json<{ stores: ClearanceStore[]; lastSweep: SweepRun | null; sweeping: boolean }>('/api/clearance/stores'),
+    json<{ stores: ClearanceStore[]; lastSweep: SweepRun | null; sweeping: boolean; progress: SweepProgress | null }>(
+      '/api/clearance/stores',
+    ),
 
   discoverClearanceStores: (postalCode: string, radiusMiles?: number) =>
     json<{ zip: string; found: number; stores: ClearanceStore[] }>('/api/clearance/stores/discover', {
@@ -125,11 +127,12 @@ export const api = {
 
   clearanceStatus: () => json<ClearanceStatus>('/api/clearance/status'),
 
-  runSweep: (body?: { stores?: string }) =>
-    json<{ date: string; storesSwept: number; finds: number; alerts: number; errors: string[] }>(
-      '/api/clearance/sweep',
-      { method: 'POST', body: JSON.stringify(body ?? {}) },
-    ),
+  /** Starts a sweep and returns at once; poll `clearanceStatus` for progress. */
+  startSweep: (body?: { stores?: string }) =>
+    json<{ started: boolean }>('/api/clearance/sweep', {
+      method: 'POST',
+      body: JSON.stringify(body ?? {}),
+    }),
 
   clearanceWatches: () => json<{ watches: ClearanceWatch[] }>('/api/clearance/watches'),
 

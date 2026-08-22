@@ -56,6 +56,14 @@ Saved terms (`rtx`, `nvme`, `ryzen`) are matched against each night's new finds
 and raise an alert, so a graphics card appearing on a rack 8 miles away does not
 depend on you opening the app.
 
+The sweep takes its time: 20-32 seconds between reads, one store at a time, no
+concurrency. Two dozen stores is therefore an hour-plus job, which is why
+`POST /api/clearance/sweep` starts the run and returns rather than holding the
+connection, and why the Clearance tab polls for progress. If Walmart's edge does
+push back, the run stands down for five minutes rather than spending the rest of
+the night failing every remaining store, and gives up after four consecutive
+refusals.
+
 Items are split into **PC parts & computers** and **other electronics** by which
 of Walmart's own shelves they appear on, not by a keyword match on the title.
 Walmart reports a different category path for the same item depending on which
@@ -111,7 +119,10 @@ looks up.
 | `SNAPSHOT_WEGMANS_STORE` | `WEGMANS_STORE` | Wegmans store the snapshot is taken at |
 | `BASTILLE_SEARCH_TTL_MS` | `60000` | server-side per-store search cache lifetime |
 | `BASTILLE_SWEEP_HOUR` | `4` | local hour (0-23) the Walmart clearance sweep runs |
-| `WALMART_REQUEST_INTERVAL_MS` | `8000` | floor between Walmart reads — its edge rate-limits hard |
+| `WALMART_REQUEST_INTERVAL_MS` | `20000` | floor between Walmart reads — its edge rate-limits hard |
+| `WALMART_REQUEST_JITTER_MS` | `12000` | extra random spread on top of that floor |
+| `WALMART_RATE_LIMIT_COOLDOWN_MS` | `300000` | how long the sweep stands down after a refusal |
+| `WALMART_MAX_CONSECUTIVE_RATE_LIMITS` | `4` | consecutive refusals after which the run gives up |
 | `WALMART_SWEEP_MAX_PAGES` | `8` | pages of 40 items per category per store |
 | `WALMART_STORE_FINDER_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
 | `WALMART_BROWSE_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |

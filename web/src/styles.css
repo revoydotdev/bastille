@@ -406,3 +406,10 @@ input.field { flex: 1 1 260px; }
 }
 
 .meta.empty { padding: 24px 0; }
+
+/* A sweep runs for the better part of an hour; its progress line sits under the
+   header rather than inside the button, so the header does not reflow. */
+.sweep-progress {
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2);
+}
