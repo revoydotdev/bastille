@@ -336,6 +336,23 @@ export class ClearanceRepo {
     return r?.d ?? null;
   }
 
+  /**
+   * Distinct finds recorded for a date. `recordFinds` returns how many rows it
+   * *wrote*, and an item Walmart lists on both the Electronics and the
+   * Computers shelf is written twice and stored once — so counting writes
+   * overstates the haul. This is the figure worth reporting.
+   */
+  countFinds(date: string, locationIds?: string[]): number {
+    if (locationIds && locationIds.length === 0) return 0;
+    const where = locationIds
+      ? `sweep_date = ? AND location_id IN (${locationIds.map(() => '?').join(',')})`
+      : 'sweep_date = ?';
+    const params = locationIds ? [date, ...locationIds] : [date];
+    return (
+      this.db.prepare(`SELECT COUNT(*) AS c FROM clearance_find WHERE ${where}`).get(...params) as { c: number }
+    ).c;
+  }
+
   latestSweepDate(): string | null {
     const r = this.db.prepare('SELECT MAX(sweep_date) AS d FROM clearance_find').get() as
       | { d: string | null }

@@ -233,7 +233,7 @@ export function Clearance() {
           {progress.currentStore && ` — ${progress.currentStore}`}
           {progress.currentCategory && ` · ${progress.currentCategory}`}
           {' · '}
-          {progress.finds} recorded
+          {progress.finds} written
           {progress.rateLimited > 0 && ` · backed off ${progress.rateLimited}×`}
         </p>
       )}

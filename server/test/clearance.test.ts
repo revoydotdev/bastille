@@ -208,9 +208,10 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
       body: JSON.stringify({ wait: true, maxStores: 10 }),
     });
     assert.equal(body.storesSwept, 2);
-    // Every category is swept, and the double returns the same rack for each,
-    // so the row count is deduplicated by (date, store, item) to two rows.
-    assert.ok(body.finds >= 2);
+    // Both shelves are swept and the graphics card is on both, so it is written
+    // twice and stored once. The reported figure is what is on record, not how
+    // many writes it took to get there.
+    assert.equal(body.finds, 2);
     // Nothing is "new" on a first sweep — there is no previous day to compare.
     assert.equal(body.alerts, 0);
 
@@ -286,7 +287,7 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
       body: JSON.stringify({ wait: true }),
     });
     // Same calendar day: the run is an update, so nothing counts as new yet.
-    assert.ok(body.finds >= 3);
+    assert.equal(body.finds, 3);
     assert.equal(body.alerts, 0);
 
     const feed = await api<{ total: number; rows: { itemId: string }[] }>('/api/clearance');

@@ -229,9 +229,12 @@ export class ClearanceSweepJob {
         this.publish();
       }
 
-      this.repo.finishSweep(runId, storesSwept, finds, errors.length > 0 ? errors.join('; ').slice(0, 2000) : null);
+      // `finds` counted writes; an item on both shelves is written twice and
+      // stored once. Report what is actually on record.
+      const recorded = this.repo.countFinds(date, stores.map((s) => s.locationId));
+      this.repo.finishSweep(runId, storesSwept, recorded, errors.length > 0 ? errors.join('; ').slice(0, 2000) : null);
       if (alerts > 0) for (const fn of this.listeners) fn();
-      return { date, storesSwept, finds, alerts, rateLimited, abandoned, errors };
+      return { date, storesSwept, finds: recorded, alerts, rateLimited, abandoned, errors };
     } catch (err) {
       this.repo.finishSweep(runId, storesSwept, finds, (err as Error).message);
       throw err;
