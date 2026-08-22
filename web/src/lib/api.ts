@@ -1,6 +1,6 @@
 import type {
   Alert, SearchResult, StoresResponse, WatchGroup, PriceSnapshot, DealsResponse, DealFilters, SnapshotStatus,
-  ClearanceCategory, ClearanceGroupOption, ClearanceStore, SweepProgress, ClearanceResponse, ClearanceStatus, ClearanceWatch, ClearanceFilters, SweepRun,
+  ClearanceCategory, ClearanceGroupOption, ClearanceStore, SweepProgress, DealMonitor, ClearanceDealsResponse, ClearanceResponse, ClearanceStatus, ClearanceWatch, ClearanceFilters, SweepRun,
 } from '../types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -126,6 +126,22 @@ export const api = {
   },
 
   clearanceStatus: () => json<ClearanceStatus>('/api/clearance/status'),
+
+  dealMonitor: () => json<DealMonitor>('/api/clearance/monitor'),
+
+  setDealMonitor: (body: { minDiscount?: number; groups?: string; enabled?: boolean }) =>
+    json<DealMonitor>('/api/clearance/monitor', { method: 'PUT', body: JSON.stringify(body) }),
+
+  /** Everything qualifying under the monitor, across every store. */
+  clearanceDeals: (f: { stores?: string[]; maxDistance?: number | null; newOnly?: boolean; sort?: string; limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams({ sort: f.sort ?? 'discount' });
+    if (f.stores?.length) qs.set('stores', f.stores.join(','));
+    if (f.maxDistance != null) qs.set('maxDistance', String(f.maxDistance));
+    if (f.newOnly) qs.set('new', '1');
+    if (f.limit) qs.set('limit', String(f.limit));
+    if (f.offset) qs.set('offset', String(f.offset));
+    return json<ClearanceDealsResponse>(`/api/clearance/deals?${qs}`);
+  },
 
   /** Starts a sweep and returns at once; poll `clearanceStatus` for progress. */
   startSweep: (body?: { stores?: string }) =>

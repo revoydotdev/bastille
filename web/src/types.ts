@@ -168,7 +168,7 @@ export interface StoreSelection {
 
 // ---- Walmart in-store clearance -------------------------------------------
 
-export type ClearanceGroup = 'pc-parts' | 'electronics';
+export type ClearanceGroup = 'pc-parts' | 'video-games' | 'electronics';
 
 export interface ClearanceCategory {
   id: string;
@@ -224,6 +224,17 @@ export interface ClearanceResponse {
   date: string | null;
   total: number;
   rows: ClearanceRow[];
+}
+
+export interface DealMonitor {
+  minDiscount: number;
+  groups: ClearanceGroup[];
+  enabled: boolean;
+  updatedAt: string;
+}
+
+export interface ClearanceDealsResponse extends ClearanceResponse {
+  monitor: DealMonitor;
 }
 
 export interface SweepRun {

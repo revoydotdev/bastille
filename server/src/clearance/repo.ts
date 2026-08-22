@@ -8,7 +8,7 @@
  */
 import type { DB } from '../db.js';
 import type { ClearanceItem, WalmartStore } from './walmart-api.js';
-import type { CategoryGroup } from './categories.js';
+import { isCategoryGroup, type CategoryGroup } from './categories.js';
 
 export interface SweptStore extends WalmartStore {
   enabled: boolean;
@@ -61,6 +61,18 @@ export interface ClearanceFilter {
   offset?: number;
 }
 
+/**
+ * The standing "is this worth telling me about" rule. Distinct from a watch
+ * term: a watch is "shout if you ever see an RTX", the monitor is "shout at
+ * anything a quarter off in these aisles, whatever it turns out to be".
+ */
+export interface DealMonitor {
+  minDiscount: number;
+  groups: CategoryGroup[];
+  enabled: boolean;
+  updatedAt: string;
+}
+
 export interface ClearanceWatch {
   id: number;
   term: string;
@@ -95,6 +107,14 @@ export function discountPercentOf(nowCents: number | null, wasCents: number | nu
  * around it, not about the row. Storing it would go stale the moment an earlier
  * sweep was backfilled or re-run.
  */
+/** One line describing a find, as an alert reads it. */
+function describeFind(row: ClearanceRow): string {
+  const price = row.nowCents === null ? 'price unlisted' : `$${(row.nowCents / 100).toFixed(2)}`;
+  const off = row.discountPct === null ? '' : ` (${row.discountPct}% off)`;
+  const aisle = row.aisle ? ` · aisle ${row.aisle}` : '';
+  return `${row.name} — ${price}${off} at ${row.storeName}${aisle}`;
+}
+
 const ROW_SELECT = `
   SELECT f.*, s.name AS store_name, s.city AS store_city, s.distance_miles AS store_distance,
          NOT EXISTS (
@@ -276,10 +296,12 @@ export class ClearanceRepo {
           @now_cents,@was_cents,@savings_cents,@discount_pct,@aisle,@in_stock)
        ON CONFLICT (sweep_date, location_id, item_id) DO UPDATE SET
           captured_at=excluded.captured_at, name=excluded.name, brand=excluded.brand,
-          -- An item on both shelves is a PC part whichever order they were
-          -- swept in; the narrower shelf is the more informative one.
-          item_group=CASE WHEN excluded.item_group = 'pc-parts' THEN 'pc-parts'
-                          ELSE clearance_find.item_group END,
+          -- An item on several shelves takes the narrowest, whichever order
+          -- they were swept in. Precedence mirrors narrowerGroup().
+          item_group=CASE
+            WHEN excluded.item_group = 'pc-parts' OR clearance_find.item_group = 'pc-parts' THEN 'pc-parts'
+            WHEN excluded.item_group = 'video-games' OR clearance_find.item_group = 'video-games' THEN 'video-games'
+            ELSE clearance_find.item_group END,
           category_path=excluded.category_path,
           department=excluded.department, image_url=excluded.image_url, product_url=excluded.product_url,
           now_cents=excluded.now_cents, was_cents=excluded.was_cents,
@@ -457,6 +479,34 @@ export class ClearanceRepo {
     };
   }
 
+  // ---- the deal monitor --------------------------------------------------
+
+  getMonitor(): DealMonitor {
+    const r = this.db.prepare('SELECT * FROM deal_monitor WHERE id = 1').get() as Record<string, unknown>;
+    return {
+      minDiscount: r['min_discount'] as number,
+      groups: String(r['groups'] ?? '')
+        .split(',')
+        .map((g) => g.trim())
+        .filter(isCategoryGroup),
+      enabled: r['enabled'] === 1,
+      updatedAt: r['updated_at'] as string,
+    };
+  }
+
+  setMonitor(patch: { minDiscount?: number; groups?: CategoryGroup[]; enabled?: boolean }): DealMonitor {
+    const current = this.getMonitor();
+    const next = {
+      minDiscount: patch.minDiscount ?? current.minDiscount,
+      groups: patch.groups ?? current.groups,
+      enabled: patch.enabled ?? current.enabled,
+    };
+    this.db
+      .prepare('UPDATE deal_monitor SET min_discount = ?, groups = ?, enabled = ?, updated_at = ? WHERE id = 1')
+      .run(next.minDiscount, next.groups.join(','), next.enabled ? 1 : 0, new Date().toISOString());
+    return this.getMonitor();
+  }
+
   // ---- watches & alerts --------------------------------------------------
 
   listWatches(): ClearanceWatch[] {
@@ -504,7 +554,8 @@ export class ClearanceRepo {
   alertOnNewFinds(date: string, locationId: string, newItemIds: string[]): number {
     if (newItemIds.length === 0) return 0;
     const watches = this.listWatches();
-    if (watches.length === 0) return 0;
+    const monitor = this.getMonitor();
+    if (watches.length === 0 && !monitor.enabled) return 0;
 
     const placeholders = newItemIds.map(() => '?').join(',');
     const finds = this.db
@@ -515,7 +566,7 @@ export class ClearanceRepo {
 
     const insert = this.db.prepare(
       `INSERT INTO clearance_alert (watch_id, find_id, created_at, message) VALUES (?,?,?,?)
-       ON CONFLICT (watch_id, find_id) DO NOTHING`,
+       ON CONFLICT DO NOTHING`,
     );
     const now = new Date().toISOString();
     let created = 0;
@@ -524,14 +575,23 @@ export class ClearanceRepo {
       for (const raw of finds) {
         const row = this.toRow(raw);
         const haystack = `${row.name} ${row.brand ?? ''}`.toLowerCase();
+
+        // The monitor fires on the shape of the deal, not on what it is.
+        if (
+          monitor.enabled &&
+          row.discountPct !== null &&
+          row.discountPct >= monitor.minDiscount &&
+          (monitor.groups.length === 0 || monitor.groups.includes(row.group))
+        ) {
+          insert.run(null, row.id, now, describeFind(row));
+          created++;
+        }
+
         for (const watch of watches) {
           if (!haystack.includes(watch.term)) continue;
           if (watch.maxCents != null && (row.nowCents === null || row.nowCents > watch.maxCents)) continue;
           if (watch.minDiscount != null && (row.discountPct === null || row.discountPct < watch.minDiscount)) continue;
-          const price = row.nowCents === null ? 'price unlisted' : `$${(row.nowCents / 100).toFixed(2)}`;
-          const aisle = row.aisle ? ` · aisle ${row.aisle}` : '';
-          const off = row.discountPct === null ? '' : ` (${row.discountPct}% off)`;
-          insert.run(watch.id, row.id, now, `${row.name} — ${price}${off} at ${row.storeName}${aisle}`);
+          insert.run(watch.id, row.id, now, describeFind(row));
           created++;
         }
       }

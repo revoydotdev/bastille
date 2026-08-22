@@ -209,6 +209,22 @@ CREATE TABLE IF NOT EXISTS clearance_alert (
   UNIQUE (watch_id, find_id)
 );
 CREATE INDEX IF NOT EXISTS clearance_alert_created ON clearance_alert (created_at DESC);
+-- A monitor alert has no watch, and SQLite treats NULLs in a UNIQUE tuple as
+-- distinct — so the composite key above would not stop it firing twice for the
+-- same find. This partial index is what actually makes them idempotent.
+CREATE UNIQUE INDEX IF NOT EXISTS clearance_alert_monitor
+  ON clearance_alert (find_id) WHERE watch_id IS NULL;
+
+-- The standing rule for what counts as a deal worth surfacing. One row: the
+-- question "which finds do I want to be told about" has one answer, and a list
+-- of competing rules would only make it ambiguous which one fired.
+CREATE TABLE IF NOT EXISTS deal_monitor (
+  id           INTEGER PRIMARY KEY CHECK (id = 1),
+  min_discount REAL NOT NULL,              -- percent off, e.g. 25
+  groups       TEXT NOT NULL,              -- comma-separated category groups
+  enabled      INTEGER NOT NULL DEFAULT 1,
+  updated_at   TEXT NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS sweep_run (
   id             INTEGER PRIMARY KEY,
@@ -249,10 +265,20 @@ function applyAddedColumns(db: DB): void {
   }
 }
 
+/** The monitor a fresh install starts with: a quarter off, everything swept. */
+const DEFAULT_MONITOR = {
+  minDiscount: Number(process.env.BASTILLE_DEAL_MIN_DISCOUNT ?? 25),
+  groups: 'pc-parts,video-games,electronics',
+};
+
 export function openDb(path: string = process.env.BASTILLE_DB ?? resolve('data/bastille.db')): DB {
   mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
   applyAddedColumns(db);
+  db.prepare(
+    `INSERT INTO deal_monitor (id, min_discount, groups, enabled, updated_at)
+     VALUES (1, ?, ?, 1, ?) ON CONFLICT (id) DO NOTHING`,
+  ).run(DEFAULT_MONITOR.minDiscount, DEFAULT_MONITOR.groups, new Date().toISOString());
   return db;
 }

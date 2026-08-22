@@ -112,9 +112,26 @@ nearByNodes.nodes[]
   operationalHours[], services[]
 ```
 
-## 2. Store scoping
+## 2. Store scoping — does not work anonymously
 
-The store is a **cookie**, not a parameter:
+**Superseded finding, 2026-08-22.** The cookie below is accepted and the
+response echoes the store back, which is what made it look like it worked. It
+does not. Asking for store 2612 (El Paso, Texas) from a Virginia address
+returned a rack echoing *Gordonsville Supercenter*, 92% identical to the local
+store's. Across three Virginia stores swept separately, 101 of 111 items were
+common to all three with **zero** variation in price and **zero** in aisle —
+because all three responses were the same store.
+
+Walmart appears to resolve the store from the requesting address, treating
+`locGuestData` as advisory. Until a working scoping mechanism is found, this
+tier yields *one* store's rack — whichever is local to the egress address — and
+nothing here supports a per-store comparison.
+
+The sweep now refuses to record a shelf whose echoed store name does not match
+the store that was asked for, so this fails loudly instead of quietly
+mislabelling one shop's clearance as another's.
+
+The mechanism as originally documented:
 
 ```
 Cookie: locGuestData={"intent":"PICKUP","storeIntent":"PICKUP","mergeFlag":true,

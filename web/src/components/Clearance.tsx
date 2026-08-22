@@ -3,6 +3,8 @@ import type {
   ClearanceGroup,
   ClearanceGroupOption,
   ClearanceFilters,
+  ClearanceResponse,
+  DealMonitor,
   SweepProgress,
   ClearanceRow,
   ClearanceStore,
@@ -59,6 +61,10 @@ export function Clearance() {
   const [sweeping, setSweeping] = useState(false);
   const [progress, setProgress] = useState<SweepProgress | null>(null);
 
+  const [monitor, setMonitor] = useState<DealMonitor | null>(null);
+  // The unified deals list is the default: it is the question the sweep exists
+  // to answer. "Everything" is the escape hatch, not the other way round.
+  const [view, setView] = useState<'deals' | 'all'>('deals');
   const [zip, setZip] = useState('');
   const [discovering, setDiscovering] = useState(false);
   const [showStores, setShowStores] = useState(false);
@@ -69,11 +75,13 @@ export function Clearance() {
   }, [filters]);
 
   const loadSetup = useCallback(async () => {
-    const [s, c, w] = await Promise.all([
+    const [s, c, w, m] = await Promise.all([
       api.clearanceStores(),
       api.clearanceCategories(),
       api.clearanceWatches(),
+      api.dealMonitor(),
     ]);
+    setMonitor(m);
     setStores(s.stores);
     setLastSweep(s.lastSweep);
     setSweeping(s.sweeping);
@@ -89,19 +97,36 @@ export function Clearance() {
     async (nextOffset: number) => {
       setLoading(true);
       setError(null);
-      try {
-        const res = await api.clearance({ ...filters, limit: PAGE_SIZE, offset: nextOffset });
+      const apply = (res: ClearanceResponse, at: number) => {
         setDate(res.date);
         setTotal(res.total);
-        setRows((prev) => (nextOffset === 0 ? res.rows : [...prev, ...res.rows]));
-        setOffset(nextOffset);
+        setRows((prev) => (at === 0 ? res.rows : [...prev, ...res.rows]));
+        setOffset(at);
+      };
+      try {
+        if (view === 'deals') {
+          const res = await api.clearanceDeals({
+            stores: filters.stores,
+            maxDistance: filters.maxDistance,
+            newOnly: filters.newOnly,
+            sort: filters.sort,
+            limit: PAGE_SIZE,
+            offset: nextOffset,
+          });
+          // The deals endpoint echoes the rule it applied, so the header stays
+          // honest even if the monitor changed server-side.
+          setMonitor(res.monitor);
+          apply(res, nextOffset);
+        } else {
+          apply(await api.clearance({ ...filters, limit: PAGE_SIZE, offset: nextOffset }), nextOffset);
+        }
       } catch (e) {
         setError((e as Error).message);
       } finally {
         setLoading(false);
       }
     },
-    [filters],
+    [filters, view],
   );
 
   useEffect(() => {
@@ -187,6 +212,21 @@ export function Clearance() {
     try {
       await api.removeClearanceWatch(id);
       setWatches((prev) => prev.filter((w) => w.id !== id));
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+
+  async function updateMonitor(patch: { minDiscount?: number; groups?: ClearanceGroup[]; enabled?: boolean }) {
+    try {
+      const next = await api.setDealMonitor({
+        minDiscount: patch.minDiscount,
+        groups: patch.groups?.join(','),
+        enabled: patch.enabled,
+      });
+      setMonitor(next);
+      await loadRows(0);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -312,6 +352,62 @@ export function Clearance() {
         </ul>
       </div>
 
+      <div className="view-switch" role="tablist" aria-label="Clearance view">
+        <button
+          role="tab"
+          className="chip toggle"
+          aria-pressed={view === 'deals'}
+          onClick={() => setView('deals')}
+        >
+          Deals{monitor ? ` — ${monitor.minDiscount}%+ off` : ''}
+        </button>
+        <button role="tab" className="chip toggle" aria-pressed={view === 'all'} onClick={() => setView('all')}>
+          Everything on clearance
+        </button>
+      </div>
+
+      {view === 'deals' && monitor && (
+        <div className="card monitor-panel">
+          <h3 className="section-heading">What counts as a deal</h3>
+          <div className="zip-row">
+            <label htmlFor="monitor-threshold">At least</label>
+            <input
+              id="monitor-threshold"
+              className="input narrow"
+              type="number"
+              min={0}
+              max={99}
+              defaultValue={monitor.minDiscount}
+              onBlur={(e) => {
+                const value = Number(e.target.value);
+                if (Number.isFinite(value) && value !== monitor.minDiscount) void updateMonitor({ minDiscount: value });
+              }}
+            />
+            <span className="meta">% off, in:</span>
+            {groups.map((g) => (
+              <button
+                key={g.id}
+                className="chip toggle"
+                aria-pressed={monitor.groups.includes(g.id)}
+                onClick={() =>
+                  void updateMonitor({
+                    groups: monitor.groups.includes(g.id)
+                      ? monitor.groups.filter((x) => x !== g.id)
+                      : [...monitor.groups, g.id],
+                  })
+                }
+              >
+                {g.label}
+              </button>
+            ))}
+          </div>
+          <p className="meta">
+            The nightly sweep alerts on anything new that clears this bar, so what is listed here and
+            what reaches the alert feed are the same rule.
+          </p>
+        </div>
+      )}
+
       <div className="filters">
         <input
           className="input"
@@ -328,17 +424,19 @@ export function Clearance() {
           />
           New today
         </label>
-        <label>
-          Min % off
-          <input
-            className="input narrow"
-            type="number"
-            min={0}
-            max={99}
-            value={filters.minDiscount || ''}
-            onChange={(e) => setFilters((f) => ({ ...f, minDiscount: Number(e.target.value) || 0 }))}
-          />
-        </label>
+        {view === 'all' && (
+          <label>
+            Min % off
+            <input
+              className="input narrow"
+              type="number"
+              min={0}
+              max={99}
+              value={filters.minDiscount || ''}
+              onChange={(e) => setFilters((f) => ({ ...f, minDiscount: Number(e.target.value) || 0 }))}
+            />
+          </label>
+        )}
         <label>
           Max $
           <input
@@ -378,18 +476,20 @@ export function Clearance() {
         </label>
       </div>
 
-      <div className="chip-filters">
-        {groups.map((g) => (
-          <button
-            key={g.id}
-            className="chip toggle"
-            aria-pressed={filters.groups.includes(g.id)}
-            onClick={() => toggleGroup(g.id)}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
+      {view === 'all' && (
+        <div className="chip-filters">
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              className="chip toggle"
+              aria-pressed={filters.groups.includes(g.id)}
+              onClick={() => toggleGroup(g.id)}
+            >
+              {g.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {stores.length > 1 && (
         <div className="chip-filters">
@@ -435,6 +535,7 @@ export function Clearance() {
                   </>
                 )}
                 {row.brand && ` · ${row.brand}`}
+                {view === 'deals' && <span className="group-tag"> · {row.group.replace('-', ' ')}</span>}
               </div>
             </div>
             <div className="price">
@@ -458,7 +559,9 @@ export function Clearance() {
               ? 'No stores enabled. Turn on at least one under Stores.'
               : date === null
                 ? 'Nothing swept yet — run a sweep.'
-                : 'Nothing on clearance matched these filters.'}
+                : view === 'deals'
+                  ? `Nothing on the swept racks is ${monitor?.minDiscount ?? 25}% or more off right now.`
+                  : 'Nothing on clearance matched these filters.'}
         </p>
       )}
 

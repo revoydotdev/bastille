@@ -78,11 +78,12 @@ const RATE_LIMIT_COOLDOWN_MS = Number(process.env.WALMART_RATE_LIMIT_COOLDOWN_MS
 /** Consecutive refusals after which the run gives up rather than keep knocking. */
 const MAX_CONSECUTIVE_RATE_LIMITS = Number(process.env.WALMART_MAX_CONSECUTIVE_RATE_LIMITS ?? 4);
 /**
- * Stores per run. Three came through cleanly before the edge started refusing,
- * so four is the honest ceiling with a little slack; raising it does not get
+ * Stores per run. Three stores came through cleanly on two shelves each — about
+ * twenty reads — before the edge started refusing. Three shelves per store now
+ * makes each store dearer, so the slice stays at three; raising it does not get
  * more data, it just gets more 412s and a longer run.
  */
-const STORES_PER_SWEEP = Number(process.env.WALMART_STORES_PER_SWEEP ?? 4);
+const STORES_PER_SWEEP = Number(process.env.WALMART_STORES_PER_SWEEP ?? 3);
 
 /** 412 is Walmart's edge; 429 is the ordinary spelling. Either means "later". */
 function isRateLimit(err: unknown): boolean {
@@ -190,7 +191,7 @@ export class ClearanceSweepJob {
           this.progress.currentCategory = category.slug;
           this.publish();
           try {
-            const result = await this.sweepCategory(date, store.locationId, store.postalCode, category);
+            const result = await this.sweepCategory(date, store, category);
             finds += result.finds;
             alerts += result.alerts;
             sweptAnything = true;
@@ -246,10 +247,10 @@ export class ClearanceSweepJob {
 
   private async sweepCategory(
     date: string,
-    locationId: string,
-    postalCode: string,
+    store: { locationId: string; postalCode: string; name: string },
     category: ClearanceCategory,
   ): Promise<{ finds: number; alerts: number }> {
+    const { locationId, postalCode } = store;
     let finds = 0;
     let alerts = 0;
 
@@ -262,11 +263,18 @@ export class ClearanceSweepJob {
         pageSize: PAGE_SIZE,
       });
 
-      // Walmart echoes the store it answered for. If the scoping cookie was
-      // ignored the shelf is some other store's rack, and recording it under
-      // this store would be a lie — so the category is abandoned instead.
+      // Walmart echoes the store it answered for, and it is not always the one
+      // that was asked for: the scoping cookie is advisory, and a request for a
+      // store in another state has been observed coming back with the local
+      // one's rack. Recording that under the requested store would attribute
+      // one shop's clearance to another, so the name has to match.
       if (shelf.storeName === null) {
         throw new Error('response carried no store — refusing to record an unscoped shelf');
+      }
+      if (shelf.storeName.trim().toLowerCase() !== store.name.trim().toLowerCase()) {
+        throw new Error(
+          `asked for ${store.name} but Walmart answered for ${shelf.storeName} — refusing to record it`,
+        );
       }
 
       // A page can be all shipping-only items, which is not the end of the

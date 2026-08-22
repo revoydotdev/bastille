@@ -72,13 +72,26 @@ function item(over: Partial<ClearanceItem> & Pick<ClearanceItem, 'itemId' | 'nam
 /** Each store gets its own rack — the premise of the whole feature. */
 let racks: Record<string, ClearanceItem[]> = {};
 
-/** Item ids Walmart also files on the narrower Computers shelf. */
+/** When set, the shelf answers under this name whatever store was asked for —
+ *  the failure mode observed live, where a distant store's request came back
+ *  with the local store's rack. */
+let answerAs: string | null = null;
+
+/** Item ids Walmart also files on the narrower Computers / Video Games shelves. */
 let onComputersShelf = new Set<string>();
+let onVideoGamesShelf = new Set<string>();
+
+/** Which of the rack each shelf answers with, as Walmart's do: the Electronics
+ *  root returns everything, the narrower shelves return their own subset. */
+const SHELF_MEMBERS: Record<string, () => Set<string>> = {
+  '3944_1089430': () => onComputersShelf,
+  '2636': () => onVideoGamesShelf,
+};
 
 const readShelf: ShelfReader = async ({ locationId, categoryId, page }) => {
   const rack = racks[locationId] ?? [];
-  const items =
-    categoryId === '3944_1089430' ? rack.filter((i) => onComputersShelf.has(i.itemId)) : rack;
+  const members = SHELF_MEMBERS[categoryId];
+  const items = members ? rack.filter((i) => members().has(i.itemId)) : rack;
   const onPage = (page ?? 1) === 1 ? items : [];
   return {
     items: onPage,
@@ -87,7 +100,7 @@ const readShelf: ShelfReader = async ({ locationId, categoryId, page }) => {
     // this point; the pager still counts what Walmart served.
     pageItemCount: onPage.length,
     shippedOnly: 0,
-    storeName: STORES.find((s) => s.locationId === locationId)?.name ?? null,
+    storeName: answerAs ?? STORES.find((s) => s.locationId === locationId)?.name ?? null,
   };
 };
 
@@ -170,6 +183,7 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
       '1780': [item({ itemId: 'B1', name: 'Logitech mouse', nowCents: 500, wasCents: 2000, aisle: 'L3' })],
     };
     onComputersShelf = new Set(['A1']);
+    onVideoGamesShelf = new Set();
     assert.equal(Object.keys(racks).length, 2);
   });
 
@@ -307,6 +321,81 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
     assert.equal(typeof after.body.sweeping, 'boolean');
   });
 
+  await t.test('the monitor alerts on the shape of a deal, not on what it is', async () => {
+    // Default rule: a quarter off, any group. Nothing has been watched by name.
+    const monitor = await api<{ minDiscount: number; groups: string[]; enabled: boolean }>(
+      '/api/clearance/monitor',
+    );
+    assert.equal(monitor.body.minDiscount, 25);
+    assert.equal(monitor.body.enabled, true);
+
+    // A later sweep day, with one item comfortably over the threshold and one
+    // under it, neither matching any watch term.
+    racks['4682'] = [
+      item({ itemId: 'D1', name: 'Anker 65W USB-C charger', nowCents: 1000, wasCents: 4000, aisle: 'K7' }),
+      item({ itemId: 'D2', name: 'Generic HDMI cable', nowCents: 900, wasCents: 1000, aisle: 'K8' }),
+    ];
+    onComputersShelf = new Set(['D1', 'D2']);
+    onVideoGamesShelf = new Set();
+
+    const deals = await api<{ monitor: { minDiscount: number }; rows: { itemId: string; discountPct: number }[] }>(
+      '/api/clearance/deals',
+    );
+    // 75% off qualifies; 10% off does not, and the list is the rule applied.
+    assert.equal(deals.body.monitor.minDiscount, 25);
+    assert.ok(deals.body.rows.every((r) => r.discountPct >= 25));
+  });
+
+  await t.test('the monitor threshold can be moved, and rejects nonsense', async () => {
+    const raised = await api<{ minDiscount: number }>('/api/clearance/monitor', {
+      method: 'PUT',
+      body: JSON.stringify({ minDiscount: 60 }),
+    });
+    assert.equal(raised.body.minDiscount, 60);
+
+    const narrowed = await api<{ groups: string[] }>('/api/clearance/monitor', {
+      method: 'PUT',
+      body: JSON.stringify({ groups: 'pc-parts,video-games' }),
+    });
+    assert.deepEqual(narrowed.body.groups, ['pc-parts', 'video-games']);
+
+    const tooHigh = await api('/api/clearance/monitor', {
+      method: 'PUT',
+      body: JSON.stringify({ minDiscount: 500 }),
+    });
+    assert.equal(tooHigh.status, 400);
+
+    const bogus = await api('/api/clearance/monitor', {
+      method: 'PUT',
+      body: JSON.stringify({ groups: 'furniture' }),
+    });
+    assert.equal(bogus.status, 400);
+
+    // Put it back so later assertions read the default rule.
+    await api('/api/clearance/monitor', {
+      method: 'PUT',
+      body: JSON.stringify({ minDiscount: 25, groups: 'pc-parts,video-games,electronics' }),
+    });
+  });
+
+  await t.test('a shelf answered for the wrong store is refused, not recorded', async () => {
+    // Walmart's scoping cookie is advisory: a request for one store has been
+    // observed coming back with another store's rack. Recording that would
+    // attribute one shop's clearance to another.
+    answerAs = 'Some Other Supercenter';
+    const before = await api<{ total: number }>('/api/clearance');
+    const { body } = await api<{ storesSwept: number; errors: string[] }>('/api/clearance/sweep', {
+      method: 'POST',
+      body: JSON.stringify({ wait: true, maxStores: 10 }),
+    });
+    answerAs = null;
+
+    assert.equal(body.storesSwept, 0);
+    assert.ok(body.errors.some((e) => e.includes('Walmart answered for Some Other Supercenter')));
+    const after = await api<{ total: number }>('/api/clearance');
+    assert.equal(after.body.total, before.body.total, 'nothing should have been written');
+  });
+
   await t.test('removing a watch takes it off the list', async () => {
     const before = await api<{ watches: { id: number }[] }>('/api/clearance/watches');
     const id = before.body.watches[0]!.id;
@@ -331,10 +420,14 @@ test('walmart dollar amounts become cents, or nothing', () => {
   assert.equal(centsFromDollars(Number.NaN), null);
 });
 
-test('the swept shelves are the two Walmart actually answers for', () => {
+test('the swept shelves are the ones Walmart actually answers for', () => {
   assert.deepEqual(
     CLEARANCE_CATEGORIES.map((c) => [c.id, c.group]),
-    [['3944', 'electronics'], ['3944_1089430', 'pc-parts']],
+    [
+      ['3944', 'electronics'],
+      ['3944_1089430', 'pc-parts'],
+      ['2636', 'video-games'],
+    ],
   );
 });
 

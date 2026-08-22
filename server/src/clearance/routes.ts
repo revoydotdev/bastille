@@ -145,6 +145,46 @@ export function registerClearanceRoutes(
     return reply.code(202).send({ started: true, progress: sweep.currentProgress });
   });
 
+  app.get('/api/clearance/monitor', async () => repo.getMonitor());
+
+  app.put('/api/clearance/monitor', async (req, reply) => {
+    const body = (req.body ?? {}) as { minDiscount?: number; groups?: string; enabled?: boolean };
+    if (body.minDiscount !== undefined && (typeof body.minDiscount !== 'number' || body.minDiscount < 0 || body.minDiscount > 99)) {
+      return reply.code(400).send({ error: 'minDiscount must be between 0 and 99' });
+    }
+    if (body.groups !== undefined) {
+      const unknown = parseList(body.groups).filter((g) => !isCategoryGroup(g));
+      if (unknown.length > 0) return reply.code(400).send({ error: `unknown groups: ${unknown.join(', ')}` });
+    }
+    return repo.setMonitor({
+      minDiscount: body.minDiscount,
+      groups: body.groups === undefined ? undefined : parseGroups(body.groups),
+      enabled: body.enabled,
+    });
+  });
+
+  /**
+   * Everything currently qualifying under the monitor, across every store, one
+   * ranked list. The same rule the nightly run alerts on, so what is on screen
+   * and what lands in the alert feed can never disagree.
+   */
+  app.get('/api/clearance/deals', async (req) => {
+    const q = req.query as Record<string, string | undefined>;
+    const monitor = repo.getMonitor();
+    const result = repo.query({
+      date: q['date'],
+      minDiscountPct: monitor.minDiscount,
+      groups: monitor.groups,
+      locationIds: parseList(q['stores']),
+      maxDistanceMiles: parseNumber(q['maxDistance']),
+      newOnly: q['new'] === '1' || q['new'] === 'true',
+      sort: (['discount', 'price', 'distance', 'name'] as const).find((s) => s === q['sort']) ?? 'discount',
+      limit: parseNumber(q['limit']),
+      offset: parseNumber(q['offset']),
+    });
+    return { monitor, ...result };
+  });
+
   app.get('/api/clearance/watches', async () => ({ watches: repo.listWatches() }));
 
   app.post('/api/clearance/watches', async (req, reply) => {

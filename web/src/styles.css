@@ -413,3 +413,10 @@ input.field { flex: 1 1 260px; }
   padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
   background: var(--surface-2);
 }
+
+/* ---- deal monitor ---- */
+.view-switch { display: flex; gap: 8px; }
+.monitor-panel { display: flex; flex-direction: column; gap: 8px; }
+/* The group tag keeps a unified list legible: with three categories collated,
+   the row has to say which one it came from. */
+.group-tag { color: var(--text-dim); }
