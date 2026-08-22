@@ -53,10 +53,9 @@ export interface ClearanceFilter {
   q?: string;
   minDiscountPct?: number;
   maxCents?: number;
-  maxDistanceMiles?: number;
   /** only items absent from the previous sweep */
   newOnly?: boolean;
-  sort?: 'discount' | 'price' | 'distance' | 'name';
+  sort?: 'discount' | 'price' | 'name';
   limit?: number;
   offset?: number;
 }
@@ -130,9 +129,7 @@ export class ClearanceRepo {
 
   // ---- stores -----------------------------------------------------------
 
-  /** Records the stores a ZIP resolved to. Existing rows keep their `enabled`
-   *  choice, so re-running discovery never silently re-enables a store the
-   *  user turned off. */
+  /** Kept for the store lookup that enriches the local store with an address. */
   upsertStores(stores: WalmartStore[], zip: string, enableNew: boolean): void {
     const stmt = this.db.prepare(
       `INSERT INTO walmart_store (location_id, name, address, city, state, postal_code,
@@ -170,29 +167,57 @@ export class ClearanceRepo {
     }
   }
 
-  listStores(onlyEnabled = false): SweptStore[] {
-    const sql = `SELECT * FROM walmart_store ${onlyEnabled ? 'WHERE enabled = 1' : ''}
-                 ORDER BY distance_miles IS NULL, distance_miles ASC, name ASC`;
-    const rows = this.db.prepare(sql).all() as unknown as Record<string, unknown>[];
-    return rows.map((r) => this.toStore(r));
+  /**
+   * The store this connection actually reads. Walmart picks it from the
+   * requesting IP — there is no choosing it — so it is recorded as something
+   * discovered rather than configured.
+   */
+  localStore(): SweptStore | null {
+    const r = this.db
+      .prepare('SELECT * FROM walmart_store WHERE enabled = 1 ORDER BY last_swept_at DESC LIMIT 1')
+      .get() as Record<string, unknown> | undefined;
+    return r ? this.toStore(r) : null;
   }
 
   /**
-   * The stores a run should visit: least-recently-swept first, never-swept
-   * first of all. Walmart's edge only allows so many reads before it starts
-   * refusing, so a run takes a slice and the next run takes the next — over a
-   * few nights every enabled store gets covered.
+   * Records the store Walmart answered for as the local one, and demotes any
+   * other. `name` is Walmart's own wording from the shelf response, so it is
+   * what the sweep's guard will later be comparing against.
    */
-  storesDueForSweep(limit: number): SweptStore[] {
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM walmart_store WHERE enabled = 1
-         ORDER BY last_swept_at IS NOT NULL, last_swept_at ASC,
-                  distance_miles IS NULL, distance_miles ASC
-         LIMIT ?`,
-      )
-      .all(limit) as unknown as Record<string, unknown>[];
-    return rows.map((r) => this.toStore(r));
+  setLocalStore(name: string, detail: WalmartStore | null): SweptStore {
+    const locationId = detail?.locationId ?? name;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('UPDATE walmart_store SET enabled = 0').run();
+      this.db
+        .prepare(
+          `INSERT INTO walmart_store (location_id, name, address, city, state, postal_code,
+              lat, lng, distance_miles, discovered_zip, enabled, added_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,1,?)
+           ON CONFLICT (location_id) DO UPDATE SET
+              name=excluded.name, address=excluded.address, city=excluded.city, state=excluded.state,
+              postal_code=excluded.postal_code, lat=excluded.lat, lng=excluded.lng,
+              distance_miles=excluded.distance_miles, enabled=1`,
+        )
+        .run(
+          locationId,
+          name,
+          detail?.address ?? null,
+          detail?.city ?? null,
+          detail?.state ?? null,
+          detail?.postalCode ?? null,
+          detail?.point.lat ?? null,
+          detail?.point.lng ?? null,
+          detail?.distanceMiles ?? null,
+          detail?.postalCode ?? null,
+          new Date().toISOString(),
+        );
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+    return this.localStore()!;
   }
 
   markSwept(locationId: string): void {
@@ -215,13 +240,6 @@ export class ClearanceRepo {
       discoveredZip: (r['discovered_zip'] as string | null) ?? null,
       lastSweptAt: (r['last_swept_at'] as string | null) ?? null,
     };
-  }
-
-  setStoreEnabled(locationId: string, enabled: boolean): boolean {
-    const info = this.db
-      .prepare('UPDATE walmart_store SET enabled = ? WHERE location_id = ?')
-      .run(enabled ? 1 : 0, locationId);
-    return info.changes > 0;
   }
 
   // ---- sweep runs -------------------------------------------------------
@@ -413,10 +431,6 @@ export class ClearanceRepo {
       where.push('f.now_cents IS NOT NULL AND f.now_cents <= ?');
       params.push(filter.maxCents);
     }
-    if (filter.maxDistanceMiles != null) {
-      where.push('s.distance_miles IS NOT NULL AND s.distance_miles <= ?');
-      params.push(filter.maxDistanceMiles);
-    }
     if (filter.newOnly) {
       where.push(`NOT EXISTS (
         SELECT 1 FROM clearance_find p
@@ -427,11 +441,9 @@ export class ClearanceRepo {
     const order =
       filter.sort === 'price'
         ? 'f.now_cents IS NULL, f.now_cents ASC'
-        : filter.sort === 'distance'
-          ? 's.distance_miles IS NULL, s.distance_miles ASC, f.discount_pct IS NULL, f.discount_pct DESC'
-          : filter.sort === 'name'
-            ? 'f.name ASC'
-            : 'f.discount_pct IS NULL, f.discount_pct DESC, f.now_cents ASC';
+        : filter.sort === 'name'
+          ? 'f.name ASC'
+          : 'f.discount_pct IS NULL, f.discount_pct DESC, f.now_cents ASC';
 
     const total = (
       this.db

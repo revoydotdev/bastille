@@ -94,31 +94,24 @@ export const api = {
   clearanceCategories: () =>
     json<{ categories: ClearanceCategory[]; groups: ClearanceGroupOption[] }>('/api/clearance/categories'),
 
-  clearanceStores: () =>
-    json<{ stores: ClearanceStore[]; lastSweep: SweepRun | null; sweeping: boolean; progress: SweepProgress | null }>(
-      '/api/clearance/stores',
+  clearanceStore: () =>
+    json<{ store: ClearanceStore | null; lastSweep: SweepRun | null; sweeping: boolean; progress: SweepProgress | null }>(
+      '/api/clearance/store',
     ),
 
-  discoverClearanceStores: (postalCode: string, radiusMiles?: number) =>
-    json<{ zip: string; found: number; stores: ClearanceStore[] }>('/api/clearance/stores/discover', {
+  /** Asks Walmart which store this connection is served, and records it. */
+  resolveClearanceStore: (postalCode?: string) =>
+    json<{ store: ClearanceStore; matchedDirectory: boolean }>('/api/clearance/store/resolve', {
       method: 'POST',
-      body: JSON.stringify({ postalCode, radiusMiles }),
-    }),
-
-  setClearanceStore: (locationId: string, enabled: boolean) =>
-    json<{ locationId: string; enabled: boolean }>(`/api/clearance/stores/${locationId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ enabled }),
+      body: JSON.stringify({ postalCode }),
     }),
 
   clearance: (f: ClearanceFilters & { limit?: number; offset?: number }) => {
     const qs = new URLSearchParams({ sort: f.sort });
-    if (f.stores.length) qs.set('stores', f.stores.join(','));
     if (f.groups.length) qs.set('groups', f.groups.join(','));
     if (f.q.trim()) qs.set('q', f.q.trim());
     if (f.minDiscount) qs.set('minDiscount', String(f.minDiscount));
     if (f.maxPrice != null) qs.set('maxPrice', String(f.maxPrice));
-    if (f.maxDistance != null) qs.set('maxDistance', String(f.maxDistance));
     if (f.newOnly) qs.set('new', '1');
     if (f.limit) qs.set('limit', String(f.limit));
     if (f.offset) qs.set('offset', String(f.offset));
@@ -133,10 +126,8 @@ export const api = {
     json<DealMonitor>('/api/clearance/monitor', { method: 'PUT', body: JSON.stringify(body) }),
 
   /** Everything qualifying under the monitor, across every store. */
-  clearanceDeals: (f: { stores?: string[]; maxDistance?: number | null; newOnly?: boolean; sort?: string; limit?: number; offset?: number }) => {
+  clearanceDeals: (f: { newOnly?: boolean; sort?: string; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams({ sort: f.sort ?? 'discount' });
-    if (f.stores?.length) qs.set('stores', f.stores.join(','));
-    if (f.maxDistance != null) qs.set('maxDistance', String(f.maxDistance));
     if (f.newOnly) qs.set('new', '1');
     if (f.limit) qs.set('limit', String(f.limit));
     if (f.offset) qs.set('offset', String(f.offset));

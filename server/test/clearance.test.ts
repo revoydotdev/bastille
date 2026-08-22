@@ -106,6 +106,10 @@ const readShelf: ShelfReader = async ({ locationId, categoryId, page }) => {
 
 const findStores: StoreFinder = async () => STORES;
 
+/** Which store Walmart says it is serving this connection. */
+let servedStore = STORES[0]!.name;
+const probeShelf = async () => ({ storeName: servedStore });
+
 let dir: string;
 let app: FastifyInstance;
 let base: string;
@@ -118,7 +122,7 @@ async function boot(): Promise<void> {
   const db = openDb(join(dir, 'test.db'));
   repo = new ClearanceRepo(db);
   sweep = new ClearanceSweepJob(repo, readShelf);
-  registerClearanceRoutes(app, repo, sweep, findStores);
+  registerClearanceRoutes(app, repo, sweep, findStores, probeShelf);
   base = await app.listen({ port: 0, host: '127.0.0.1' });
 }
 
@@ -139,89 +143,68 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  await t.test('a ZIP with no stores yet sweeps nothing and says so', async () => {
+  await t.test('with no store on record, a sweep records nothing and says why', async () => {
     const { body } = await api<{ storesSwept: number; errors: string[] }>('/api/clearance/sweep', {
       method: 'POST',
       body: JSON.stringify({ wait: true }),
     });
     assert.equal(body.storesSwept, 0);
-    assert.ok(body.errors.some((e) => e.includes('no stores enabled')));
+    assert.ok(body.errors.some((e) => e.includes('no store on record')));
   });
 
-  await t.test('discovery records nearby stores, switched off', async () => {
-    const { status, body } = await api<{ found: number; stores: { locationId: string; enabled: boolean }[] }>(
-      '/api/clearance/stores/discover',
+  await t.test('the local store is whatever Walmart says it is', async () => {
+    const { status, body } = await api<{ store: { locationId: string; name: string }; matchedDirectory: boolean }>(
+      '/api/clearance/store/resolve',
       { method: 'POST', body: JSON.stringify({ postalCode: '22963' }) },
     );
     assert.equal(status, 200);
-    assert.equal(body.found, 2);
-    assert.deepEqual(body.stores.map((s) => s.enabled), [false, false]);
-    // Nearest first, as Walmart ranks them.
-    assert.equal(body.stores[0]?.locationId, '4682');
+    // Not chosen from the directory — taken from the shelf reply, then matched
+    // against the directory for an address.
+    assert.equal(body.store.name, 'Gordonsville Supercenter');
+    assert.equal(body.store.locationId, '4682');
+    assert.equal(body.matchedDirectory, true);
   });
 
-  await t.test('rejects a discovery with no ZIP', async () => {
-    const { status } = await api('/api/clearance/stores/discover', { method: 'POST', body: '{}' });
-    assert.equal(status, 400);
-  });
+  await t.test('a store Walmart names but the directory does not is still recorded', async () => {
+    servedStore = 'Sacramento Supercenter';
+    const { body } = await api<{ store: { name: string }; matchedDirectory: boolean }>(
+      '/api/clearance/store/resolve',
+      { method: 'POST', body: JSON.stringify({ postalCode: '22963' }) },
+    );
+    // This is the shape of an egress address moving: Walmart serves a different
+    // shop and the local directory has never heard of it. Recorded anyway,
+    // because it is the truth about what this connection reads.
+    assert.equal(body.store.name, 'Sacramento Supercenter');
+    assert.equal(body.matchedDirectory, false);
 
-  await t.test('enabling a store opts it into the sweep', async () => {
-    for (const id of ['4682', '1780']) {
-      const { status } = await api(`/api/clearance/stores/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ enabled: true }),
-      });
-      assert.equal(status, 200);
-    }
-    const { body } = await api<{ enabledStores: number }>('/api/clearance/status');
-    assert.equal(body.enabledStores, 2);
+    // Put it back for the sweeps below.
+    servedStore = STORES[0]!.name;
+    await api('/api/clearance/store/resolve', {
+      method: 'POST',
+      body: JSON.stringify({ postalCode: '22963' }),
+    });
   });
 
   await t.test('stocks the racks used by the sweeps below', async () => {
     racks = {
-      '4682': [item({ itemId: 'A1', name: 'ASUS RTX 4060 graphics card', nowCents: 19900, wasCents: 39900, aisle: 'K14' })],
-      '1780': [item({ itemId: 'B1', name: 'Logitech mouse', nowCents: 500, wasCents: 2000, aisle: 'L3' })],
+      '4682': [
+        item({ itemId: 'A1', name: 'ASUS RTX 4060 graphics card', nowCents: 19900, wasCents: 39900, aisle: 'K14' }),
+        item({ itemId: 'B1', name: 'Logitech mouse', nowCents: 500, wasCents: 2000, aisle: 'L3' }),
+      ],
     };
+    // Only the graphics card is on the narrower Computers shelf; the mouse is
+    // not, which is how a find ends up in one group rather than the other.
     onComputersShelf = new Set(['A1']);
     onVideoGamesShelf = new Set();
-    assert.equal(Object.keys(racks).length, 2);
+    assert.equal(racks['4682']!.length, 2);
   });
 
-  await t.test('a run takes the stalest stores, not all of them', async () => {
-    // Both stores are unswept, so a run capped at one takes the nearer of them
-    // and leaves the other at the front of the queue.
-    const { body } = await api<{ storesSwept: number }>('/api/clearance/sweep', {
-      method: 'POST',
-      body: JSON.stringify({ wait: true, maxStores: 1 }),
-    });
-    assert.equal(body.storesSwept, 1);
-
-    const stores = await api<{ stores: { locationId: string; lastSweptAt: string | null }[] }>(
-      '/api/clearance/stores',
-    );
-    const swept = stores.body.stores.filter((s) => s.lastSweptAt !== null);
-    assert.deepEqual(swept.map((s) => s.locationId), ['4682']);
-
-    // The next run therefore picks up the one that was skipped.
-    const second = await api<{ storesSwept: number }>('/api/clearance/sweep', {
-      method: 'POST',
-      body: JSON.stringify({ wait: true, maxStores: 1 }),
-    });
-    assert.equal(second.body.storesSwept, 1);
-    const after = await api<{ stores: { locationId: string; lastSweptAt: string | null }[] }>(
-      '/api/clearance/stores',
-    );
-    assert.equal(after.body.stores.every((s) => s.lastSweptAt !== null), true);
-  });
-
-  await t.test('the first sweep records each store its own rack', async () => {
-    // Only the graphics card is on the Computers shelf; the mouse is not, which
-    // is how a find ends up in one group rather than the other.
+  await t.test('a sweep records the local store\'s rack', async () => {
     const { body } = await api<{ storesSwept: number; finds: number; alerts: number }>('/api/clearance/sweep', {
       method: 'POST',
-      body: JSON.stringify({ wait: true, maxStores: 10 }),
+      body: JSON.stringify({ wait: true }),
     });
-    assert.equal(body.storesSwept, 2);
+    assert.equal(body.storesSwept, 1);
     // Both shelves are swept and the graphics card is on both, so it is written
     // twice and stored once. The reported figure is what is on record, not how
     // many writes it took to get there.
@@ -241,24 +224,16 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
     assert.equal(gpu?.isNew, true);
   });
 
-  await t.test('the feed filters by store, price, distance and name', async () => {
-    const byStore = await api<{ total: number }>('/api/clearance?stores=1780');
-    assert.equal(byStore.body.total, 1);
-
+  await t.test('the feed filters by price, group and name', async () => {
     const byPrice = await api<{ total: number }>('/api/clearance?maxPrice=10');
     assert.equal(byPrice.body.total, 1);
-
-    const byDistance = await api<{ total: number }>('/api/clearance?maxDistance=10');
-    assert.equal(byDistance.body.total, 1);
 
     const byName = await api<{ rows: { itemId: string }[] }>('/api/clearance?q=rtx');
     assert.deepEqual(byName.body.rows.map((r) => r.itemId), ['A1']);
 
     // Shelf membership decides the group, and it survives the Electronics
     // shelf being swept first with the same item on it.
-    const byGroup = await api<{ total: number; rows: { itemId: string; group: string }[] }>(
-      '/api/clearance?groups=pc-parts',
-    );
+    const byGroup = await api<{ rows: { itemId: string; group: string }[] }>('/api/clearance?groups=pc-parts');
     assert.deepEqual(byGroup.body.rows.map((r) => r.itemId), ['A1']);
     const otherGroup = await api<{ rows: { itemId: string }[] }>('/api/clearance?groups=electronics');
     assert.deepEqual(otherGroup.body.rows.map((r) => r.itemId), ['B1']);

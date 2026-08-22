@@ -72,8 +72,19 @@ function correlationId(): string {
   return globalThis.crypto.randomUUID();
 }
 
-/** The header set the storefront sends; without it the tier answers 412. */
-function headers(referer: string, operation: string, locationId?: string, postalCode?: string): Record<string, string> {
+/**
+ * The header set the storefront sends; without it the tier answers 412.
+ *
+ * `locGuestData` is a **gate, not a selector**: omit it and the shelf comes back
+ * 412, send it and the in-store view unlocks — but its contents do not choose
+ * the store, which Walmart resolves from the requesting address. So it is sent
+ * on every shelf read, with whatever is known, including nothing.
+ */
+function headers(
+  referer: string,
+  operation: string,
+  opts: { withStoreCookie?: boolean; locationId?: string; postalCode?: string } = {},
+): Record<string, string> {
   const h: Record<string, string> = {
     accept: 'application/json',
     referer,
@@ -90,14 +101,14 @@ function headers(referer: string, operation: string, locationId?: string, postal
     'x-o-segment': 'oaoh',
     'wm_qos.correlation_id': correlationId(),
   };
-  if (locationId) {
+  if (opts.withStoreCookie) {
     const loc = {
       intent: 'PICKUP',
       storeIntent: 'PICKUP',
       mergeFlag: true,
       isExplicitIntent: true,
-      pickup: { nodeId: locationId, timestamp: Date.now() },
-      ...(postalCode ? { postalCode: { base: postalCode, timestamp: Date.now() } } : {}),
+      ...(opts.locationId ? { pickup: { nodeId: opts.locationId, timestamp: Date.now() } } : {}),
+      ...(opts.postalCode ? { postalCode: { base: opts.postalCode, timestamp: Date.now() } } : {}),
     };
     h['cookie'] = `locGuestData=${encodeURIComponent(JSON.stringify(loc))}`;
   }
@@ -117,12 +128,12 @@ async function persistedQuery<T>(
   path: string,
   operation: string,
   variables: unknown,
-  opts: { referer: string; locationId?: string; postalCode?: string },
+  opts: { referer: string; withStoreCookie?: boolean; locationId?: string; postalCode?: string },
 ): Promise<T> {
   await pace();
   const url = `${SITE}${path}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
   const body = await fetchJson<T & GraphQLErrors>(url, {
-    headers: headers(opts.referer, operation, opts.locationId, opts.postalCode),
+    headers: headers(opts.referer, operation, opts),
     timeoutMs: 30_000,
   });
   const errors = body.errors ?? [];
@@ -491,7 +502,8 @@ export function parseShelf(body: BrowseResponse): ShelfPage {
  * collapsed on item id.
  */
 export async function clearanceShelf(opts: {
-  locationId: string;
+  /** Only ever a hint; Walmart picks the store from the requesting address. */
+  locationId?: string;
   postalCode?: string;
   categoryId: string;
   page?: number;
@@ -505,6 +517,7 @@ export async function clearanceShelf(opts: {
     browseVariables(opts.categoryId, page, pageSize),
     {
       referer: `${SITE}/browse/${opts.categoryId.replace(/_/g, '/')}`,
+      withStoreCookie: true,
       locationId: opts.locationId,
       postalCode: opts.postalCode,
     },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type {
   ClearanceGroup,
   ClearanceGroupOption,
@@ -23,12 +23,10 @@ import { api, money, relativeTime } from '../lib/api';
  */
 
 const DEFAULT_FILTERS: ClearanceFilters = {
-  stores: [],
   groups: [],
   q: '',
   minDiscount: 0,
   maxPrice: null,
-  maxDistance: null,
   newOnly: false,
   sort: 'discount',
 };
@@ -54,7 +52,7 @@ export function Clearance() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [stores, setStores] = useState<ClearanceStore[]>([]);
+  const [store, setStore] = useState<ClearanceStore | null>(null);
   const [groups, setGroups] = useState<ClearanceGroupOption[]>([]);
   const [watches, setWatches] = useState<ClearanceWatch[]>([]);
   const [lastSweep, setLastSweep] = useState<SweepRun | null>(null);
@@ -67,7 +65,7 @@ export function Clearance() {
   const [view, setView] = useState<'deals' | 'all'>('deals');
   const [zip, setZip] = useState('');
   const [discovering, setDiscovering] = useState(false);
-  const [showStores, setShowStores] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [newTerm, setNewTerm] = useState('');
 
   useEffect(() => {
@@ -76,21 +74,19 @@ export function Clearance() {
 
   const loadSetup = useCallback(async () => {
     const [s, c, w, m] = await Promise.all([
-      api.clearanceStores(),
+      api.clearanceStore(),
       api.clearanceCategories(),
       api.clearanceWatches(),
       api.dealMonitor(),
     ]);
     setMonitor(m);
-    setStores(s.stores);
+    setStore(s.store);
     setLastSweep(s.lastSweep);
     setSweeping(s.sweeping);
     setProgress(s.progress);
     setGroups(c.groups);
     setWatches(w.watches);
-    // Nothing to sweep yet: open the store panel rather than showing an empty
-    // feed with no explanation of why it is empty.
-    if (s.stores.length === 0) setShowStores(true);
+
   }, []);
 
   const loadRows = useCallback(
@@ -106,8 +102,6 @@ export function Clearance() {
       try {
         if (view === 'deals') {
           const res = await api.clearanceDeals({
-            stores: filters.stores,
-            maxDistance: filters.maxDistance,
             newOnly: filters.newOnly,
             sort: filters.sort,
             limit: PAGE_SIZE,
@@ -155,37 +149,19 @@ export function Clearance() {
     return () => clearInterval(id);
   }, [sweeping, loadRows]);
 
-  const enabledCount = useMemo(() => stores.filter((s) => s.enabled).length, [stores]);
-
-  async function discover() {
-    if (!zip.trim()) return;
-    setDiscovering(true);
+  async function resolveStore() {
+    setResolving(true);
     setError(null);
     try {
-      const res = await api.discoverClearanceStores(zip.trim());
-      setStores(res.stores);
+      const res = await api.resolveClearanceStore(zip.trim() || undefined);
+      setStore(res.store);
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setDiscovering(false);
+      setResolving(false);
     }
   }
 
-  async function toggleStore(store: ClearanceStore) {
-    const next = !store.enabled;
-    setStores((prev) => prev.map((s) => (s.locationId === store.locationId ? { ...s, enabled: next } : s)));
-    try {
-      await api.setClearanceStore(store.locationId, next);
-    } catch (e) {
-      setStores((prev) => prev.map((s) => (s.locationId === store.locationId ? { ...s, enabled: !next } : s)));
-      setError((e as Error).message);
-    }
-  }
-
-  /**
-   * A full sweep runs for the better part of an hour, so the request only
-   * starts it; where it has got to comes from polling.
-   */
   async function sweepNow() {
     setError(null);
     try {
@@ -238,89 +214,65 @@ export function Clearance() {
       groups: f.groups.includes(id) ? f.groups.filter((g) => g !== id) : [...f.groups, id],
     }));
 
-  const toggleStoreFilter = (locationId: string) =>
-    setFilters((f) => ({
-      ...f,
-      stores: f.stores.includes(locationId)
-        ? f.stores.filter((s) => s !== locationId)
-        : [...f.stores, locationId],
-    }));
-
   return (
     <section className="clearance">
       <header className="clearance-head">
         <div>
           <h2 className="section-heading">Walmart in-store clearance</h2>
           <p className="meta">
-            {date ? `latest sweep ${date}` : 'never swept'} · {enabledCount} of {stores.length} stores enabled
-            {enabledCount > 0 && `, ${stores.filter((s) => s.enabled && s.lastSweptAt).length} read at least once`}
+            {date ? `swept ${date}` : 'never swept'}
+            {store && ` · ${store.name}`}
             {lastSweep?.finishedAt && ` · last run ${relativeTime(lastSweep.finishedAt)}`}
             {lastSweep?.error && ' · last run reported problems'}
           </p>
         </div>
         <span className="spacer" />
-        <button className="btn small ghost" onClick={() => setShowStores((v) => !v)}>
-          {showStores ? 'Hide stores' : 'Stores'}
-        </button>
-        <button className="btn small" onClick={() => void sweepNow()} disabled={sweeping || enabledCount === 0}>
+        <button className="btn small" onClick={() => void sweepNow()} disabled={sweeping || store === null}>
           {sweeping ? 'Sweeping…' : 'Sweep now'}
         </button>
       </header>
 
       {sweeping && progress && (
         <p className="meta sweep-progress" role="status">
-          Store {Math.min(progress.storesDone + 1, progress.storesTotal)} of {progress.storesTotal}
-          {progress.currentStore && ` — ${progress.currentStore}`}
-          {progress.currentCategory && ` · ${progress.currentCategory}`}
-          {' · '}
-          {progress.finds} written
+          Reading {progress.currentCategory ?? 'shelves'} · {progress.finds} written
           {progress.rateLimited > 0 && ` · backed off ${progress.rateLimited}×`}
         </p>
       )}
 
       {error && <div className="error">{error}</div>}
 
-      {showStores && (
-        <div className="card store-panel">
-          <div className="zip-row">
-            <label htmlFor="clearance-zip">Find Walmarts near</label>
-            <input
-              id="clearance-zip"
-              className="input"
-              value={zip}
-              onChange={(e) => setZip(e.target.value)}
-              placeholder="ZIP code"
-              inputMode="numeric"
-            />
-            <button className="btn small" onClick={() => void discover()} disabled={discovering || !zip.trim()}>
-              {discovering ? 'Looking…' : 'Find stores'}
-            </button>
-          </div>
-          <p className="meta">
-            Newly found stores start switched off. Walmart stops answering after roughly twenty
-            reads however far apart they are spaced, so one run covers only the few stores whose
-            racks are stalest — enable as many as you like and they come round over several nights.
-            Each row says when its rack was last actually read.
+      <div className="card store-panel">
+        <h3 className="section-heading">Your store</h3>
+        {store ? (
+          <p>
+            <span className="store-name">{store.name}</span>
+            {store.address && <span className="meta"> · {store.address}</span>}
+            {store.city && <span className="meta"> · {store.city}, {store.state}</span>}
+            {store.lastSweptAt && <span className="meta"> · rack read {relativeTime(store.lastSweptAt)}</span>}
           </p>
-          <ul className="store-list">
-            {stores.map((s) => (
-              <li key={s.locationId}>
-                <label className="check">
-                  <input type="checkbox" checked={s.enabled} onChange={() => void toggleStore(s)} />
-                  <span className="store-name">{s.name}</span>
-                  <span className="meta">
-                    {s.city}, {s.state}
-                    {s.distanceMiles != null && ` · ${s.distanceMiles.toFixed(1)} mi`}
-                    {' · '}
-                    {s.lastSweptAt ? `swept ${relativeTime(s.lastSweptAt)}` : 'never swept'}
-                  </span>
-                </label>
-              </li>
-            ))}
-            {stores.length === 0 && <li className="meta">No stores yet — search a ZIP above.</li>}
-          </ul>
+        ) : (
+          <p className="meta">No store on record yet.</p>
+        )}
+        <p className="meta">
+          Walmart decides this from your connection, not from a setting — the same request answers for
+          a different shop through a VPN. So there is one store here, and it is whichever one your
+          address is served. A sweep refuses to record anything if Walmart names a store other than
+          this one, which is what would catch your address changing.
+        </p>
+        <div className="zip-row">
+          <input
+            className="input"
+            value={zip}
+            onChange={(e) => setZip(e.target.value)}
+            placeholder="ZIP (optional, for the address)"
+            inputMode="numeric"
+            aria-label="ZIP code used to look up the store's address"
+          />
+          <button className="btn small ghost" onClick={() => void resolveStore()} disabled={resolving}>
+            {resolving ? 'Asking Walmart…' : store ? 'Re-check' : 'Find my store'}
+          </button>
         </div>
-      )}
+      </div>
 
       <div className="card watch-panel">
         <h3 className="section-heading">Tell me when these turn up</h3>
@@ -450,18 +402,6 @@ export function Clearance() {
           />
         </label>
         <label>
-          Within mi
-          <input
-            className="input narrow"
-            type="number"
-            min={0}
-            value={filters.maxDistance ?? ''}
-            onChange={(e) =>
-              setFilters((f) => ({ ...f, maxDistance: e.target.value === '' ? null : Number(e.target.value) }))
-            }
-          />
-        </label>
-        <label>
           Sort
           <select
             className="input"
@@ -470,7 +410,6 @@ export function Clearance() {
           >
             <option value="discount">Biggest markdown</option>
             <option value="price">Cheapest</option>
-            <option value="distance">Nearest store</option>
             <option value="name">Name</option>
           </select>
         </label>
@@ -486,21 +425,6 @@ export function Clearance() {
               onClick={() => toggleGroup(g.id)}
             >
               {g.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {stores.length > 1 && (
-        <div className="chip-filters">
-          {stores.filter((s) => s.enabled).map((s) => (
-            <button
-              key={s.locationId}
-              className="chip toggle"
-              aria-pressed={filters.stores.includes(s.locationId)}
-              onClick={() => toggleStoreFilter(s.locationId)}
-            >
-              {s.name}
             </button>
           ))}
         </div>
@@ -526,11 +450,8 @@ export function Clearance() {
                 {row.isNew && <span className="badge new">new</span>}
               </div>
               <div className="meta">
-                {row.storeName}
-                {row.distanceMiles != null && ` · ${row.distanceMiles.toFixed(1)} mi`}
                 {row.aisle && (
                   <>
-                    {' · '}
                     <span className="aisle">aisle {row.aisle}</span>
                   </>
                 )}
@@ -553,12 +474,10 @@ export function Clearance() {
 
       {rows.length === 0 && !loading && (
         <p className="meta empty">
-          {stores.length === 0
-            ? 'No stores yet. Find the Walmarts near a ZIP, enable the ones worth driving to, then sweep.'
-            : enabledCount === 0
-              ? 'No stores enabled. Turn on at least one under Stores.'
-              : date === null
-                ? 'Nothing swept yet — run a sweep.'
+          {store === null
+            ? 'No store on record yet — ask Walmart which one it serves you.'
+            : date === null
+              ? 'Nothing swept yet — run a sweep.'
                 : view === 'deals'
                   ? `Nothing on the swept racks is ${monitor?.minDiscount ?? 25}% or more off right now.`
                   : 'Nothing on clearance matched these filters.'}

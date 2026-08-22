@@ -181,6 +181,7 @@ export interface ClearanceGroupOption {
   label: string;
 }
 
+/** The store this connection reads. Walmart picks it from the requesting IP. */
 export interface ClearanceStore {
   locationId: string;
   name: string;
@@ -189,8 +190,6 @@ export interface ClearanceStore {
   state: string;
   postalCode: string;
   distanceMiles: number | null;
-  enabled: boolean;
-  discoveredZip: string | null;
   lastSweptAt: string | null;
 }
 
@@ -261,7 +260,7 @@ export interface ClearanceStatus {
   sweeping: boolean;
   progress: SweepProgress | null;
   latestDate: string | null;
-  enabledStores: number;
+  store: ClearanceStore | null;
 }
 
 export interface ClearanceWatch {
@@ -273,12 +272,10 @@ export interface ClearanceWatch {
 }
 
 export interface ClearanceFilters {
-  stores: string[];
   groups: ClearanceGroup[];
   q: string;
   minDiscount: number;
   maxPrice: number | null;
-  maxDistance: number | null;
   newOnly: boolean;
-  sort: 'discount' | 'price' | 'distance' | 'name';
+  sort: 'discount' | 'price' | 'name';
 }

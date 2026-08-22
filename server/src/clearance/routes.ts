@@ -7,7 +7,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { CLEARANCE_CATEGORIES, CATEGORY_GROUPS, categoryBySlug, isCategoryGroup, type CategoryGroup } from './categories.js';
-import { nearbyStores, type WalmartStore } from './walmart-api.js';
+import { clearanceShelf, nearbyStores, type WalmartStore } from './walmart-api.js';
 import type { ClearanceRepo, ClearanceFilter } from './repo.js';
 import type { ClearanceSweepJob } from '../jobs/clearance-sweep.js';
 import { normalizeZip } from '../geo.js';
@@ -31,53 +31,54 @@ function parseNumber(raw: unknown): number | undefined {
  *  it is the other call that leaves the process. */
 export type StoreFinder = (postalCode: string, radiusMiles?: number) => Promise<WalmartStore[]>;
 
+/** The shelf read used to discover which store this connection is served. */
+export type ShelfProbe = (opts: { categoryId: string; pageSize?: number }) => Promise<{ storeName: string | null }>;
+
 export function registerClearanceRoutes(
   app: FastifyInstance,
   repo: ClearanceRepo,
   sweep: ClearanceSweepJob,
   findStores: StoreFinder = nearbyStores,
+  readShelf: ShelfProbe = (opts) => clearanceShelf(opts),
 ): void {
   app.get('/api/clearance/categories', async () => ({
     categories: CLEARANCE_CATEGORIES,
     groups: CATEGORY_GROUPS,
   }));
 
-  app.get('/api/clearance/stores', async () => ({
-    stores: repo.listStores(),
+  app.get('/api/clearance/store', async () => ({
+    store: repo.localStore(),
     lastSweep: repo.lastSweep(),
     sweeping: sweep.isRunning,
     progress: sweep.currentProgress,
   }));
 
   /**
-   * Discovers the Walmarts near a ZIP and records them. New stores are
-   * disabled by default unless `enable=1`: sweeping 24 stores unasked is a lot
-   * of reads against a rate-limited edge, and which ones are worth driving to
-   * is the user's call.
+   * Asks Walmart which store this connection reads, and records it.
+   *
+   * There is nothing to choose: Walmart resolves the store from the requesting
+   * address. So this reads one shelf, takes the store Walmart names in the
+   * reply as the answer, and enriches it with an address from the store finder
+   * when a `postalCode` is given and the names line up.
    */
-  app.post('/api/clearance/stores/discover', async (req, reply) => {
-    const body = (req.body ?? {}) as { postalCode?: string; radiusMiles?: number; enable?: boolean };
+  app.post('/api/clearance/store/resolve', async (req, reply) => {
+    const body = (req.body ?? {}) as { postalCode?: string };
     const zip = normalizeZip(body.postalCode ?? '');
-    if (!zip) return reply.code(400).send({ error: 'postalCode is required' });
-
-    const radius = Math.min(Math.max(body.radiusMiles ?? 50, 1), 100);
     try {
-      const found = await findStores(zip, radius);
-      repo.upsertStores(found, zip, body.enable === true);
-      return { zip, radiusMiles: radius, found: found.length, stores: repo.listStores() };
+      const probe = await readShelf({ categoryId: CLEARANCE_CATEGORIES[0]!.id, pageSize: 1 });
+      if (!probe.storeName) {
+        return reply.code(502).send({ error: 'Walmart did not name a store for this connection' });
+      }
+
+      let detail: WalmartStore | null = null;
+      if (zip) {
+        const nearby = await findStores(zip, 50);
+        detail = nearby.find((s) => s.name.trim().toLowerCase() === probe.storeName!.trim().toLowerCase()) ?? null;
+      }
+      return { store: repo.setLocalStore(probe.storeName, detail), matchedDirectory: detail !== null };
     } catch (err) {
       return reply.code(502).send({ error: (err as Error).message });
     }
-  });
-
-  app.patch('/api/clearance/stores/:locationId', async (req, reply) => {
-    const { locationId } = req.params as { locationId: string };
-    const body = (req.body ?? {}) as { enabled?: boolean };
-    if (typeof body.enabled !== 'boolean') return reply.code(400).send({ error: 'enabled is required' });
-    if (!repo.setStoreEnabled(locationId, body.enabled)) {
-      return reply.code(404).send({ error: 'store not found' });
-    }
-    return { locationId, enabled: body.enabled };
   });
 
   app.get('/api/clearance', async (req, reply) => {
@@ -90,15 +91,13 @@ export function registerClearanceRoutes(
 
     const filter: ClearanceFilter = {
       date: q['date'],
-      locationIds: parseList(q['stores']),
       categorySlugs: slugs,
       groups: parseGroups(q['groups']),
       q: q['q'],
       minDiscountPct: parseNumber(q['minDiscount']),
       maxCents: parseNumber(q['maxPrice']) == null ? undefined : Math.round(parseNumber(q['maxPrice'])! * 100),
-      maxDistanceMiles: parseNumber(q['maxDistance']),
       newOnly: q['new'] === '1' || q['new'] === 'true',
-      sort: (['discount', 'price', 'distance', 'name'] as const).find((s) => s === q['sort']),
+      sort: (['discount', 'price', 'name'] as const).find((s) => s === q['sort']),
       limit: parseNumber(q['limit']),
       offset: parseNumber(q['offset']),
     };
@@ -112,28 +111,22 @@ export function registerClearanceRoutes(
     // not enough to go on — where it has got to is the useful answer.
     progress: sweep.currentProgress,
     latestDate: repo.latestSweepDate(),
-    enabledStores: repo.listStores(true).length,
+    store: repo.localStore(),
   }));
 
   /**
-   * Starts a sweep of the stores whose racks are stalest — not all of them; see
-   * the rotation note in `clearance-sweep.ts`. `stores` overrides the selection,
-   * `maxStores` its size.
-   *
-   * Returns as soon as the run is under way, because even four stores is far
-   * longer than an HTTP client will hold a connection open; the caller polls
-   * `/api/clearance/status`. `wait: true` blocks for the result instead, which
-   * is what the tests and a single-store run want.
+   * Starts a sweep of the local store's three shelves. Returns as soon as it is
+   * under way — paced reads take minutes, longer than a client will hold a
+   * connection — and the caller polls `/api/clearance/status`. `wait: true`
+   * blocks for the result instead, which is what the tests want.
    */
   app.post('/api/clearance/sweep', async (req, reply) => {
     if (sweep.isRunning) return reply.code(409).send({ error: 'a sweep is already running' });
-    const body = (req.body ?? {}) as { stores?: string; wait?: boolean; maxStores?: number };
-    const locationIds = body.stores ? parseList(body.stores) : undefined;
-    const maxStores = typeof body.maxStores === 'number' ? Math.max(1, Math.round(body.maxStores)) : undefined;
+    const body = (req.body ?? {}) as { wait?: boolean };
 
     if (body.wait) {
       try {
-        return await sweep.runOnce({ locationIds, maxStores });
+        return await sweep.runOnce();
       } catch (err) {
         return reply.code(500).send({ error: (err as Error).message });
       }
@@ -141,7 +134,7 @@ export function registerClearanceRoutes(
 
     // Failures land in `sweep_run` and in the run's own error list, which
     // `/status` reports; nothing is lost by not awaiting here.
-    void sweep.runOnce({ locationIds, maxStores }).catch(() => undefined);
+    void sweep.runOnce().catch(() => undefined);
     return reply.code(202).send({ started: true, progress: sweep.currentProgress });
   });
 
@@ -175,10 +168,8 @@ export function registerClearanceRoutes(
       date: q['date'],
       minDiscountPct: monitor.minDiscount,
       groups: monitor.groups,
-      locationIds: parseList(q['stores']),
-      maxDistanceMiles: parseNumber(q['maxDistance']),
       newOnly: q['new'] === '1' || q['new'] === 'true',
-      sort: (['discount', 'price', 'distance', 'name'] as const).find((s) => s === q['sort']) ?? 'discount',
+      sort: (['discount', 'price', 'name'] as const).find((s) => s === q['sort']) ?? 'discount',
       limit: parseNumber(q['limit']),
       offset: parseNumber(q['offset']),
     });

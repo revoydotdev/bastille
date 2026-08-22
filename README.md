@@ -37,46 +37,35 @@ A promotion starting on an item whose shelf price did not move still alerts.
 
 ## Walmart in-store clearance
 
-> **Known limitation: one store, chosen by your IP.** Walmart picks the store
-> from the requesting address and ignores the store cookie's contents — the same
-> request answered for Gordonsville from a Virginia line and for Sacramento
-> through an Amsterdam exit. So this reads *your nearest* store's rack, and a
-> multi-store comparison is not reachable from one connection. The sweep refuses
-> to record a shelf answered for a different store than the one asked for, so
-> the limitation fails loudly rather than silently mislabelling data.
+Walmart marks stock down in store, and publishes which aisle it is in. That is
+worth knowing before a drive, and it is not on the shelf-price side of the app
+at all — so Walmart is not a third price-comparison chain here. It is a nightly
+read of one store's clearance racks.
 
-Walmart's clearance is local in a way its shelf prices are not: the rack in a
-rural supercentre is nothing like the one twenty miles up the road, and the
-useful answer is *which store, and which aisle*. So Walmart is not a third
-price-comparison chain here — it is a nightly sweep across several stores at
-once, with the store and the aisle as first-class columns.
+**One store, and you do not choose it.** Walmart resolves the store from the
+requesting address: the identical request answers for Gordonsville from a
+Virginia line and for Sacramento through an Amsterdam exit, whatever store the
+cookie names. So bastille asks Walmart which store it serves this connection,
+records that, and reads its racks. A sweep refuses to record anything if a later
+response names a different store — which is what would catch the address moving
+under it.
 
-Pick a ZIP, enable the stores worth driving to, and each night bastille records
-every electronics item on clearance at each of them:
+Each night it records every item on clearance across three shelves:
 
 | | |
 |---|---|
 | what | price now, the pre-markdown price where Walmart still shows one, percent off |
-| where | store name, distance, and the shelf code — `K14`, `L13`, `H31` |
+| where | the shelf code — `K14`, `L13`, `H31` |
 | new? | anything that was not on that store's rack yesterday is flagged |
 
 Saved terms (`rtx`, `nvme`, `ryzen`) are matched against each night's new finds
 and raise an alert, so a graphics card appearing on a rack 8 miles away does not
 depend on you opening the app.
 
-**One run does not visit every store, and cannot.** Measured against the live
-edge, Walmart starts refusing after roughly twenty reads regardless of how far
-apart they are spaced — the limit is on the count, not the cadence. A 24-store
-pass was tried: three stores came through, then four consecutive refusals and
-the run stopped.
-
-So each run takes the four stores whose racks are stalest, and the next run
-takes the next four. Enable as many stores as you like; they come round over
-several nights, and every row carries the date its rack was actually read. A
-store that gets refused stays at the front of the queue and is retried first.
-
-Within a run: 20-32 seconds between reads, one store at a time, no concurrency,
-a five-minute stand-down on a refusal, and the run abandons after four in a row.
+Walmart's edge starts refusing after roughly twenty reads however far apart they
+are spaced — the limit is on the count, not the cadence. Three shelves is well
+inside that, but the sweep still waits 20-32 seconds between reads, stands down
+for five minutes on a refusal, and gives up after four in a row.
 `POST /api/clearance/sweep` starts it and returns rather than holding the
 connection open; the Clearance tab polls for progress.
 
@@ -144,7 +133,6 @@ looks up.
 | `WALMART_REQUEST_JITTER_MS` | `12000` | extra random spread on top of that floor |
 | `WALMART_RATE_LIMIT_COOLDOWN_MS` | `300000` | how long the sweep stands down after a refusal |
 | `WALMART_MAX_CONSECUTIVE_RATE_LIMITS` | `4` | consecutive refusals after which the run gives up |
-| `WALMART_STORES_PER_SWEEP` | `4` | stores one run visits, stalest first |
 | `WALMART_SWEEP_MAX_PAGES` | `8` | pages of 40 items per category per store |
 | `WALMART_STORE_FINDER_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
 | `WALMART_BROWSE_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
@@ -240,9 +228,10 @@ Walmart clearance:
 
 | method | path | |
 |---|---|---|
-| GET | `/api/clearance?stores=&groups=&q=&minDiscount=&maxPrice=&maxDistance=&new=&sort=` | the latest sweep, filtered |
-| GET | `/api/clearance/stores` · POST `/api/clearance/stores/discover` | swept stores / find the ones near a ZIP |
-| PATCH | `/api/clearance/stores/:locationId` | enable or disable a store |
+| GET | `/api/clearance/deals` | everything meeting the monitor's rule, ranked |
+| GET | `/api/clearance?groups=&q=&minDiscount=&maxPrice=&new=&sort=` | the latest sweep, filtered |
+| GET | `/api/clearance/store` · POST `/api/clearance/store/resolve` | the store on record / ask Walmart which it serves |
+| GET/PUT | `/api/clearance/monitor` | the standing "what counts as a deal" rule |
 | GET | `/api/clearance/categories` | shelves swept, and the two item groups |
 | GET | `/api/clearance/status` · POST `/api/clearance/sweep` | sweep state / run one now |
 | GET/POST | `/api/clearance/watches` · DELETE `/api/clearance/watches/:id` | terms to be alerted on |
