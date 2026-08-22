@@ -20,7 +20,7 @@ export function App() {
   const [groups, setGroups] = useState<WatchGroup[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [selection, setSelection] = useState<StoreSelection>(() => {
-    const saved = localStorage.getItem('grocer.stores');
+    const saved = localStorage.getItem('bastille.stores');
     if (saved) {
       try {
         return JSON.parse(saved) as StoreSelection;
@@ -80,7 +80,7 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('grocer.stores', JSON.stringify(selection));
+    localStorage.setItem('bastille.stores', JSON.stringify(selection));
   }, [selection]);
 
   /**
@@ -97,7 +97,7 @@ export function App() {
         if (notified.current.has(alert.id)) continue;
         notified.current.add(alert.id);
         if (alert.severity === 'urgent' && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification(`${alert.productName}`, { body: alert.message, tag: `grocer-${alert.id}` });
+          new Notification(`${alert.productName}`, { body: alert.message, tag: `bastille-${alert.id}` });
         }
       }
     };
@@ -140,7 +140,7 @@ export function App() {
   return (
     <div className="app">
       <div className="masthead">
-        <h1>grocer</h1>
+        <h1>bastille</h1>
         <span className="sub">Food Lion · Wegmans price watch</span>
         <span className="spacer" />
         {lastRefresh && <span className="sub">checked {relativeTime(lastRefresh)}</span>}

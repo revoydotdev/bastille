@@ -65,7 +65,7 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
   // Memoize per-store searches briefly so retyping, re-filtering, or a
   // component remount doesn't re-hit the stores. Filters are applied after the
   // cache, so different filters reuse the same upstream fetch.
-  const searchCache = new TtlCache<Offer[]>(Number(process.env.GROCER_SEARCH_TTL_MS ?? 60_000), 300);
+  const searchCache = new TtlCache<Offer[]>(Number(process.env.BASTILLE_SEARCH_TTL_MS ?? 60_000), 300);
   /**
    * An SSE response never ends on its own, so `app.close()` would wait for it
    * forever and the process would ignore SIGTERM. Every open stream is tracked

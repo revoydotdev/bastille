@@ -34,7 +34,7 @@ export class SnapshotJob {
   private timer: NodeJS.Timeout | null = null;
   private running = false;
   /** hour of day (local, 0-23) to run at */
-  private readonly hour = Math.min(Math.max(Number(process.env.GROCER_SNAPSHOT_HOUR ?? 3), 0), 23);
+  private readonly hour = Math.min(Math.max(Number(process.env.BASTILLE_SNAPSHOT_HOUR ?? 3), 0), 23);
   private readonly wegmansBudget = Number(process.env.WEGMANS_SNAPSHOT_PRODUCTS ?? 3000);
 
   constructor(private repo: Repo) {}

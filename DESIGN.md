@@ -1,4 +1,4 @@
-# grocer — design system
+# bastille — design system
 
 A price-watching dashboard is read at a glance, usually while deciding whether
 to go to one store or the other. Every decision below serves that: the number

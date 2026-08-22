@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
   await app.register(cors, { origin: true });
 
-  const db = openDb(process.env.GROCER_DB ?? resolve(REPO_ROOT, 'data/grocer.db'));
+  const db = openDb(process.env.BASTILLE_DB ?? resolve(REPO_ROOT, 'data/bastille.db'));
   const repo = new Repo(db);
   const poller = new Poller(repo);
   const snapshotJob = new SnapshotJob(repo);

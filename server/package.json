@@ -1,5 +1,5 @@
 {
-  "name": "@grocer/server",
+  "name": "@bastille/server",
   "private": true,
   "version": "0.1.0",
   "type": "module",

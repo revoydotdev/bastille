@@ -11,7 +11,7 @@ import { request, interceptors, getGlobalDispatcher } from 'undici';
 const UA =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
 
-const MIN_INTERVAL_MS = Number(process.env.GROCER_MIN_REQUEST_INTERVAL_MS ?? 700);
+const MIN_INTERVAL_MS = Number(process.env.BASTILLE_MIN_REQUEST_INTERVAL_MS ?? 700);
 const lastRequestAt = new Map<string, number>();
 
 // Both storefronts redirect (apex -> www, /shop -> /shop/categories), so

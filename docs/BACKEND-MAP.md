@@ -233,7 +233,7 @@ zip 22963  exact
 ## Conduct
 
 Read-only. One request at a time per host with a floor between requests
-(`GROCER_MIN_REQUEST_INTERVAL_MS`, default 700 ms), backoff on 429/5xx, browser
+(`BASTILLE_MIN_REQUEST_INTERVAL_MS`, default 700 ms), backoff on 429/5xx, browser
 `User-Agent`. No account, no cart, no checkout, no DataDome or Cloudflare
 challenge solving. The Algolia key is used exactly as the storefront uses it,
 with its own rate limits intact.

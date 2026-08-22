@@ -20,7 +20,7 @@ export class Poller {
 
   constructor(
     private repo: Repo,
-    private intervalMs = Number(process.env.GROCER_POLL_INTERVAL_MS ?? 30 * 60 * 1000),
+    private intervalMs = Number(process.env.BASTILLE_POLL_INTERVAL_MS ?? 30 * 60 * 1000),
   ) {}
 
   onPoll(fn: (result: PollResult) => void): () => void {

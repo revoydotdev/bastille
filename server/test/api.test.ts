@@ -4,7 +4,7 @@
  * reached into directly and no price is hand-constructed — if the wiring from
  * route to adapter to database to alert is broken, these fail.
  *
- * Network-dependent by design. Set GROCER_SKIP_LIVE=1 to skip.
+ * Network-dependent by design. Set BASTILLE_SKIP_LIVE=1 to skip.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,14 +17,14 @@ import { Repo } from '../src/repo.js';
 import { Poller } from '../src/jobs/poller.js';
 import { registerRoutes } from '../src/routes.js';
 
-const live = process.env.GROCER_SKIP_LIVE !== '1';
+const live = process.env.BASTILLE_SKIP_LIVE !== '1';
 
 let dir: string;
 let app: FastifyInstance;
 let base: string;
 
 async function boot(): Promise<void> {
-  dir = mkdtempSync(join(tmpdir(), 'grocer-test-'));
+  dir = mkdtempSync(join(tmpdir(), 'bastille-test-'));
   app = Fastify();
   const db = openDb(join(dir, 'test.db'));
   const repo = new Repo(db);
@@ -58,7 +58,7 @@ interface SearchBody {
   errors: { storeId: string; message: string }[];
 }
 
-test('grocer API', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
+test('bastille API', { skip: live ? false : 'BASTILLE_SKIP_LIVE=1', concurrency: false }, async (t) => {
   await boot();
   t.after(shutdown);
 
@@ -210,13 +210,13 @@ test('grocer API', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: fal
  * for two readings taken days apart. Everything downstream — change detection,
  * severity, the alert record and the HTTP read path — is the real thing.
  */
-test('price changes become alerts', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
+test('price changes become alerts', { skip: live ? false : 'BASTILLE_SKIP_LIVE=1', concurrency: false }, async (t) => {
   const { WegmansAdapter } = await import('../src/adapters/wegmans.js');
   const { openDb } = await import('../src/db.js');
   const { Repo } = await import('../src/repo.js');
   const { Poller } = await import('../src/jobs/poller.js');
 
-  const dir2 = mkdtempSync(join(tmpdir(), 'grocer-alerts-'));
+  const dir2 = mkdtempSync(join(tmpdir(), 'bastille-alerts-'));
   const app2 = Fastify();
   const db = openDb(join(dir2, 'alerts.db'));
   const repo = new Repo(db);
@@ -266,12 +266,12 @@ test('price changes become alerts', { skip: live ? false : 'GROCER_SKIP_LIVE=1',
 });
 
 /** A promotion appearing must alert even when the shelf price is unchanged. */
-test('a starting offer alerts on its own', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
+test('a starting offer alerts on its own', { skip: live ? false : 'BASTILLE_SKIP_LIVE=1', concurrency: false }, async (t) => {
   const { openDb } = await import('../src/db.js');
   const { Repo } = await import('../src/repo.js');
   const { WegmansAdapter } = await import('../src/adapters/wegmans.js');
 
-  const dir3 = mkdtempSync(join(tmpdir(), 'grocer-promo-'));
+  const dir3 = mkdtempSync(join(tmpdir(), 'bastille-promo-'));
   t.after(() => rmSync(dir3, { recursive: true, force: true }));
   const repo = new Repo(openDb(join(dir3, 'promo.db')));
 
@@ -316,8 +316,8 @@ interface StoresBody {
   }[];
 }
 
-test('store finder', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
-  const dir4 = mkdtempSync(join(tmpdir(), 'grocer-stores-'));
+test('store finder', { skip: live ? false : 'BASTILLE_SKIP_LIVE=1', concurrency: false }, async (t) => {
+  const dir4 = mkdtempSync(join(tmpdir(), 'bastille-stores-'));
   const app4 = Fastify();
   const { openDb } = await import('../src/db.js');
   const { Repo } = await import('../src/repo.js');
@@ -436,8 +436,8 @@ test('store finder', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: f
   });
 });
 
-test('deals filtering and daily snapshot', { skip: live ? false : 'GROCER_SKIP_LIVE=1', concurrency: false }, async (t) => {
-  const dir5 = mkdtempSync(join(tmpdir(), 'grocer-deals-'));
+test('deals filtering and daily snapshot', { skip: live ? false : 'BASTILLE_SKIP_LIVE=1', concurrency: false }, async (t) => {
+  const dir5 = mkdtempSync(join(tmpdir(), 'bastille-deals-'));
   const app5 = Fastify();
   const { openDb } = await import('../src/db.js');
   const { Repo } = await import('../src/repo.js');

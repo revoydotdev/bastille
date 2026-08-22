@@ -1,4 +1,4 @@
-# grocer
+# bastille
 
 Search Food Lion and Wegmans together, watch items across both, and get told
 when a price moves — whether the move is a number or a "Buy 2 for $13.00".
@@ -11,12 +11,12 @@ when a price moves — whether the move is a number or a "Buy 2 for $13.00".
 
 A grocery offer is not always a number. `$3.49` compares by subtraction;
 `BOGO`, `2 for $5`, `Buy 1 Get 1 50% Off`, and `$1.00 off with Shoppers Club`
-do not. grocer parses each offer into a structured promotion and, where the
+do not. bastille parses each offer into a structured promotion and, where the
 arithmetic is unambiguous, reduces it to an **effective unit price** — what you
 pay per item once the deal is applied. That is the figure the UI ranks on, so a
 BOGO on a $4.99 item sorts against a plain $2.49 correctly.
 
-When an offer cannot honestly be reduced to a number, grocer says so: the row
+When an offer cannot honestly be reduced to a number, bastille says so: the row
 shows the store's own words instead of a price and drops out of numeric
 ranking. It never invents a figure.
 
@@ -50,7 +50,7 @@ Tests:
 
 ```bash
 npm test                       # unit + live end-to-end
-GROCER_SKIP_LIVE=1 npm test    # unit only, no network
+BASTILLE_SKIP_LIVE=1 npm test    # unit only, no network
 ```
 
 The live suite drives the HTTP API against the real storefronts, so it needs
@@ -62,17 +62,17 @@ looks up.
 | variable | default | meaning |
 |---|---|---|
 | `PORT` / `HOST` | `5175` / `127.0.0.1` | API and dashboard bind |
-| `GROCER_DB` | `data/grocer.db` | SQLite file |
-| `GROCER_POLL_INTERVAL_MS` | `1800000` | how often watched prices are re-read |
-| `GROCER_MIN_REQUEST_INTERVAL_MS` | `700` | floor between requests to one host |
+| `BASTILLE_DB` | `data/bastille.db` | SQLite file |
+| `BASTILLE_POLL_INTERVAL_MS` | `1800000` | how often watched prices are re-read |
+| `BASTILLE_MIN_REQUEST_INTERVAL_MS` | `700` | floor between requests to one host |
 | `WEGMANS_STORE` | `24` | default Wegmans store number |
 | `FOODLION_AISLE_TTL_MS` | `1800000` | Food Lion catalogue cache lifetime |
 | `FOODLION_STORES_TTL_MS` | `86400000` | Food Lion store directory cache lifetime |
 | `WEGMANS_STORES_TTL_MS` | `86400000` | Wegmans store list cache lifetime |
-| `GROCER_SNAPSHOT_HOUR` | `3` | local hour (0-23) the daily snapshot runs |
+| `BASTILLE_SNAPSHOT_HOUR` | `3` | local hour (0-23) the daily snapshot runs |
 | `WEGMANS_SNAPSHOT_PRODUCTS` | `3000` | Wegmans products captured per daily snapshot |
 | `SNAPSHOT_WEGMANS_STORE` | `WEGMANS_STORE` | Wegmans store the snapshot is taken at |
-| `GROCER_SEARCH_TTL_MS` | `60000` | server-side per-store search cache lifetime |
+| `BASTILLE_SEARCH_TTL_MS` | `60000` | server-side per-store search cache lifetime |
 
 ## Picking your stores
 
@@ -116,7 +116,7 @@ what each store exposes and what it does not, is in
   Yext directory at `stores.foodlion.com/index.json` — 1,149 stores with
   coordinates.
 
-Food Lion's transactional SPA sits behind Cloudflare and DataDome. grocer does
+Food Lion's transactional SPA sits behind Cloudflare and DataDome. bastille does
 not touch it.
 
 ### Conduct
