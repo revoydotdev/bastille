@@ -3,6 +3,9 @@
 Search Food Lion and Wegmans together, watch items across both, and get told
 when a price moves — whether the move is a number or a "Buy 2 for $13.00".
 
+It also sweeps the in-store clearance racks at as many nearby Walmarts as you
+care to name, and tells you the aisle.
+
 | search | watchlist | alerts |
 |---|---|---|
 | ![Search results ranked by the price you actually pay](docs/screenshots/search.png) | ![Two stores compared inside one watch](docs/screenshots/watchlist.png) | ![Numeric and non-numeric alerts](docs/screenshots/alerts.png) |
@@ -31,6 +34,40 @@ independently:
 | `back_in_stock` / `out_of_stock` | no | |
 
 A promotion starting on an item whose shelf price did not move still alerts.
+
+## Walmart in-store clearance
+
+Walmart's clearance is local in a way its shelf prices are not: the rack in a
+rural supercentre is nothing like the one twenty miles up the road, and the
+useful answer is *which store, and which aisle*. So Walmart is not a third
+price-comparison chain here — it is a nightly sweep across several stores at
+once, with the store and the aisle as first-class columns.
+
+Pick a ZIP, enable the stores worth driving to, and each night bastille records
+every electronics item on clearance at each of them:
+
+| | |
+|---|---|
+| what | price now, the pre-markdown price where Walmart still shows one, percent off |
+| where | store name, distance, and the shelf code — `K14`, `L13`, `H31` |
+| new? | anything that was not on that store's rack yesterday is flagged |
+
+Saved terms (`rtx`, `nvme`, `ryzen`) are matched against each night's new finds
+and raise an alert, so a graphics card appearing on a rack 8 miles away does not
+depend on you opening the app.
+
+Items are split into **PC parts & computers** and **other electronics** by which
+of Walmart's own shelves they appear on, not by a keyword match on the title.
+Walmart reports a different category path for the same item depending on which
+shelf you ask, so the path is not a reliable answer to "what is this"; shelf
+membership is.
+
+A clearance sticker often carries no "was" price. bastille records the price and
+leaves the discount blank rather than inventing a baseline, the same rule the
+grocery side follows for offers that are not numbers.
+
+`docs/WALMART-CLEARANCE-API.md` has the full write-up: what is reachable, what
+is not, and why the sweep is deliberately slow.
 
 ## Running it
 
@@ -73,6 +110,11 @@ looks up.
 | `WEGMANS_SNAPSHOT_PRODUCTS` | `3000` | Wegmans products captured per daily snapshot |
 | `SNAPSHOT_WEGMANS_STORE` | `WEGMANS_STORE` | Wegmans store the snapshot is taken at |
 | `BASTILLE_SEARCH_TTL_MS` | `60000` | server-side per-store search cache lifetime |
+| `BASTILLE_SWEEP_HOUR` | `4` | local hour (0-23) the Walmart clearance sweep runs |
+| `WALMART_REQUEST_INTERVAL_MS` | `8000` | floor between Walmart reads — its edge rate-limits hard |
+| `WALMART_SWEEP_MAX_PAGES` | `8` | pages of 40 items per category per store |
+| `WALMART_STORE_FINDER_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
+| `WALMART_BROWSE_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
 
 ## Picking your stores
 
@@ -134,9 +176,11 @@ server/src/
   geo.ts         distance + ZIP resolution from the chains' own store data
   price/         the promotion model, parser, and change detection
   jobs/poller.ts scheduled re-read of everything watched
+  jobs/clearance-sweep.ts  nightly per-store Walmart clearance sweep
+  clearance/     Walmart's GraphQL tier, its own store/find/watch tables and routes
   repo.ts        products, price history, watchlists, alerts
   routes.ts      HTTP API + SSE alert stream
-web/src/         React dashboard: search, watchlist, alerts
+web/src/         React dashboard: search, deals, clearance, watchlist, alerts
 docs/            backend map
 DESIGN.md        colour, type, spacing, and what each colour is allowed to mean
 ```
@@ -158,3 +202,16 @@ DESIGN.md        colour, type, spacing, and what each colour is allowed to mean
 | POST | `/api/refresh` | re-read everything now |
 | GET | `/api/alerts/stream` | server-sent events, pushed as polls produce them |
 | GET | `/api/status` | last poll result |
+
+Walmart clearance:
+
+| method | path | |
+|---|---|---|
+| GET | `/api/clearance?stores=&groups=&q=&minDiscount=&maxPrice=&maxDistance=&new=&sort=` | the latest sweep, filtered |
+| GET | `/api/clearance/stores` · POST `/api/clearance/stores/discover` | swept stores / find the ones near a ZIP |
+| PATCH | `/api/clearance/stores/:locationId` | enable or disable a store |
+| GET | `/api/clearance/categories` | shelves swept, and the two item groups |
+| GET | `/api/clearance/status` · POST `/api/clearance/sweep` | sweep state / run one now |
+| GET/POST | `/api/clearance/watches` · DELETE `/api/clearance/watches/:id` | terms to be alerted on |
+| GET | `/api/clearance/alerts?unread=1` | clearance alert feed |
+| POST | `/api/clearance/alerts/:id/ack`, `/api/clearance/alerts/ack-all` | dismiss |

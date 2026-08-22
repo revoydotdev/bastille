@@ -165,3 +165,97 @@ export interface StoreSelection {
   foodlion: string | null;
   wegmans: string | null;
 }
+
+// ---- Walmart in-store clearance -------------------------------------------
+
+export type ClearanceGroup = 'pc-parts' | 'electronics';
+
+export interface ClearanceCategory {
+  id: string;
+  slug: string;
+  label: string;
+}
+
+export interface ClearanceGroupOption {
+  id: ClearanceGroup;
+  label: string;
+}
+
+export interface ClearanceStore {
+  locationId: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  distanceMiles: number | null;
+  enabled: boolean;
+  discoveredZip: string | null;
+}
+
+export interface ClearanceRow {
+  id: number;
+  sweepDate: string;
+  locationId: string;
+  storeName: string;
+  storeCity: string | null;
+  distanceMiles: number | null;
+  itemId: string;
+  categorySlug: string;
+  group: ClearanceGroup;
+  categoryPath: string | null;
+  department: string | null;
+  name: string;
+  brand: string | null;
+  imageUrl: string | null;
+  productUrl: string | null;
+  nowCents: number | null;
+  wasCents: number | null;
+  savingsCents: number | null;
+  discountPct: number | null;
+  /** in-store shelf location, e.g. "K14" */
+  aisle: string | null;
+  inStock: boolean | null;
+  isNew: boolean;
+}
+
+export interface ClearanceResponse {
+  date: string | null;
+  total: number;
+  rows: ClearanceRow[];
+}
+
+export interface SweepRun {
+  date: string;
+  startedAt: string;
+  finishedAt: string | null;
+  storesSwept: number;
+  finds: number;
+  error: string | null;
+}
+
+export interface ClearanceStatus {
+  lastSweep: SweepRun | null;
+  sweeping: boolean;
+  latestDate: string | null;
+  enabledStores: number;
+}
+
+export interface ClearanceWatch {
+  id: number;
+  term: string;
+  maxCents: number | null;
+  minDiscount: number | null;
+  createdAt: string;
+}
+
+export interface ClearanceFilters {
+  stores: string[];
+  groups: ClearanceGroup[];
+  q: string;
+  minDiscount: number;
+  maxPrice: number | null;
+  maxDistance: number | null;
+  newOnly: boolean;
+  sort: 'discount' | 'price' | 'distance' | 'name';
+}

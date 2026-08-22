@@ -12,6 +12,7 @@
   --urgent: #b03030;
   --store-foodlion: #0053a0;
   --store-wegmans: #ce3f24;
+  --store-walmart: #0071ce;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
   --radius: 8px;
   --radius-sm: 4px;
@@ -322,3 +323,86 @@ input.field { flex: 1 1 260px; }
 .deal-badge.sm {
   background: none; color: var(--drop); padding: 0; font-size: 0.72rem; font-weight: 600;
 }
+
+/* ---- Walmart clearance ---- */
+.clearance { display: flex; flex-direction: column; gap: 24px; }
+
+.clearance-head { display: flex; align-items: flex-start; gap: 12px; }
+.clearance-head h2 { margin: 0 0 4px; }
+.section-heading {
+  font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 600; color: var(--text-dim); margin: 0 0 8px;
+}
+
+.store-panel, .watch-panel { display: flex; flex-direction: column; gap: 12px; }
+.zip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.zip-row label { font-size: 0.78rem; color: var(--text-dim); }
+
+.store-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.store-list .store-name { font-weight: 600; }
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+.chip-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 4px 8px; font-size: 0.78rem; background: var(--surface);
+  color: var(--text);
+}
+.chip-x {
+  border: 0; background: none; cursor: pointer; color: var(--text-dim);
+  font-size: 0.9rem; line-height: 1; padding: 0 2px;
+}
+.chip-x:hover { color: var(--urgent); }
+
+.chip-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip.toggle { cursor: pointer; transition: border-color 120ms ease-out, color 120ms ease-out; }
+.chip.toggle[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.filters label { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-dim); }
+.input.narrow { width: 72px; }
+
+.clearance-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.clearance-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px; overflow: hidden; position: relative;
+}
+/* Store accent bar, as every other offer row carries one. Walmart is the only
+   source in this view, so the bar reads as "this is a Walmart shelf". */
+.clearance-row .store-bar {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--store-walmart);
+}
+.clearance-row .body { flex: 1; min-width: 0; }
+.clearance-row .title { font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+.clearance-row .title a { color: inherit; }
+.clearance-row .meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; }
+
+/* The aisle is the one piece of information that turns a listing into a trip,
+   so it is set apart from the rest of the metadata line. */
+.clearance-row .aisle {
+  font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text);
+}
+
+.badge.new {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+  border: 1px solid var(--accent); color: var(--accent);
+  border-radius: var(--radius-sm); padding: 0 4px;
+}
+
+.clearance-row .price { text-align: right; display: flex; flex-direction: column; gap: 4px; }
+.clearance-row .price .hero {
+  font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums;
+}
+.clearance-row .price .was {
+  font-size: 0.78rem; color: var(--text-dim); text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
+.clearance-row .price .off {
+  font-size: 0.78rem; color: var(--drop); font-variant-numeric: tabular-nums;
+}
+
+.meta.empty { padding: 24px 0; }

@@ -135,6 +135,90 @@ CREATE TABLE IF NOT EXISTS snapshot_run (
   error         TEXT
 );
 
+-- ---- Walmart in-store clearance ------------------------------------------
+-- Walmart is not a price-comparison source like the grocers: its clearance is
+-- per store and does not exist online, so it gets its own tables rather than
+-- being forced into the shared product/price_point model.
+
+-- The stores the sweep visits. Populated from Walmart's store finder for a
+-- ZIP; 'enabled' is the user's choice of which of those to actually sweep.
+CREATE TABLE IF NOT EXISTS walmart_store (
+  location_id    TEXT PRIMARY KEY,      -- Walmart store number, e.g. "4682"
+  name           TEXT NOT NULL,
+  address        TEXT,
+  city           TEXT,
+  state          TEXT,
+  postal_code    TEXT,
+  lat            REAL,
+  lng            REAL,
+  distance_miles REAL,                   -- from the ZIP it was discovered with
+  discovered_zip TEXT,
+  enabled        INTEGER NOT NULL DEFAULT 1,
+  added_at       TEXT NOT NULL
+);
+
+-- One row per item per store per sweep day. Append-only and idempotent, so a
+-- retried or resumed sweep overwrites the day rather than duplicating it.
+CREATE TABLE IF NOT EXISTS clearance_find (
+  id             INTEGER PRIMARY KEY,
+  sweep_date     TEXT NOT NULL,          -- YYYY-MM-DD (local)
+  captured_at    TEXT NOT NULL,          -- ISO-8601
+  location_id    TEXT NOT NULL REFERENCES walmart_store(location_id) ON DELETE CASCADE,
+  item_id        TEXT NOT NULL,          -- Walmart usItemId
+  category_slug  TEXT NOT NULL,          -- the shelf this came off
+  item_group     TEXT NOT NULL,          -- 'pc-parts' | 'electronics'
+  category_path  TEXT,                   -- Walmart's own chain, e.g. 0:3944:1089430
+  department     TEXT,
+  name           TEXT NOT NULL,
+  brand          TEXT,
+  image_url      TEXT,
+  product_url    TEXT,
+  now_cents      INTEGER,
+  was_cents      INTEGER,
+  savings_cents  INTEGER,
+  discount_pct   REAL,
+  aisle          TEXT,                   -- in-store shelf location, e.g. "K14"
+  in_stock       INTEGER,
+  UNIQUE (sweep_date, location_id, item_id)
+);
+-- The clearance feed reads one day, filtered by store and ranked by discount.
+CREATE INDEX IF NOT EXISTS clearance_find_feed
+  ON clearance_find (sweep_date, item_group, discount_pct DESC);
+-- "when did this item first show up, and where" — the alerting path.
+CREATE INDEX IF NOT EXISTS clearance_find_item
+  ON clearance_find (item_id, sweep_date DESC);
+
+-- A saved term the user is hunting for ("rtx", "ssd", "nvme"). Matched against
+-- item names as each sweep lands, so a new find alerts the same day.
+CREATE TABLE IF NOT EXISTS clearance_watch (
+  id            INTEGER PRIMARY KEY,
+  term          TEXT NOT NULL UNIQUE,    -- case-insensitive substring
+  max_cents     INTEGER,                 -- optional ceiling on the clearance price
+  min_discount  REAL,                    -- optional floor on percent off
+  created_at    TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS clearance_alert (
+  id           INTEGER PRIMARY KEY,
+  watch_id     INTEGER REFERENCES clearance_watch(id) ON DELETE CASCADE,
+  find_id      INTEGER NOT NULL REFERENCES clearance_find(id) ON DELETE CASCADE,
+  created_at   TEXT NOT NULL,
+  message      TEXT NOT NULL,
+  acknowledged INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (watch_id, find_id)
+);
+CREATE INDEX IF NOT EXISTS clearance_alert_created ON clearance_alert (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS sweep_run (
+  id             INTEGER PRIMARY KEY,
+  sweep_date     TEXT NOT NULL,
+  started_at     TEXT NOT NULL,
+  finished_at    TEXT,
+  stores_swept   INTEGER NOT NULL DEFAULT 0,
+  finds_written  INTEGER NOT NULL DEFAULT 0,
+  error          TEXT
+);
+
 CREATE TABLE IF NOT EXISTS poll_run (
   id           INTEGER PRIMARY KEY,
   started_at   TEXT NOT NULL,

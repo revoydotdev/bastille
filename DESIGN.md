@@ -37,8 +37,10 @@ hard-code a hex outside the token block.
 | `--promo` | `#7a4fa8` | `#b28ce0` | non-numeric offer |
 | `--urgent` | `#b03030` | `#e06a6a` | urgent alert |
 
-Store accents: Food Lion `#0053a0`, Wegmans `#ce3f24` — both taken from the
-stores' own marks so the mapping is learned instantly.
+Store accents: Food Lion `#0053a0`, Wegmans `#ce3f24`, Walmart `#0071ce` — all
+taken from the stores' own marks so the mapping is learned instantly. Walmart's
+blue sits close to Food Lion's; the two never share a view, because Walmart
+appears only in Clearance and the grocers never do.
 
 Green means *the price went down*, red means *it went up*. That is the only
 meaning either colour carries; do not reuse them for success/error states.
@@ -98,6 +100,15 @@ dashboard that moves is a dashboard you cannot scan.
   is trend shape, not values.
 - **Alert row** — severity dot, message, relative time, dismiss. Non-numeric
   alerts carry the promo colour.
+- **Clearance row** — Walmart accent bar, item name, then a metadata line whose
+  only emphasised element is the **aisle**: it is set in `--text` at weight 600
+  with tabular figures while the store and distance around it stay
+  `--text-dim`, because the aisle is the one field that turns a listing into a
+  trip. The price block is the standard hero, struck was-price, and a `--drop`
+  percentage — a clearance markdown is a price that went down, so it earns the
+  same green as any other drop. An item absent from that store's previous sweep
+  carries a `new` badge outlined in `--accent`; the badge is a word, not just a
+  colour.
 
 ## Accessibility
 

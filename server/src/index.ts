@@ -9,6 +9,9 @@ import { Repo } from './repo.js';
 import { Poller } from './jobs/poller.js';
 import { SnapshotJob } from './jobs/snapshot.js';
 import { registerRoutes } from './routes.js';
+import { ClearanceRepo } from './clearance/repo.js';
+import { ClearanceSweepJob } from './jobs/clearance-sweep.js';
+import { registerClearanceRoutes } from './clearance/routes.js';
 
 // Resolve paths against the repo, not the shell's cwd — `npm start
 // --workspace=server` runs from server/, `node dist/index.js` from anywhere.
@@ -25,8 +28,11 @@ async function main(): Promise<void> {
   const repo = new Repo(db);
   const poller = new Poller(repo);
   const snapshotJob = new SnapshotJob(repo);
+  const clearanceRepo = new ClearanceRepo(db);
+  const clearanceSweep = new ClearanceSweepJob(clearanceRepo);
 
   registerRoutes(app, repo, poller, snapshotJob);
+  registerClearanceRoutes(app, clearanceRepo, clearanceSweep);
 
   // Serve the built dashboard when it exists, so `npm start` is the whole app.
   const webDist = resolve(REPO_ROOT, 'web/dist');
@@ -40,6 +46,7 @@ async function main(): Promise<void> {
 
   poller.start();
   snapshotJob.start();
+  clearanceSweep.start();
 
   let shuttingDown = false;
   const shutdown = async () => {
@@ -48,6 +55,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
     poller.stop();
     snapshotJob.stop();
+    clearanceSweep.stop();
     // Backstop: never let a stuck connection hold the process open.
     const failsafe = setTimeout(() => process.exit(1), 5_000);
     failsafe.unref();

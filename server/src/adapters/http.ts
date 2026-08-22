@@ -25,6 +25,9 @@ async function throttle(host: string): Promise<void> {
   lastRequestAt.set(host, Date.now());
 }
 
+/** Statuses that mean "slow down", not "no". */
+const RETRYABLE = new Set([429, 412]);
+
 export class HttpError extends Error {
   constructor(readonly status: number, readonly url: string, body: string) {
     super(`${status} ${url} :: ${body.slice(0, 200)}`);
@@ -64,8 +67,10 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
       });
       const text = await res.body.text();
       if (res.statusCode >= 400) {
-        // 4xx other than 429 will not improve on retry.
-        if (res.statusCode !== 429 && res.statusCode < 500) {
+        // 4xx other than the two throttling codes will not improve on retry.
+        // 412 is Walmart's edge answering a burst; like 429 it clears on its
+        // own, so it is backed off rather than surfaced as a hard failure.
+        if (!RETRYABLE.has(res.statusCode) && res.statusCode < 500) {
           throw new HttpError(res.statusCode, url, text);
         }
         lastError = new HttpError(res.statusCode, url, text);
@@ -74,9 +79,12 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
       }
     } catch (err) {
       lastError = err;
-      if (err instanceof HttpError && err.status < 500 && err.status !== 429) throw err;
+      if (err instanceof HttpError && err.status < 500 && !RETRYABLE.has(err.status)) throw err;
     }
-    await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+    // A throttled edge needs longer than a flaky one: 500ms is enough to ride
+    // out a transient 5xx, nowhere near enough to clear a rate limit.
+    const base = lastError instanceof HttpError && RETRYABLE.has(lastError.status) ? 5_000 : 500;
+    await new Promise((r) => setTimeout(r, base * 2 ** attempt));
   }
   throw lastError instanceof Error ? lastError : new Error(`request failed: ${url}`);
 }

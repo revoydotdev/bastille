@@ -9,8 +9,9 @@ import { StorePicker } from './components/StorePicker';
 const Deals = lazy(() => import('./components/Deals').then((m) => ({ default: m.Deals })));
 const Watchlist = lazy(() => import('./components/Watchlist').then((m) => ({ default: m.Watchlist })));
 const Alerts = lazy(() => import('./components/Alerts').then((m) => ({ default: m.Alerts })));
+const Clearance = lazy(() => import('./components/Clearance').then((m) => ({ default: m.Clearance })));
 
-type Tab = 'search' | 'deals' | 'watchlist' | 'alerts';
+type Tab = 'search' | 'deals' | 'clearance' | 'watchlist' | 'alerts';
 
 export function App() {
   const [tab, setTab] = useState<Tab>('search');
@@ -141,7 +142,7 @@ export function App() {
     <div className="app">
       <div className="masthead">
         <h1>bastille</h1>
-        <span className="sub">Food Lion · Wegmans price watch</span>
+        <span className="sub">Food Lion · Wegmans price watch · Walmart clearance</span>
         <span className="spacer" />
         {lastRefresh && <span className="sub">checked {relativeTime(lastRefresh)}</span>}
         {canNotify && (
@@ -159,6 +160,7 @@ export function App() {
           [
             ['search', 'Search'],
             ['deals', 'Deals'],
+            ['clearance', 'Clearance'],
             ['watchlist', `Watchlist${groups.length ? ` (${groups.length})` : ''}`],
             ['alerts', 'Alerts'],
           ] as [Tab, string][]
@@ -207,6 +209,7 @@ export function App() {
           snapshotRunning={snapshotRunning}
         />
       )}
+      {tab === 'clearance' && <Clearance />}
       {tab === 'watchlist' && <Watchlist groups={groups} onChanged={() => void loadWatchlist()} />}
       {tab === 'alerts' && <Alerts alerts={alerts} onChanged={() => void loadWatchlist()} />}
       </Suspense>

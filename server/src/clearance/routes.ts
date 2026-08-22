@@ -1,0 +1,162 @@
+/**
+ * HTTP surface for the Walmart clearance sweep.
+ *
+ * Kept apart from the grocery routes because the shape is different: there is
+ * no watchlist of products here, only a set of stores to sweep, a feed of what
+ * each one has marked down, and saved terms to be told about.
+ */
+import type { FastifyInstance } from 'fastify';
+import { CLEARANCE_CATEGORIES, CATEGORY_GROUPS, categoryBySlug, isCategoryGroup, type CategoryGroup } from './categories.js';
+import { nearbyStores, type WalmartStore } from './walmart-api.js';
+import type { ClearanceRepo, ClearanceFilter } from './repo.js';
+import type { ClearanceSweepJob } from '../jobs/clearance-sweep.js';
+import { normalizeZip } from '../geo.js';
+
+function parseList(raw: unknown): string[] {
+  if (typeof raw !== 'string' || raw.trim() === '') return [];
+  return raw.split(',').map((s) => s.trim()).filter(Boolean);
+}
+
+function parseGroups(raw: unknown): CategoryGroup[] {
+  return parseList(raw).filter(isCategoryGroup);
+}
+
+function parseNumber(raw: unknown): number | undefined {
+  if (typeof raw !== 'string' || raw.trim() === '') return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Walmart's store finder. Injectable for the same reason the shelf reader is:
+ *  it is the other call that leaves the process. */
+export type StoreFinder = (postalCode: string, radiusMiles?: number) => Promise<WalmartStore[]>;
+
+export function registerClearanceRoutes(
+  app: FastifyInstance,
+  repo: ClearanceRepo,
+  sweep: ClearanceSweepJob,
+  findStores: StoreFinder = nearbyStores,
+): void {
+  app.get('/api/clearance/categories', async () => ({
+    categories: CLEARANCE_CATEGORIES,
+    groups: CATEGORY_GROUPS,
+  }));
+
+  app.get('/api/clearance/stores', async () => ({
+    stores: repo.listStores(),
+    lastSweep: repo.lastSweep(),
+    sweeping: sweep.isRunning,
+  }));
+
+  /**
+   * Discovers the Walmarts near a ZIP and records them. New stores are
+   * disabled by default unless `enable=1`: sweeping 24 stores unasked is a lot
+   * of reads against a rate-limited edge, and which ones are worth driving to
+   * is the user's call.
+   */
+  app.post('/api/clearance/stores/discover', async (req, reply) => {
+    const body = (req.body ?? {}) as { postalCode?: string; radiusMiles?: number; enable?: boolean };
+    const zip = normalizeZip(body.postalCode ?? '');
+    if (!zip) return reply.code(400).send({ error: 'postalCode is required' });
+
+    const radius = Math.min(Math.max(body.radiusMiles ?? 50, 1), 100);
+    try {
+      const found = await findStores(zip, radius);
+      repo.upsertStores(found, zip, body.enable === true);
+      return { zip, radiusMiles: radius, found: found.length, stores: repo.listStores() };
+    } catch (err) {
+      return reply.code(502).send({ error: (err as Error).message });
+    }
+  });
+
+  app.patch('/api/clearance/stores/:locationId', async (req, reply) => {
+    const { locationId } = req.params as { locationId: string };
+    const body = (req.body ?? {}) as { enabled?: boolean };
+    if (typeof body.enabled !== 'boolean') return reply.code(400).send({ error: 'enabled is required' });
+    if (!repo.setStoreEnabled(locationId, body.enabled)) {
+      return reply.code(404).send({ error: 'store not found' });
+    }
+    return { locationId, enabled: body.enabled };
+  });
+
+  app.get('/api/clearance', async (req, reply) => {
+    const q = req.query as Record<string, string | undefined>;
+    const slugs = parseList(q['categories']);
+    const unknown = slugs.filter((s) => categoryBySlug(s) === null);
+    if (unknown.length > 0) {
+      return reply.code(400).send({ error: `unknown categories: ${unknown.join(', ')}` });
+    }
+
+    const filter: ClearanceFilter = {
+      date: q['date'],
+      locationIds: parseList(q['stores']),
+      categorySlugs: slugs,
+      groups: parseGroups(q['groups']),
+      q: q['q'],
+      minDiscountPct: parseNumber(q['minDiscount']),
+      maxCents: parseNumber(q['maxPrice']) == null ? undefined : Math.round(parseNumber(q['maxPrice'])! * 100),
+      maxDistanceMiles: parseNumber(q['maxDistance']),
+      newOnly: q['new'] === '1' || q['new'] === 'true',
+      sort: (['discount', 'price', 'distance', 'name'] as const).find((s) => s === q['sort']),
+      limit: parseNumber(q['limit']),
+      offset: parseNumber(q['offset']),
+    };
+    return repo.query(filter);
+  });
+
+  app.get('/api/clearance/status', async () => ({
+    lastSweep: repo.lastSweep(),
+    sweeping: sweep.isRunning,
+    latestDate: repo.latestSweepDate(),
+    enabledStores: repo.listStores(true).length,
+  }));
+
+  app.post('/api/clearance/sweep', async (req, reply) => {
+    if (sweep.isRunning) return reply.code(409).send({ error: 'a sweep is already running' });
+    const body = (req.body ?? {}) as { stores?: string };
+    try {
+      return await sweep.runOnce({
+        locationIds: body.stores ? parseList(body.stores) : undefined,
+      });
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  app.get('/api/clearance/watches', async () => ({ watches: repo.listWatches() }));
+
+  app.post('/api/clearance/watches', async (req, reply) => {
+    const body = (req.body ?? {}) as { term?: string; maxPrice?: number; minDiscount?: number };
+    const term = (body.term ?? '').trim();
+    if (term === '') return reply.code(400).send({ error: 'term is required' });
+    return repo.addWatch(
+      term,
+      typeof body.maxPrice === 'number' ? Math.round(body.maxPrice * 100) : null,
+      typeof body.minDiscount === 'number' ? body.minDiscount : null,
+    );
+  });
+
+  app.delete('/api/clearance/watches/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!repo.removeWatch(Number(id))) return reply.code(404).send({ error: 'watch not found' });
+    return { removed: Number(id) };
+  });
+
+  app.get('/api/clearance/alerts', async (req) => {
+    const q = req.query as { unread?: string; limit?: string };
+    return {
+      alerts: repo.listAlerts({
+        unacknowledgedOnly: q.unread === '1' || q.unread === 'true',
+        limit: parseNumber(q.limit),
+      }),
+    };
+  });
+
+  app.post('/api/clearance/alerts/:id/ack', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (!repo.acknowledgeAlert(Number(id))) return reply.code(404).send({ error: 'alert not found' });
+    return { acknowledged: Number(id) };
+  });
+
+  app.post('/api/clearance/alerts/ack-all', async () => ({ acknowledged: repo.acknowledgeAllAlerts() }));
+}

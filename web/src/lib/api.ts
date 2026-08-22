@@ -1,4 +1,7 @@
-import type { Alert, SearchResult, StoresResponse, WatchGroup, PriceSnapshot, DealsResponse, DealFilters, SnapshotStatus } from '../types';
+import type {
+  Alert, SearchResult, StoresResponse, WatchGroup, PriceSnapshot, DealsResponse, DealFilters, SnapshotStatus,
+  ClearanceCategory, ClearanceGroupOption, ClearanceStore, ClearanceResponse, ClearanceStatus, ClearanceWatch, ClearanceFilters, SweepRun,
+} from '../types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -85,6 +88,56 @@ export const api = {
     json<{ itemsPolled: number; errors: string[]; groups: WatchGroup[]; alerts: Alert[] }>('/api/refresh', {
       method: 'POST',
     }),
+
+  // ---- Walmart clearance ------------------------------------------------
+
+  clearanceCategories: () =>
+    json<{ categories: ClearanceCategory[]; groups: ClearanceGroupOption[] }>('/api/clearance/categories'),
+
+  clearanceStores: () =>
+    json<{ stores: ClearanceStore[]; lastSweep: SweepRun | null; sweeping: boolean }>('/api/clearance/stores'),
+
+  discoverClearanceStores: (postalCode: string, radiusMiles?: number) =>
+    json<{ zip: string; found: number; stores: ClearanceStore[] }>('/api/clearance/stores/discover', {
+      method: 'POST',
+      body: JSON.stringify({ postalCode, radiusMiles }),
+    }),
+
+  setClearanceStore: (locationId: string, enabled: boolean) =>
+    json<{ locationId: string; enabled: boolean }>(`/api/clearance/stores/${locationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    }),
+
+  clearance: (f: ClearanceFilters & { limit?: number; offset?: number }) => {
+    const qs = new URLSearchParams({ sort: f.sort });
+    if (f.stores.length) qs.set('stores', f.stores.join(','));
+    if (f.groups.length) qs.set('groups', f.groups.join(','));
+    if (f.q.trim()) qs.set('q', f.q.trim());
+    if (f.minDiscount) qs.set('minDiscount', String(f.minDiscount));
+    if (f.maxPrice != null) qs.set('maxPrice', String(f.maxPrice));
+    if (f.maxDistance != null) qs.set('maxDistance', String(f.maxDistance));
+    if (f.newOnly) qs.set('new', '1');
+    if (f.limit) qs.set('limit', String(f.limit));
+    if (f.offset) qs.set('offset', String(f.offset));
+    return json<ClearanceResponse>(`/api/clearance?${qs}`);
+  },
+
+  clearanceStatus: () => json<ClearanceStatus>('/api/clearance/status'),
+
+  runSweep: (body?: { stores?: string }) =>
+    json<{ date: string; storesSwept: number; finds: number; alerts: number; errors: string[] }>(
+      '/api/clearance/sweep',
+      { method: 'POST', body: JSON.stringify(body ?? {}) },
+    ),
+
+  clearanceWatches: () => json<{ watches: ClearanceWatch[] }>('/api/clearance/watches'),
+
+  addClearanceWatch: (body: { term: string; maxPrice?: number; minDiscount?: number }) =>
+    json<ClearanceWatch>('/api/clearance/watches', { method: 'POST', body: JSON.stringify(body) }),
+
+  removeClearanceWatch: (id: number) =>
+    json<{ removed: number }>(`/api/clearance/watches/${id}`, { method: 'DELETE' }),
 };
 
 export function money(cents: number | null | undefined): string {

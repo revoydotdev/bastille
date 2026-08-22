@@ -163,10 +163,14 @@ rack, with aisle numbers.
 Browse operation now rejects with `INVALID_CAT_ID`. Every id bastille ships was
 exercised against the live endpoint.
 
-bastille sweeps only `3944`. The Computers shelf is a strict subset of it, so
-requesting both would double the reads against a rate-limited edge to learn
-nothing; PC parts are picked out of the result afterwards, from the category
-path Walmart files each item under (node `1089430`).
+bastille sweeps both `3944` and `3944_1089430` — one extra read per store — and
+takes shelf membership as the classification. That is not redundancy: Walmart
+reports a **different `categoryPathId` for the same item depending on which
+shelf you asked**. A 32-inch monitor comes back as `0:3944:1089430:132959:4483`
+from the Computers shelf and as `0:6163033:2795380:4874644` from the Electronics
+one, so the path cannot be trusted to say what a thing *is*. Which shelf Walmart
+files it on can be. An item on both is recorded as a PC part regardless of the
+order the shelves were swept in.
 
 ### What an item carries
 
