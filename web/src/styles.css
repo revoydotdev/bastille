@@ -1,0 +1,422 @@
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #f0f0ed;
+  --border: #e2e2dd;
+  --text: #1a1a1c;
+  --text-dim: #6b6b70;
+  --accent: #2f6f4e;
+  --drop: #1f7a4d;
+  --rise: #a1462d;
+  --promo: #7a4fa8;
+  --urgent: #b03030;
+  --store-foodlion: #0053a0;
+  --store-wegmans: #ce3f24;
+  --store-walmart: #0071ce;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+  --radius: 8px;
+  --radius-sm: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131315;
+    --surface: #1c1c1f;
+    --surface-2: #252529;
+    --border: #2f2f34;
+    --text: #ececeb;
+    --text-dim: #9a9aa1;
+    --accent: #5aa87c;
+    --drop: #4fbc84;
+    --rise: #e08163;
+    --promo: #b28ce0;
+    --urgent: #e06a6a;
+    --store-foodlion: #5c9de0;
+    --store-wegmans: #f0765c;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 0.9rem/1.5 ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+button, input, select { font: inherit; color: inherit; }
+
+:where(button, input, select, a):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.app { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+
+/* ---- header ---- */
+.masthead {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.masthead h1 { font-size: 1.35rem; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+.masthead .sub { color: var(--text-dim); font-size: 0.78rem; }
+.masthead .spacer { flex: 1; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+.tab {
+  background: none; border: 0; border-bottom: 2px solid transparent;
+  padding: 8px 12px; cursor: pointer; color: var(--text-dim);
+  font-size: 0.85rem; font-weight: 500; transition: color 120ms ease-out;
+}
+.tab:hover { color: var(--text); }
+.tab[aria-selected='true'] { color: var(--text); border-bottom-color: var(--accent); }
+.tab .count {
+  display: inline-block; margin-left: 6px; padding: 0 5px;
+  border-radius: 999px; background: var(--urgent); color: #fff;
+  font-size: 0.68rem; font-weight: 600; line-height: 1.5;
+}
+
+h2.section {
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-dim); margin: 0 0 12px;
+}
+
+/* ---- controls ---- */
+.controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 16px; }
+.field {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 8px 12px; min-width: 0;
+}
+.field:focus { border-color: var(--accent); }
+input.field { flex: 1 1 260px; }
+
+.btn {
+  background: var(--accent); color: #fff; border: 1px solid transparent;
+  border-radius: var(--radius); padding: 8px 16px; cursor: pointer;
+  font-weight: 500; transition: opacity 120ms ease-out;
+}
+.btn:hover:not(:disabled) { opacity: 0.88; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.ghost { background: var(--surface); color: var(--text); border-color: var(--border); }
+.btn.small { padding: 4px 10px; font-size: 0.8rem; }
+
+.toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 7px 12px; cursor: pointer;
+  font-size: 0.85rem; user-select: none;
+}
+.toggle[data-on='true'] { border-color: currentColor; }
+.toggle .swatch { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+
+/* ---- store picker ---- */
+.picker {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 16px; margin-bottom: 16px;
+}
+.picker-zip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.picker-zip label {
+  font-size: 0.8rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--text-dim);
+}
+.picker-zip input.field { flex: 0 0 auto; width: 7.5rem; padding: 6px 10px; }
+.picker-note { color: var(--text-dim); font-size: 0.78rem; }
+
+.picker-stores {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 8px 16px; margin-top: 12px;
+}
+.picker-store { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.picker-label { font-weight: 600; font-size: 0.85rem; white-space: nowrap; width: 5.5rem; }
+.picker-store select { flex: 1; min-width: 0; padding: 6px 10px; font-size: 0.85rem; }
+.picker-scope { color: var(--text-dim); font-size: 0.72rem; white-space: nowrap; }
+.picker-scope.national { color: var(--promo); }
+.picker-explain {
+  color: var(--text-dim); font-size: 0.78rem; margin: 12px 0 0;
+  padding-top: 12px; border-top: 1px solid var(--border);
+}
+
+/* ---- offer rows ---- */
+.rows { display: flex; flex-direction: column; gap: 8px; }
+
+.row {
+  /* Skip layout/paint for rows scrolled off-screen; keeps long deal lists
+     cheap. The intrinsic size reserves space so the scrollbar stays honest. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 74px;
+  display: grid;
+  grid-template-columns: 4px 48px minmax(0, 1fr) auto auto;
+  gap: 12px; align-items: center;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 16px 12px 0; overflow: hidden;
+}
+.row .accent { align-self: stretch; margin: -12px 0; }
+.row img { width: 48px; height: 48px; object-fit: contain; border-radius: var(--radius-sm); background: var(--surface-2); }
+.row .noimg { width: 48px; height: 48px; border-radius: var(--radius-sm); background: var(--surface-2); }
+
+.row .name { font-weight: 500; overflow-wrap: anywhere; }
+.row .meta { color: var(--text-dim); font-size: 0.78rem; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row .store { font-weight: 600; }
+
+.priceblock { text-align: right; font-variant-numeric: tabular-nums; }
+.priceblock .hero { font-size: 1.5rem; font-weight: 650; line-height: 1.1; letter-spacing: -0.02em; }
+.priceblock .hero.nonnumeric { font-size: 0.95rem; font-weight: 500; color: var(--promo); }
+.priceblock .was { color: var(--text-dim); font-size: 0.78rem; text-decoration: line-through; }
+.priceblock .unit { color: var(--text-dim); font-size: 0.72rem; }
+.priceblock .flash { animation: flash 600ms ease-out; }
+@keyframes flash { from { background: color-mix(in srgb, var(--drop) 30%, transparent); } to { background: transparent; } }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--promo); color: var(--promo);
+  border-radius: var(--radius-sm); padding: 1px 6px;
+  font-size: 0.72rem; font-weight: 500; max-width: 26ch;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chip.sale { border-color: var(--drop); color: var(--drop); }
+.chip.oos { border-color: var(--text-dim); color: var(--text-dim); }
+
+/* ---- watch group cards ---- */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px; margin-bottom: 12px;
+}
+.card header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.card header h3 { margin: 0; font-size: 1rem; font-weight: 600; }
+.card header .spacer { flex: 1; }
+
+/* The comparison table is the one wide element here. It scrolls inside its
+   own box so the page body never scrolls sideways. */
+.compare-scroll { overflow-x: auto; margin: 0 -4px; }
+.compare { width: 100%; border-collapse: collapse; min-width: 640px; }
+.compare th {
+  text-align: left; font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-dim); padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.compare th.num, .compare td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.compare td { padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.compare tr:last-child td { border-bottom: 0; }
+.compare .best { font-weight: 650; }
+.compare .gap { color: var(--rise); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+
+.badge-best {
+  display: inline-block; background: var(--accent); color: #fff;
+  border-radius: var(--radius-sm); padding: 1px 6px;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.02em;
+}
+
+.delta { font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.delta.down { color: var(--drop); }
+.delta.up { color: var(--rise); }
+
+.spark { display: block; }
+
+/* ---- alerts ---- */
+.alert {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 64px;
+  display: flex; align-items: flex-start; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius); padding: 10px 14px; margin-bottom: 8px;
+}
+/* Colour carries one meaning each: green fell, red rose, purple is an offer
+   that is not a plain price, saturated red is urgent. Severity only decides
+   how loud, never what the colour means. */
+.alert[data-tone='drop'] { border-left-color: var(--drop); }
+.alert[data-tone='rise'] { border-left-color: var(--rise); }
+.alert[data-tone='promo'] { border-left-color: var(--promo); }
+.alert[data-tone='stock'] { border-left-color: var(--text-dim); }
+.alert[data-severity='urgent'] { border-left-width: 4px; }
+.alert[data-read='true'] { opacity: 0.55; }
+.alert .body { flex: 1; min-width: 0; }
+.alert .msg { font-weight: 500; }
+.alert .who { color: var(--text-dim); font-size: 0.78rem; }
+.alert .kind {
+  font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+  font-weight: 600; color: var(--text-dim);
+}
+.alert .kind.nonnumeric { color: var(--promo); }
+
+.empty {
+  color: var(--text-dim); text-align: center; padding: 48px 16px;
+  border: 1px dashed var(--border); border-radius: var(--radius);
+}
+.error {
+  background: color-mix(in srgb, var(--urgent) 10%, var(--surface));
+  border: 1px solid var(--urgent); color: var(--text);
+  border-radius: var(--radius); padding: 10px 14px; margin-bottom: 12px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .picker-store { flex-wrap: wrap; }
+  .picker-label { width: auto; }
+  .picker-store select { flex: 1 1 100%; order: 3; }
+  .row { grid-template-columns: 4px minmax(0, 1fr) auto; }
+  .row img, .row .noimg { display: none; }
+  .row .chipcell { grid-column: 2 / -1; }
+
+  /* A side-scrolling table would hide the price, which is the whole point of
+     the screen. Below 640px each store becomes a stacked block instead. */
+  .compare-scroll { overflow-x: visible; margin: 0; }
+  .compare { min-width: 0; }
+  .compare thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .compare tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 2px 8px;
+    align-items: baseline;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .compare tr:last-child { border-bottom: 0; }
+  .compare td { border: 0; padding: 0; }
+  .compare td[data-label='Store'] { grid-column: 1; grid-row: 1; }
+  .compare td[data-label='You pay'] { grid-column: 2; grid-row: 1; font-size: 1.1rem; }
+  .compare td.rmcell { grid-column: 3; grid-row: 1 / span 3; align-self: center; }
+  .compare td[data-label='Item'] { grid-column: 1 / 3; grid-row: 2; }
+  .compare td[data-label='Offer'] { grid-column: 1; grid-row: 3; }
+  .compare td[data-label='Since last check'] { grid-column: 2; grid-row: 3; text-align: right; }
+  .compare td.trendcell { display: none; }
+}
+
+/* ---- deals ---- */
+.deal-controls {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 12px 16px; margin-bottom: 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.deal-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.deal-label {
+  font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-dim); min-width: 4.5rem;
+}
+.deal-row input[type='range'] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+.deal-value { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 4.5rem; text-align: right; }
+.deal-steps { display: flex; gap: 4px; flex-wrap: wrap; }
+.deal-check { display: inline-flex; align-items: center; gap: 5px; font-size: 0.82rem; color: var(--text-dim); }
+
+.chip-toggle {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 999px; padding: 3px 12px; cursor: pointer;
+  font-size: 0.8rem; font-weight: 500; color: var(--text-dim);
+  transition: all 120ms ease-out;
+}
+.chip-toggle:hover { color: var(--text); }
+.chip-toggle[data-on='true'] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip-toggle.promo[data-on='true'] { background: var(--promo); border-color: var(--promo); }
+
+.deal-badge {
+  align-self: center; justify-self: end;
+  background: var(--drop); color: #fff; border-radius: var(--radius-sm);
+  padding: 2px 8px; font-size: 0.8rem; font-weight: 650; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.deal-badge.sm {
+  background: none; color: var(--drop); padding: 0; font-size: 0.72rem; font-weight: 600;
+}
+
+/* ---- Walmart clearance ---- */
+.clearance { display: flex; flex-direction: column; gap: 24px; }
+
+.clearance-head { display: flex; align-items: flex-start; gap: 12px; }
+.clearance-head h2 { margin: 0 0 4px; }
+.section-heading {
+  font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 600; color: var(--text-dim); margin: 0 0 8px;
+}
+
+.store-panel, .watch-panel { display: flex; flex-direction: column; gap: 12px; }
+.zip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.zip-row label { font-size: 0.78rem; color: var(--text-dim); }
+
+.store-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.store-list .store-name { font-weight: 600; }
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+
+.chip-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 4px 8px; font-size: 0.78rem; background: var(--surface);
+  color: var(--text);
+}
+.chip-x {
+  border: 0; background: none; cursor: pointer; color: var(--text-dim);
+  font-size: 0.9rem; line-height: 1; padding: 0 2px;
+}
+.chip-x:hover { color: var(--urgent); }
+
+.chip-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip.toggle { cursor: pointer; transition: border-color 120ms ease-out, color 120ms ease-out; }
+.chip.toggle[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
+
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.filters label { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-dim); }
+.input.narrow { width: 72px; }
+
+.clearance-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.clearance-row {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 16px; overflow: hidden; position: relative;
+}
+/* Store accent bar, as every other offer row carries one. Walmart is the only
+   source in this view, so the bar reads as "this is a Walmart shelf". */
+.clearance-row .store-bar {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--store-walmart);
+}
+.clearance-row .body { flex: 1; min-width: 0; }
+.clearance-row .title { font-size: 0.9rem; display: flex; align-items: center; gap: 8px; }
+.clearance-row .title a { color: inherit; }
+.clearance-row .meta { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; }
+
+/* The aisle is the one piece of information that turns a listing into a trip,
+   so it is set apart from the rest of the metadata line. */
+.clearance-row .aisle {
+  font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text);
+}
+
+.badge.new {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+  border: 1px solid var(--accent); color: var(--accent);
+  border-radius: var(--radius-sm); padding: 0 4px;
+}
+
+.clearance-row .price { text-align: right; display: flex; flex-direction: column; gap: 4px; }
+.clearance-row .price .hero {
+  font-size: 1.5rem; font-weight: 650; font-variant-numeric: tabular-nums;
+}
+.clearance-row .price .was {
+  font-size: 0.78rem; color: var(--text-dim); text-decoration: line-through;
+  font-variant-numeric: tabular-nums;
+}
+.clearance-row .price .off {
+  font-size: 0.78rem; color: var(--drop); font-variant-numeric: tabular-nums;
+}
+
+.meta.empty { padding: 24px 0; }
+
+/* A sweep runs for the better part of an hour; its progress line sits under the
+   header rather than inside the button, so the header does not reflow. */
+.sweep-progress {
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+/* ---- deal monitor ---- */
+.view-switch { display: flex; gap: 8px; }
+.monitor-panel { display: flex; flex-direction: column; gap: 8px; }
+/* The group tag keeps a unified list legible: with three categories collated,
+   the row has to say which one it came from. */
+.group-tag { color: var(--text-dim); }
