@@ -117,6 +117,7 @@ looks up.
 | variable | default | meaning |
 |---|---|---|
 | `PORT` / `HOST` | `5175` / `127.0.0.1` | API and dashboard bind |
+| `BASTILLE_CORS_ORIGIN` | `http://127.0.0.1:5174,http://localhost:5174` | comma-separated browser origins allowed to call the API; set explicitly when hosting the dashboard elsewhere |
 | `BASTILLE_DB` | `data/bastille.db` | SQLite file |
 | `BASTILLE_POLL_INTERVAL_MS` | `1800000` | how often watched prices are re-read |
 | `BASTILLE_MIN_REQUEST_INTERVAL_MS` | `700` | floor between requests to one host |

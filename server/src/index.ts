@@ -19,10 +19,23 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 const PORT = Number(process.env.PORT ?? 5175);
 const HOST = process.env.HOST ?? '127.0.0.1';
+const DEFAULT_CORS_ORIGINS = ['http://127.0.0.1:5174', 'http://localhost:5174'];
+const CORS_ORIGINS = new Set(
+  (process.env.BASTILLE_CORS_ORIGIN?.split(',') ?? DEFAULT_CORS_ORIGINS)
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+);
 
 async function main(): Promise<void> {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } });
-  await app.register(cors, { origin: true });
+  // The dashboard is normally same-origin in production and uses Vite's proxy
+  // in development. Do not reflect arbitrary Origins: that lets any site read
+  // and trigger this local, unauthenticated control surface from a browser.
+  await app.register(cors, {
+    origin(origin, callback) {
+      callback(null, origin === undefined || CORS_ORIGINS.has(origin));
+    },
+  });
 
   const db = openDb(process.env.BASTILLE_DB ?? resolve(REPO_ROOT, 'data/bastille.db'));
   const repo = new Repo(db);
