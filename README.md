@@ -3,8 +3,8 @@
 Search Food Lion and Wegmans together, watch items across both, and get told
 when a price moves — whether the move is a number or a "Buy 2 for $13.00".
 
-It also sweeps the in-store clearance racks at as many nearby Walmarts as you
-care to name, and tells you the aisle.
+It also sweeps the in-store clearance rack for one Walmart location resolved
+from the requesting connection, and records the aisle.
 
 | search | watchlist | alerts |
 |---|---|---|
@@ -50,7 +50,8 @@ records that, and reads its racks. A sweep refuses to record anything if a later
 response names a different store — which is what would catch the address moving
 under it.
 
-Each night it records every item on clearance across three shelves:
+Each night it reads up to eight 40-item pages from each of three clearance
+shelves:
 
 | | |
 |---|---|
@@ -62,15 +63,14 @@ Saved terms (`rtx`, `nvme`, `ryzen`) are matched against each night's new finds
 and raise an alert, so a graphics card appearing on a rack 8 miles away does not
 depend on you opening the app.
 
-Walmart's edge starts refusing after roughly twenty reads however far apart they
-are spaced — the limit is on the count, not the cadence. Three shelves is well
-inside that, but the sweep still waits 20-32 seconds between reads, stands down
-for five minutes on a refusal, and gives up after four in a row.
+The sweep deliberately waits 20-32 seconds between Walmart reads, stands down
+for five minutes on a refusal, and gives up after four consecutive refusals.
 `POST /api/clearance/sweep` starts it and returns rather than holding the
 connection open; the Clearance tab polls for progress.
 
-Items are split into **PC parts & computers** and **other electronics** by which
-of Walmart's own shelves they appear on, not by a keyword match on the title.
+Items are split into **PC parts & computers**, **video games**, and **other
+electronics** by which of Walmart's own shelves they appear on, not by a keyword
+match on the title.
 Walmart reports a different category path for the same item depending on which
 shelf you ask, so the path is not a reliable answer to "what is this"; shelf
 membership is.
