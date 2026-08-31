@@ -139,9 +139,9 @@ looks up.
 
 ## Picking your stores
 
-Enter a ZIP once and both chains resolve to a real nearby store, nearest first
-with distances. For ZIP 22963 that is Food Lion Palmyra (264 Turkeysag Trail)
-and Wegmans Charlottesville (#127, 11.2 mi).
+Enter a ZIP once and both chains resolve to real nearby stores, nearest first
+with distances. The selected store and price scope remain explicit in every
+result.
 
 The two chains mean different things by "your store", and the app says which is
 which rather than blurring them:
@@ -164,7 +164,7 @@ distances.
 
 ## How it gets the data
 
-Mapped with the sibling [`webmap`](../webmap) tool. The full write-up, including
+Mapped with [Astrolabe](https://github.com/revoydotdev/astrolabe). The full write-up, including
 what each store exposes and what it does not, is in
 [docs/BACKEND-MAP.md](docs/BACKEND-MAP.md). In short:
 
@@ -237,3 +237,7 @@ Walmart clearance:
 | GET/POST | `/api/clearance/watches` · DELETE `/api/clearance/watches/:id` | terms to be alerted on |
 | GET | `/api/clearance/alerts?unread=1` | clearance alert feed |
 | POST | `/api/clearance/alerts/:id/ack`, `/api/clearance/alerts/ack-all` | dismiss |
+
+## License
+
+MIT. See [LICENSE](LICENSE).
