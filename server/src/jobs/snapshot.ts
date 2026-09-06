@@ -20,6 +20,8 @@ export interface SnapshotResult {
   rows: number;
   perStore: Record<string, number>;
   errors: string[];
+  /** Snapshot rows dropped by the retention window on this run. */
+  pruned?: number;
 }
 
 /** The location each store is snapshotted at (null = national/no per-store). */
@@ -35,7 +37,9 @@ export class SnapshotJob {
   private running = false;
   /** hour of day (local, 0-23) to run at */
   private readonly hour = Math.min(Math.max(Number(process.env.BASTILLE_SNAPSHOT_HOUR ?? 3), 0), 23);
-  private readonly wegmansBudget = Number(process.env.WEGMANS_SNAPSHOT_PRODUCTS ?? 3000);
+  private readonly wegmansBudget = Number(process.env.WEGMANS_SNAPSHOT_PRODUCTS ?? 50_000);
+  /** Snapshot days kept on disk; 0 or less keeps every day. */
+  private readonly retentionDays = Number(process.env.BASTILLE_SNAPSHOT_RETENTION_DAYS ?? 90);
 
   constructor(private repo: Repo) {}
 
@@ -97,6 +101,10 @@ export class SnapshotJob {
           result.errors.push(`${id}: ${(outcome.reason as Error)?.message ?? 'snapshot failed'}`);
         }
       });
+
+      // Prune only after a successful write, so a failed run never costs
+      // history it did not replace.
+      if (result.rows > 0) result.pruned = this.repo.pruneSnapshots(this.retentionDays);
 
       this.repo.finishSnapshotRun(runId, result.rows, result.errors.join('; ') || null);
     } catch (err) {

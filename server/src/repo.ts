@@ -526,6 +526,30 @@ export class Repo {
     return r?.d ?? null;
   }
 
+  /**
+   * Drops snapshot days older than `keepDays`, and the run rows that describe
+   * them. The corpus is ~65,000 rows and ~29 MB a day, so keeping every day
+   * forever grows about 10 GB a year for data nothing reads: `/api/deals` uses
+   * the latest day, and watched-item history lives in `price_point`, which is
+   * never touched here. `keepDays <= 0` keeps everything.
+   *
+   * Returns the number of snapshot rows removed.
+   */
+  pruneSnapshots(keepDays: number, today = new Date()): number {
+    if (!Number.isFinite(keepDays) || keepDays <= 0) return 0;
+    const cutoff = new Date(today.getTime() - keepDays * 24 * 60 * 60 * 1000);
+    const iso = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+    const removed = (
+      this.db.prepare('SELECT COUNT(*) AS c FROM daily_snapshot WHERE snapshot_date < ?').get(iso) as {
+        c: number;
+      }
+    ).c;
+    if (removed === 0) return 0;
+    this.db.prepare('DELETE FROM daily_snapshot WHERE snapshot_date < ?').run(iso);
+    this.db.prepare('DELETE FROM snapshot_run WHERE snapshot_date < ?').run(iso);
+    return removed;
+  }
+
   snapshotDates(limit = 60): string[] {
     const rows = this.db
       .prepare('SELECT DISTINCT snapshot_date FROM daily_snapshot ORDER BY snapshot_date DESC LIMIT ?')
