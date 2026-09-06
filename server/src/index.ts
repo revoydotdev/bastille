@@ -9,6 +9,7 @@ import { Repo } from './repo.js';
 import { Poller } from './jobs/poller.js';
 import { SnapshotJob } from './jobs/snapshot.js';
 import { registerRoutes } from './routes.js';
+import { adapterFor, STORE_IDS } from './adapters/index.js';
 import { ClearanceRepo } from './clearance/repo.js';
 import { ClearanceSweepJob } from './jobs/clearance-sweep.js';
 import { registerClearanceRoutes } from './clearance/routes.js';
@@ -47,6 +48,9 @@ async function main(): Promise<void> {
   poller.start();
   snapshotJob.start();
   clearanceSweep.start();
+  // Food Lion's search index is a crawl of its aisle tree; start it now so the
+  // first search is served from the full catalogue rather than building it.
+  for (const id of STORE_IDS) adapterFor(id).warm?.();
 
   let shuttingDown = false;
   const shutdown = async () => {

@@ -57,6 +57,14 @@ export interface StoreAdapter {
   zipAnchors(): Promise<ZipAnchor[]>;
 
   /**
+   * Optional: start building whatever local index this adapter serves reads
+   * from, without waiting for it. Called once at boot so the first user
+   * request is not the one that pays to build it. An adapter whose upstream
+   * answers queries directly does not implement this.
+   */
+  warm?(): void;
+
+  /**
    * A bounded, broad set of current offers for the daily snapshot corpus.
    * Deliberately capped so the daily job stays low-resource; breadth over
    * completeness. `locationId` scopes per-store pricing where the chain

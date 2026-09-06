@@ -212,10 +212,29 @@ export function toOffer(p: FlProduct): Offer {
 
 interface CacheEntry {
   products: FlProduct[];
+  /** Sub-aisle slugs linked from this page; see `extractAisleLinks`. */
+  children: string[];
   fetchedAt: number;
 }
 
+/**
+ * Aisle pages link their own sub-aisles. A top-level page carries only part of
+ * its subtree — `2098-produce` lists 520 products but omits scallions and
+ * shallots, which appear on `2334-fresh-vegetables` — so the snapshot descends
+ * one level. The full tree is ~2,900 nodes and is deliberately not walked.
+ */
+const AISLE_LINK = /browse-aisles\/([0-9]+-[a-z0-9-]+)/g;
+
+export function extractAisleLinks(html: string): string[] {
+  return [...new Set(Array.from(html.matchAll(AISLE_LINK), (m) => m[1]!))];
+}
+
 const AISLE_TTL_MS = Number(process.env.FOODLION_AISLE_TTL_MS ?? 30 * 60 * 1000);
+/**
+ * The deep walk costs ~250 requests, so it is rebuilt far less often than a
+ * single aisle is refreshed.
+ */
+const CATALOGUE_TTL_MS = Number(process.env.FOODLION_CATALOGUE_TTL_MS ?? 6 * 60 * 60 * 1000);
 
 export class FoodLionAdapter implements StoreAdapter {
   readonly id = 'foodlion' as const;
@@ -236,11 +255,16 @@ export class FoodLionAdapter implements StoreAdapter {
 
   private cache = new Map<string, CacheEntry>();
   /** In-flight fetches, so a burst of searches makes one request per aisle. */
-  private inflight = new Map<string, Promise<FlProduct[]>>();
+  private inflight = new Map<string, Promise<CacheEntry>>();
 
   private async aisle(slug: string): Promise<FlProduct[]> {
+    return (await this.load(slug)).products;
+  }
+
+  /** Fetches one aisle page, caching both its products and its sub-aisles. */
+  private async load(slug: string): Promise<CacheEntry> {
     const hit = this.cache.get(slug);
-    if (hit && Date.now() - hit.fetchedAt < AISLE_TTL_MS) return hit.products;
+    if (hit && Date.now() - hit.fetchedAt < AISLE_TTL_MS) return hit;
 
     const pending = this.inflight.get(slug);
     if (pending) return pending;
@@ -248,12 +272,16 @@ export class FoodLionAdapter implements StoreAdapter {
     const job = (async () => {
       try {
         const html = await fetchText(`${SITE}/groceries/browse-aisles/${slug}`);
-        const products = extractProducts(html);
-        this.cache.set(slug, { products, fetchedAt: Date.now() });
-        return products;
+        const entry: CacheEntry = {
+          products: extractProducts(html),
+          children: extractAisleLinks(html),
+          fetchedAt: Date.now(),
+        };
+        this.cache.set(slug, entry);
+        return entry;
       } catch {
         // Serve a stale aisle rather than dropping the whole search.
-        return hit?.products ?? [];
+        return hit ?? { products: [], children: [], fetchedAt: 0 };
       } finally {
         this.inflight.delete(slug);
       }
@@ -262,28 +290,79 @@ export class FoodLionAdapter implements StoreAdapter {
     return job;
   }
 
+  private catalogue: { products: FlProduct[]; builtAt: number } | null = null;
+  private catalogueBuild: Promise<FlProduct[]> | null = null;
+
+  /**
+   * Every product across the top-level aisles and the sub-aisles they link,
+   * deduplicated. One build runs at a time; concurrent callers share it.
+   */
+  private buildCatalogue(): Promise<FlProduct[]> {
+    if (this.catalogueBuild) return this.catalogueBuild;
+    const job = (async () => {
+      const roots = await Promise.all(TOP_AISLES.map((slug) => this.load(slug)));
+      const slugs = new Set<string>(TOP_AISLES);
+      for (const entry of roots) for (const child of entry.children) slugs.add(child);
+
+      const byId = new Map<string, FlProduct>();
+      for (const slug of slugs) {
+        for (const p of (await this.load(slug)).products) byId.set(p.prodId, p);
+      }
+      const products = [...byId.values()];
+      this.catalogue = { products, builtAt: Date.now() };
+      return products;
+    })();
+    this.catalogueBuild = job.finally(() => {
+      this.catalogueBuild = null;
+    }) as Promise<FlProduct[]>;
+    return this.catalogueBuild;
+  }
+
+  /**
+   * Starts the deep walk without waiting for it. The server calls this at
+   * boot so the first search is not the one that pays for the crawl.
+   */
+  warm(): void {
+    void this.buildCatalogue().catch(() => {
+      // A failed warm is not fatal: search falls back to the top-level aisles
+      // and the next call retries.
+    });
+  }
+
+  /**
+   * The corpus search reads. A built catalogue is served immediately and
+   * refreshed behind the request once stale; until the first build lands,
+   * search answers from the 20 top-level aisles rather than making the user
+   * wait on ~250 pages. `load` deduplicates in-flight fetches, so the
+   * fallback and the build share the same requests instead of racing.
+   */
+  private async searchCorpus(): Promise<FlProduct[]> {
+    if (this.catalogue) {
+      if (Date.now() - this.catalogue.builtAt >= CATALOGUE_TTL_MS) this.warm();
+      return this.catalogue.products;
+    }
+    this.warm();
+    const aisles = await Promise.all(TOP_AISLES.map((slug) => this.aisle(slug)));
+    const byId = new Map<string, FlProduct>();
+    for (const products of aisles) for (const p of products) byId.set(p.prodId, p);
+    return [...byId.values()];
+  }
+
   async search({ query, limit = 24 }: SearchOptions): Promise<Offer[]> {
     const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (terms.length === 0) return [];
 
-    const aisles = await Promise.all(TOP_AISLES.map((slug) => this.aisle(slug)));
     const scored: { offer: Offer; score: number }[] = [];
-    const seen = new Set<string>();
-
-    for (const products of aisles) {
-      for (const p of products) {
-        if (seen.has(p.prodId)) continue;
-        const haystack = `${p.brand ?? ''} ${p.name ?? ''} ${p.size ?? ''}`.toLowerCase();
-        if (!terms.every((t) => haystack.includes(t))) continue;
-        seen.add(p.prodId);
-        // Prefer a name-start match, then a shorter name (less padding).
-        const name = (p.name ?? '').toLowerCase();
-        const score =
-          (name.startsWith(terms[0]!) ? 100 : 0) +
-          (name.includes(query.toLowerCase()) ? 50 : 0) -
-          Math.min(name.length, 60) / 10;
-        scored.push({ offer: toOffer(p), score });
-      }
+    for (const p of await this.searchCorpus()) {
+      const haystack = `${p.brand ?? ''} ${p.name ?? ''} ${p.size ?? ''}`.toLowerCase();
+      if (!terms.every((t) => haystack.includes(t))) continue;
+      // Prefer a name-start match, then a shorter name (less padding).
+      const name = (p.name ?? '').toLowerCase();
+      const score =
+        (name.startsWith(terms[0]!) ? 100 : 0) +
+        (name.includes(query.toLowerCase()) ? 50 : 0) -
+        Math.min(name.length, 60) / 10;
+      scored.push({ offer: toOffer(p), score });
     }
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, limit).map((s) => s.offer);
@@ -346,20 +425,15 @@ export class FoodLionAdapter implements StoreAdapter {
   }
 
   /**
-   * Every product across the top aisles — the same pages `search` already
-   * loads and caches, so a daily snapshot costs at most one refresh per aisle.
+   * The daily-snapshot corpus: the same deep walk search reads, awaited to
+   * completion because the snapshot wants the store, not whatever is warm.
    */
   async enumerate({ maxProducts }: { locationId?: string | null; maxProducts?: number }): Promise<Offer[]> {
-    const aisles = await Promise.all(TOP_AISLES.map((slug) => this.aisle(slug)));
-    const seen = new Set<string>();
+    const products = await this.buildCatalogue();
     const out: Offer[] = [];
-    for (const products of aisles) {
-      for (const p of products) {
-        if (seen.has(p.prodId)) continue;
-        seen.add(p.prodId);
-        out.push(toOffer(p));
-        if (maxProducts && out.length >= maxProducts) return out;
-      }
+    for (const p of products) {
+      out.push(toOffer(p));
+      if (maxProducts && out.length >= maxProducts) break;
     }
     return out;
   }
