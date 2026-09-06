@@ -247,10 +247,60 @@ with its own rate limits intact.
 
 A daily job records a broad set of current offers from both chains into
 `daily_snapshot` (one row per product per store per day) for analysis, and the
-deals filter reads the latest day. To stay bounded and low-resource the corpus
-is: Food Lion's full top-aisle catalogue (the pages `search` already caches, so
-near-free) plus a bounded page-through of Wegmans' index at one canonical store
-(`WEGMANS_SNAPSHOT_PRODUCTS`, default 3000). Each store is snapshotted at a
-single location so the day-to-day series is consistent. `discount_pct` (percent
+deals filter reads the latest day. The corpus is Food Lion's aisle
+tree plus Wegmans' catalogue at one canonical store
+(`WEGMANS_SNAPSHOT_PRODUCTS`, default 50,000 — above the ~44,000 a store
+carries, so the default captures all of it). Each store is snapshotted at a
+single location so the day-to-day series is consistent.
+
+Both sides needed a fix before the corpus was representative, and both failures
+were silent — they returned a plausible-looking subset rather than an error.
+
+**Wegmans: Algolia caps pagination at 1,000.** An unfiltered query for a store
+reports `nbHits` around 72,000 (flagged `exhaustiveNbHits: false`, so it is an
+estimate) but answers `nbPages: 1`. A sequential `page++` walk therefore reads
+1,000 products and then gets an empty page, and any budget above 1,000 was
+unreachable. `/1/indexes/products_v2/browse` lifts that cap but needs a
+`browse` ACL the storefront's public search-only key does not carry:
+
+```
+403  Method not allowed with this API key, missing ACL "browse"
+```
+
+So the catalogue is partitioned by its own `categories.lvlN` facets instead.
+Facet counts are requested a level at a time; any facet over 1,000 is replaced
+by its children. At store 24 this yields **239 partitions covering 44,369
+products with none hitting the cap**, and costs ~239 requests regardless of the
+budget — the request count tracks partitions, not products, so full coverage is
+no more expensive than a small sample. When a budget is smaller than the
+catalogue it is divided across partitions in proportion to their size, with at
+least one product each, so a short read still touches every department instead
+of exhausting itself inside Grocery.
+
+**Food Lion: a top-level aisle page is not its subtree.** `2098-produce` embeds
+520 products and does not include scallions or shallots; both are on
+`2334-fresh-vegetables`, which the page links. The snapshot now reads the 20
+top-level aisles and the sub-aisles they link — one level, because the full
+tree is ~2,900 nodes. That takes the corpus from 8,012 products to **21,010**
+and is what puts scallions, shallots, corn starch, tahini and ginger root in
+it. Search deliberately stays on the 20 top-level pages: it is interactive, and
+the deeper walk takes ~170s.
+
+Search reads the same walk. Building it on the request path would put ~170s in
+front of a query, so the crawl is started at boot (`StoreAdapter.warm`) and
+refreshed in the background once past `FOODLION_CATALOGUE_TTL_MS` (6h). Until
+the first build lands, search answers from the 20 top-level aisles — the
+behaviour it had before — so a cold query is never slower than it used to be.
+In-flight fetches are deduplicated per aisle, so the fallback and the build
+share requests rather than racing.
+
+### Retention
+
+`daily_snapshot` is ~65,000 rows and ~29 MB per day across both chains, so
+keeping every day grows ~10 GB a year. `/api/deals` reads only the latest day,
+and watched-item history lives in `price_point`, so days outside
+`BASTILLE_SNAPSHOT_RETENTION_DAYS` (default 90, `0` disables) are dropped after
+a successful run — never after a failed one, so a bad night cannot cost history
+it did not replace. `discount_pct` (percent
 off the regular unit price) is computed and indexed so `/api/deals` filters by
 threshold or promo kind in-DB in ~milliseconds.

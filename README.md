@@ -101,6 +101,21 @@ For development, run the API and the Vite dev server side by side:
 npm run dev        # api on :5175, dashboard on :5174 (proxied)
 ```
 
+### Running it for real
+
+The poller, the daily snapshot and the Walmart clearance sweep are all
+scheduled **inside the server process**. Nothing is a cron job, so if the
+process is not running, none of them run. Install the unit:
+
+```bash
+cp .env.example .env    # then edit
+ln -s "$PWD/deploy/systemd/bastille.service" ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now bastille.service
+```
+
+`loginctl enable-linger $USER` if you want it up without a login session.
+
 Tests:
 
 ```bash
@@ -117,15 +132,17 @@ looks up.
 | variable | default | meaning |
 |---|---|---|
 | `PORT` / `HOST` | `5175` / `127.0.0.1` | API and dashboard bind |
-| `BASTILLE_DB` | `data/bastille.db` | SQLite file |
+| `BASTILLE_DB` | `data/bastille.db` | SQLite file (the deployed unit points this at `/scratch/bastille/bastille.db`, off the root filesystem) |
 | `BASTILLE_POLL_INTERVAL_MS` | `1800000` | how often watched prices are re-read |
 | `BASTILLE_MIN_REQUEST_INTERVAL_MS` | `700` | floor between requests to one host |
 | `WEGMANS_STORE` | `24` | default Wegmans store number |
-| `FOODLION_AISLE_TTL_MS` | `1800000` | Food Lion catalogue cache lifetime |
+| `FOODLION_AISLE_TTL_MS` | `1800000` | Food Lion single-aisle cache lifetime |
+| `FOODLION_CATALOGUE_TTL_MS` | `21600000` | Food Lion full aisle-tree crawl lifetime |
+| `BASTILLE_SNAPSHOT_RETENTION_DAYS` | `90` | snapshot days kept on disk; `0` keeps every day |
 | `FOODLION_STORES_TTL_MS` | `86400000` | Food Lion store directory cache lifetime |
 | `WEGMANS_STORES_TTL_MS` | `86400000` | Wegmans store list cache lifetime |
 | `BASTILLE_SNAPSHOT_HOUR` | `3` | local hour (0-23) the daily snapshot runs |
-| `WEGMANS_SNAPSHOT_PRODUCTS` | `3000` | Wegmans products captured per daily snapshot |
+| `WEGMANS_SNAPSHOT_PRODUCTS` | `50000` | Wegmans products captured per daily snapshot (the catalogue is ~44,000 per store, so the default captures all of it; a lower budget is spread across departments in proportion to their size) |
 | `SNAPSHOT_WEGMANS_STORE` | `WEGMANS_STORE` | Wegmans store the snapshot is taken at |
 | `BASTILLE_SEARCH_TTL_MS` | `60000` | server-side per-store search cache lifetime |
 | `BASTILLE_SWEEP_HOUR` | `4` | local hour (0-23) the Walmart clearance sweep runs |
