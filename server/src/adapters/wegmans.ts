@@ -82,7 +82,7 @@ interface AlgoliaHit {
   slug?: string;
 }
 interface AlgoliaResponse {
-  results: { hits: AlgoliaHit[]; nbHits: number }[];
+  results: { hits: AlgoliaHit[]; nbHits: number; facets?: Record<string, Record<string, number>> }[];
 }
 
 interface ProductDetail {
@@ -353,37 +353,106 @@ export class WegmansAdapter implements StoreAdapter {
   }
 
   /**
-   * A bounded page-through of the store's product index for the daily
-   * snapshot. Pages sequentially (Algolia caps hitsPerPage at 1000) up to the
-   * product budget, so cost scales with the budget, not the 60k catalogue.
+   * Algolia refuses to page past 1000 hits on this index: an unfiltered query
+   * reports ~72,000 products for a store but answers `nbPages: 1`, so the old
+   * sequential `page++` walk could never see more than the first 1,000 and the
+   * product budget above 1,000 was unreachable. The `/browse` endpoint that
+   * lifts that cap needs a `browse` ACL the storefront's public search-only key
+   * does not carry (it answers 403), so the catalogue is instead partitioned by
+   * its own category facets until every partition fits under the cap, and each
+   * partition is read in one request.
    */
-  async enumerate({ locationId, maxProducts = 3000 }: { locationId?: string | null; maxProducts?: number }): Promise<Offer[]> {
+  private static readonly PAGE_LIMIT = 1000;
+  /** `categories.lvl0` … `lvl3`; the tree is not deeper than this. */
+  private static readonly MAX_FACET_LEVEL = 3;
+
+  private async algolia(params: URLSearchParams): Promise<AlgoliaResponse['results'][0]> {
+    const res = await fetchJson<AlgoliaResponse>(
+      `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/*/queries`,
+      {
+        method: 'POST',
+        headers: { 'x-algolia-application-id': ALGOLIA_APP_ID, 'x-algolia-api-key': ALGOLIA_API_KEY },
+        body: { requests: [{ indexName: ALGOLIA_INDEX, params: params.toString() }] },
+      },
+    );
+    return res.results[0] ?? { hits: [], nbHits: 0 };
+  }
+
+  /** Facet values at one level of the category tree, with their counts. */
+  private async facetCounts(level: number, filters: string): Promise<Map<string, number>> {
+    const params = new URLSearchParams({
+      query: '',
+      hitsPerPage: '0',
+      facets: JSON.stringify([`categories.lvl${level}`]),
+      maxValuesPerFacet: '1000',
+      filters,
+    });
+    const result = await this.algolia(params);
+    const raw = result.facets?.[`categories.lvl${level}`] ?? {};
+    return new Map(Object.entries(raw));
+  }
+
+  /**
+   * Filter clauses that together cover the store's catalogue, each small
+   * enough to be read in full. A facet larger than the cap is replaced by its
+   * children; at the deepest level an oversized facet is kept and truncated,
+   * because a partial partition still beats dropping it.
+   */
+  private async partitions(storeFilter: string): Promise<{ filters: string; count: number }[]> {
+    const out: { filters: string; count: number }[] = [];
+    const walk = async (level: number, filters: string): Promise<void> => {
+      const counts = await this.facetCounts(level, filters);
+      if (counts.size === 0) return;
+      for (const [value, count] of counts) {
+        const clause = `${filters} AND "categories.lvl${level}":"${value.replace(/"/g, '\\"')}"`;
+        if (count <= WegmansAdapter.PAGE_LIMIT || level >= WegmansAdapter.MAX_FACET_LEVEL) {
+          out.push({ filters: clause, count: Math.min(count, WegmansAdapter.PAGE_LIMIT) });
+        } else {
+          await walk(level + 1, clause);
+        }
+      }
+    };
+    await walk(0, storeFilter);
+    return out;
+  }
+
+  /**
+   * A bounded read of the store's catalogue for the daily snapshot. The budget
+   * is spread across partitions in proportion to their size rather than spent
+   * depth-first, so a budget smaller than the catalogue still returns every
+   * department — breadth over completeness, as the snapshot job intends.
+   */
+  async enumerate({ locationId, maxProducts = 50_000 }: { locationId?: string | null; maxProducts?: number }): Promise<Offer[]> {
     const store = locationId ?? this.defaultLocationId;
-    const perPage = 1000;
+    const storeFilter = `soldAtStores:${store}`;
+    const parts = await this.partitions(storeFilter);
+    if (parts.length === 0) return [];
+
+    const total = parts.reduce((sum, p) => sum + p.count, 0);
     const out: Offer[] = [];
-    for (let page = 0; out.length < maxProducts; page++) {
+    const seen = new Set<string>();
+
+    for (const part of parts) {
+      if (out.length >= maxProducts) break;
+      // At least one hit per partition, so a small budget still touches every
+      // department instead of exhausting itself on the largest one.
+      const share = total === 0 ? 0 : Math.round((part.count / total) * maxProducts);
+      const quota = Math.max(1, Math.min(share, part.count, WegmansAdapter.PAGE_LIMIT));
       const params = new URLSearchParams({
         query: '',
-        hitsPerPage: String(perPage),
-        page: String(page),
-        filters: `soldAtStores:${store}`,
+        hitsPerPage: String(quota),
+        filters: part.filters,
       });
-      const res = await fetchJson<AlgoliaResponse>(
-        `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/*/queries`,
-        {
-          method: 'POST',
-          headers: { 'x-algolia-application-id': ALGOLIA_APP_ID, 'x-algolia-api-key': ALGOLIA_API_KEY },
-          body: { requests: [{ indexName: ALGOLIA_INDEX, params: params.toString() }] },
-        },
-      );
-      const hits = res.results[0]?.hits ?? [];
-      if (hits.length === 0) break;
-      for (const h of hits) {
-        const offer = hitToOffer(h, store);
-        if (offer) out.push(offer);
+      const result = await this.algolia(params);
+      for (const hit of result.hits) {
+        const id = hit.productID ?? hit.objectID;
+        if (id && seen.has(id)) continue;
+        const offer = hitToOffer(hit, store);
+        if (!offer) continue;
+        if (id) seen.add(id);
+        out.push(offer);
         if (out.length >= maxProducts) break;
       }
-      if (hits.length < perPage) break;
     }
     return out;
   }
