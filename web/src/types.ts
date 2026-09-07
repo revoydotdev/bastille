@@ -1,4 +1,4 @@
-export type StoreId = 'foodlion' | 'wegmans';
+export type StoreId = 'foodlion' | 'wegmans' | 'traderjoes';
 
 export type PromoKind =
   | 'none' | 'sale' | 'bogo' | 'bxgy' | 'multibuy'
@@ -160,11 +160,8 @@ export interface StoresResponse {
 }
 
 /** The store the shopper picked for each chain, plus the ZIP that found them. */
-export interface StoreSelection {
-  zip: string;
-  foodlion: string | null;
-  wegmans: string | null;
-}
+/** Chosen location per chain. Keyed by StoreId so adding a chain needs no edit. */
+export type StoreSelection = { zip: string } & Record<StoreId, string | null>;
 
 // ---- Walmart in-store clearance -------------------------------------------
 

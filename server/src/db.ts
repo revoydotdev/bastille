@@ -17,7 +17,7 @@ PRAGMA cache_size = -16000;   -- ~16 MB page cache
 PRAGMA mmap_size = 268435456; -- 256 MB
 
 CREATE TABLE IF NOT EXISTS store_location (
-  store_id      TEXT NOT NULL,          -- 'foodlion' | 'wegmans'
+  store_id      TEXT NOT NULL,          -- see StoreId in price/model.ts
   location_id   TEXT NOT NULL,          -- store's own site/store number
   name          TEXT NOT NULL,
   address       TEXT,

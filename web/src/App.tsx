@@ -29,7 +29,7 @@ export function App() {
         /* fall through to the default */
       }
     }
-    return { zip: '', foodlion: null, wegmans: null };
+    return { zip: '', foodlion: null, wegmans: null, traderjoes: null };
   });
   const [refreshing, setRefreshing] = useState(false);
   const [lastRefresh, setLastRefresh] = useState<string | null>(null);

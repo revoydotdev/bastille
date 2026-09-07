@@ -12,6 +12,7 @@
   --urgent: #b03030;
   --store-foodlion: #0053a0;
   --store-wegmans: #ce3f24;
+  --store-traderjoes: #d8232a;
   --store-walmart: #0071ce;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.06);
   --radius: 8px;
@@ -33,6 +34,7 @@
     --urgent: #e06a6a;
     --store-foodlion: #5c9de0;
     --store-wegmans: #f0765c;
+    --store-traderjoes: #f2726f;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
   }
 }

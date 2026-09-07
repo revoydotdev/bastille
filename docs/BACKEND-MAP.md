@@ -95,6 +95,51 @@ number**. Observed vocabulary over a 1000-hit sample: `DollarOff` (paired with
 a numeric `sav`), `Buy 2 for $13.00`, `Buy 2 for $6.00`. `exp` is a unix
 expiry. This is the field the app parses for non-numeric offers.
 
+## Trader Joe's — Adobe Commerce GraphQL
+
+The storefront is Magento and calls its own endpoint, observed in the site's
+own traffic:
+
+```
+POST https://www.traderjoes.com/api/graphql
+```
+
+Unauthenticated, and it carries **no store context** — no `Store` header, no
+store cookie, verified by inspecting the browser's own request headers on a
+category page. That matches Trader Joe's one-price-nationwide model, so prices
+are recorded under a single scope exactly as Food Lion's are.
+
+`categoryList` gives the tree (`Food` = id 8, 2,637 products across ten
+children); `products(filter: {category_id: ...})` pages it 100 at a time. Each
+item carries `sku`, `item_title`, `url_key`, `sales_size`,
+`sales_uom_description`, `availability` and
+`price_range.minimum_price.{final_price,regular_price}`.
+
+**There is no unit price to read.** Unlike both grocers, Trader Joe's publishes
+a pack size and its unit instead, so the per-unit figure is derived — the one
+adapter that computes rather than parses it.
+
+Two access notes, both observed rather than documented by the vendor:
+
+- `curl` is refused with 403 on TLS fingerprint; **undici is not**, so the
+  shared adapter client reaches it without a browser. A 403 here means that
+  policy changed, not that the API moved.
+- The call also needs a same-origin `origin`/`referer` pair. Without them the
+  edge answers 403 even from undici.
+
+`search` matches *any* term, so "peanut butter" returns plain butter. The
+adapter over-fetches and then requires every typed word to appear, which is the
+rule Food Lion's own index already applies — without it this chain's rows would
+not be comparable with the grocers'.
+
+Stores come from Brandify, the locator the storefront itself uses
+(`alphaapi.brandify.com/rest/locatorsearch`, with the app key it ships to every
+browser). It is a search API rather than a directory — it answers for a ZIP
+instead of listing every store — so this chain contributes no ZIP anchors to
+the shared lookup. Its rows carry `_distance`/`_distanceuom`, which is used as
+given: deriving distance from the returned stores would be self-referential and
+report the nearest store as 0 miles from itself.
+
 ## Food Lion — server-rendered Peapod payload
 
 Food Lion runs two separate surfaces, and only one is usable:

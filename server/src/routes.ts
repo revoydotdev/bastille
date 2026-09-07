@@ -39,6 +39,18 @@ function passesFilter(
   return true;
 }
 
+/**
+ * Per-store location comes in as `<storeId>Location`. Deriving the map from
+ * STORE_IDS rather than naming each chain means a new adapter needs no route
+ * change to receive its store selection.
+ */
+function storeLocations(query: unknown): Partial<Record<StoreId, string | undefined>> {
+  const q = (query ?? {}) as Record<string, string | undefined>;
+  const out: Partial<Record<StoreId, string | undefined>> = {};
+  for (const id of STORE_IDS) out[id] = q[`${id}Location`];
+  return out;
+}
+
 function parseStores(raw: unknown): StoreId[] {
   if (typeof raw !== 'string' || raw.trim() === '') return STORE_IDS;
   const wanted = raw.split(',').map((s) => s.trim()).filter(Boolean);
@@ -124,7 +136,7 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
   });
 
   app.get('/api/search', async (req, reply) => {
-    const q = req.query as { q?: string; stores?: string; limit?: string; foodlionLocation?: string; wegmansLocation?: string };
+    const q = req.query as Record<string, string | undefined>;
     const query = (q.q ?? '').trim();
     if (!query) return reply.code(400).send({ error: 'q is required' });
 
@@ -135,10 +147,7 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
       promoKinds: parsePromoKinds((q as Record<string, string>).promoKinds),
       onSaleOnly: (q as Record<string, string>).onSale === '1' || (q as Record<string, string>).onSale === 'true',
     };
-    const locations: Partial<Record<StoreId, string | undefined>> = {
-      foodlion: q.foodlionLocation,
-      wegmans: q.wegmansLocation,
-    };
+    const locations = storeLocations(q);
 
     // Group membership lets the UI show what is already on the watchlist.
     const membership = new Map<string, number[]>();
@@ -328,10 +337,7 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
     }
 
     // No snapshot yet — scan the live catalogue at the configured locations.
-    const locations: Partial<Record<StoreId, string | undefined>> = {
-      foodlion: q.foodlionLocation,
-      wegmans: q.wegmansLocation,
-    };
+    const locations = storeLocations(q);
     const budget = Math.min(Number(q.liveBudget ?? 2000) || 2000, 4000);
     const settled = await Promise.allSettled(
       (filter.stores ?? []).map(async (id) => ({

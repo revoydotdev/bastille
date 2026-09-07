@@ -8,7 +8,7 @@
  * yields an *effective unit price* wherever one can honestly be derived.
  */
 
-export type StoreId = 'foodlion' | 'wegmans';
+export type StoreId = 'foodlion' | 'wegmans' | 'traderjoes';
 
 /** How an offer is expressed, independent of its numeric value. */
 export type PromoKind =

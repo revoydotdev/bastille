@@ -1,6 +1,6 @@
 # bastille
 
-Search Food Lion and Wegmans together, watch items across both, and get told
+Search Food Lion, Wegmans and Trader Joe's together, watch items across both, and get told
 when a price moves — whether the move is a number or a "Buy 2 for $13.00".
 
 It also sweeps the in-store clearance racks at as many nearby Walmarts as you

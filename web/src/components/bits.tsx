@@ -4,11 +4,13 @@ import { money } from '../lib/api';
 export const STORE_COLOR: Record<StoreId, string> = {
   foodlion: 'var(--store-foodlion)',
   wegmans: 'var(--store-wegmans)',
+  traderjoes: 'var(--store-traderjoes)',
 };
 
 export const STORE_LABEL: Record<StoreId, string> = {
   foodlion: 'Food Lion',
   wegmans: 'Wegmans',
+  traderjoes: "Trader Joe's",
 };
 
 /** Offers whose price is a plain number the shopper pays as shown. */
