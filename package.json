@@ -1,7 +1,7 @@
 {
   "name": "bastille",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Self-hosted grocery price comparison, promotion tracking, and local clearance alerts.",
   "license": "MIT",
   "type": "module",
