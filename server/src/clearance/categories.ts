@@ -36,6 +36,21 @@ export const CLEARANCE_CATEGORIES: ClearanceCategory[] = [
 ];
 
 /**
+ * The order shelves are *read* in when reads are budgeted: the narrow,
+ * high-value shelf first, the broad one next, the least interesting last, so
+ * that a budget which runs short cuts video games and not PC parts.
+ */
+export const SWEEP_PRIORITY: string[] = ['computers', 'electronics', 'video-games'];
+
+export function sweepOrder(categories: ClearanceCategory[] = CLEARANCE_CATEGORIES): ClearanceCategory[] {
+  const rank = (slug: string) => {
+    const i = SWEEP_PRIORITY.indexOf(slug);
+    return i === -1 ? SWEEP_PRIORITY.length : i;
+  };
+  return [...categories].sort((a, b) => rank(a.slug) - rank(b.slug));
+}
+
+/**
  * Which shelf wins when Walmart lists the same item on more than one. The
  * narrower shelf is the more informative: a gaming headset on both Video Games
  * and Electronics is better described by the former, and anything Walmart files

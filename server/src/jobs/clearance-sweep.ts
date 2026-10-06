@@ -1,30 +1,27 @@
 /**
  * Nightly Walmart in-store clearance sweep.
  *
- * Walks every enabled store x every configured category and records what is on
- * the clearance rack, with its aisle. The point of doing it per store is that
- * the answer genuinely differs per store — a rural supercentre marking down PC
- * parts is exactly the case this exists for, and the store next door will not
- * have the same rack.
+ * Reads the clearance rack of the one store Walmart serves this connection and
+ * records what is on it, with its aisle. Walmart resolves the store from the
+ * requesting address, so there is no choosing one: the sweep checks the store
+ * Walmart names in each response against the one on record, which is what would
+ * catch the address changing under it - a VPN, a move, a new ISP route -
+ * rather than quietly filing another town's clearance under this one.
  *
- * The sweep is deliberately slow. Walmart's edge answers a burst with 412, and
- * a nightly job has hours to spend, so `walmart-api` paces every read and this
- * job adds no concurrency on top: one store, one category, one page at a time.
+ * Reads are the scarce resource. Walmart's edge limits on count, not cadence,
+ * so a run has a *read budget* (`WALMART_SWEEP_READ_BUDGET`, default 12) spent
+ * on shelves in priority order - Computers, Electronics, Video games - and the
+ * pacer in `walmart-api` shares a durable ledger with every other caller.
+ * Nothing here retries: a refusal stands the sweep down for a cooldown, and
+ * enough of them in a row end the run.
  *
- * When the edge does push back, the sweep stands down for a cooldown rather
- * than spending the rest of the run failing every remaining store against a
- * closed door — and gives up entirely after enough consecutive refusals, on the
- * grounds that a job which cannot get an answer should stop asking.
- *
- * There is exactly one store to sweep, and it is not a choice: Walmart resolves
- * the store from the requesting address, so this connection reads whichever
- * shop is local to it. The sweep still checks the store Walmart names in each
- * response against the one on record, which is what would catch the address
- * changing under it — a VPN, a move, a new ISP route — rather than quietly
- * filing another town's clearance under this one.
+ * Every error the run records starts with a classification token the dashboard
+ * can show: `[rate-limited]`, `[wrong-store]`, `[hash-expired]`, `[budget]` or
+ * `[error]`. Hash expiry and a wrong store abort the run, since each further
+ * read would fail the same way and cost budget doing it.
  */
-import { CLEARANCE_CATEGORIES, type ClearanceCategory } from '../clearance/categories.js';
-import { backOffUntil, clearanceShelf } from '../clearance/walmart-api.js';
+import { CLEARANCE_CATEGORIES, sweepOrder, type ClearanceCategory } from '../clearance/categories.js';
+import { backOffUntil, clearanceShelf, HashExpiredError, WalmartCooldownError } from '../clearance/walmart-api.js';
 import type { ShelfPage } from '../clearance/walmart-api.js';
 import { HttpError } from '../adapters/http.js';
 import type { ClearanceRepo } from '../clearance/repo.js';
@@ -37,10 +34,41 @@ export type ShelfReader = (opts: {
   categoryId: string;
   page?: number;
   pageSize?: number;
+  sort?: string;
 }) => Promise<ShelfPage>;
 
 function localDate(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
+}
+
+export type SweepErrorKind = 'rate-limited' | 'wrong-store' | 'hash-expired' | 'budget' | 'error';
+
+/** The response named a different store than the one on record (or none). */
+export class WrongStoreError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'WrongStoreError';
+  }
+}
+
+/** The run's read budget is spent. */
+class BudgetSpentError extends Error {}
+
+/** 412 is Walmart's edge; 429 is the ordinary spelling. Either means "later". */
+function isRateLimit(err: unknown): boolean {
+  return err instanceof HttpError && (err.status === 412 || err.status === 429);
+}
+
+export function classifySweepError(err: unknown): SweepErrorKind {
+  if (err instanceof HashExpiredError) return 'hash-expired';
+  if (err instanceof WrongStoreError) return 'wrong-store';
+  if (err instanceof BudgetSpentError) return 'budget';
+  if (isRateLimit(err) || err instanceof WalmartCooldownError) return 'rate-limited';
+  return 'error';
 }
 
 export interface SweepResult {
@@ -48,10 +76,17 @@ export interface SweepResult {
   storesSwept: number;
   finds: number;
   alerts: number;
-  /** how many reads the edge refused, after the client's own retries */
+  /** how many reads the edge refused (no retries are made) */
   rateLimited: number;
-  /** true when the run stopped early because the edge kept refusing */
+  /** true when the run stopped early: refusals, a wrong store, an expired hash or a spent budget */
   abandoned: boolean;
+  /** the classification of what stopped the run, when something did */
+  abortReason: SweepErrorKind | null;
+  /** reads made against Walmart this run, refused ones included */
+  readsSpent: number;
+  readBudget: number;
+  /** `full` reads every shelf to its end; `delta` reads newest-first and stops at the familiar */
+  mode: 'full' | 'delta';
   errors: string[];
 }
 
@@ -63,23 +98,45 @@ export interface SweepProgress {
   currentCategory: string | null;
   finds: number;
   rateLimited: number;
+  readsSpent: number;
+  readBudget: number;
   startedAt: string;
 }
 
-/** Pages per category per store. 40 items a page; eight pages is 320, which
- *  clears the largest rack observed (190 items at one store) with room to
- *  spare, while bounding a shelf that claims thousands. */
-const MAX_PAGES = Number(process.env.WALMART_SWEEP_MAX_PAGES ?? 8);
+export interface SweepOptions {
+  /** Reads per run. Default `WALMART_SWEEP_READ_BUDGET` or 12. */
+  readBudget?: number;
+  /** Stand-down after a refusal, ms. */
+  cooldownMs?: number;
+  /** Refusals in a row after which the run gives up. */
+  maxConsecutiveRateLimits?: number;
+  /** Newest-first reads that stop at the familiar. Default `WALMART_SWEEP_DELTA=1`. */
+  delta?: boolean;
+  /** A delta run is promoted to a full one when the last full pass is this old. */
+  fullEveryDays?: number;
+  /** Walmart sort token. Default `WALMART_SWEEP_SORT` or `new`. */
+  sort?: string;
+}
+
+/**
+ * Items per page. Walmart does not honour a larger one: measured 2026-10-06,
+ * `ps=100` is answered as `ps=20` (more pages, smaller ones), while 40 is
+ * served as asked. 40 is the largest size known to work.
+ */
 const PAGE_SIZE = 40;
+/** Backstop against a shelf that never says it is over. */
+const MAX_PAGES_GUARD = 30;
 
-/** How long to stand down after the edge refuses a read. */
-const RATE_LIMIT_COOLDOWN_MS = Number(process.env.WALMART_RATE_LIMIT_COOLDOWN_MS ?? 5 * 60 * 1000);
-/** Consecutive refusals after which the run gives up rather than keep knocking. */
-const MAX_CONSECUTIVE_RATE_LIMITS = Number(process.env.WALMART_MAX_CONSECUTIVE_RATE_LIMITS ?? 4);
-
-/** 412 is Walmart's edge; 429 is the ordinary spelling. Either means "later". */
-function isRateLimit(err: unknown): boolean {
-  return err instanceof HttpError && (err.status === 412 || err.status === 429);
+function resolveOptions(o: SweepOptions): Required<SweepOptions> {
+  return {
+    readBudget: o.readBudget ?? Number(process.env.WALMART_SWEEP_READ_BUDGET ?? 12),
+    cooldownMs: o.cooldownMs ?? Number(process.env.WALMART_RATE_LIMIT_COOLDOWN_MS ?? 5 * 60 * 1000),
+    maxConsecutiveRateLimits:
+      o.maxConsecutiveRateLimits ?? Number(process.env.WALMART_MAX_CONSECUTIVE_RATE_LIMITS ?? 4),
+    delta: o.delta ?? (process.env.WALMART_SWEEP_DELTA === '1' || process.env.WALMART_SWEEP_DELTA === 'true'),
+    fullEveryDays: o.fullEveryDays ?? Number(process.env.WALMART_FULL_SWEEP_DAYS ?? 7),
+    sort: o.sort ?? process.env.WALMART_SWEEP_SORT ?? 'new',
+  };
 }
 
 export class ClearanceSweepJob {
@@ -89,11 +146,17 @@ export class ClearanceSweepJob {
   private listeners = new Set<() => void>();
   private progressListeners = new Set<(p: SweepProgress) => void>();
   private progress: SweepProgress | null = null;
+  private readonly opts: Required<SweepOptions>;
+  /** reads made in the run in flight */
+  private readsSpent = 0;
 
   constructor(
     private repo: ClearanceRepo,
     private readShelf: ShelfReader = clearanceShelf,
-  ) {}
+    opts: SweepOptions = {},
+  ) {
+    this.opts = resolveOptions(opts);
+  }
 
   get isRunning(): boolean {
     return this.running;
@@ -115,6 +178,7 @@ export class ClearanceSweepJob {
 
   private publish(): void {
     if (!this.progress) return;
+    this.progress.readsSpent = this.readsSpent;
     const snapshot = { ...this.progress };
     for (const fn of this.progressListeners) fn(snapshot);
   }
@@ -141,6 +205,7 @@ export class ClearanceSweepJob {
   async runOnce(): Promise<SweepResult> {
     if (this.running) throw new Error('a sweep is already running');
     this.running = true;
+    this.readsSpent = 0;
 
     const date = localDate();
     const runId = this.repo.startSweep(date);
@@ -151,14 +216,21 @@ export class ClearanceSweepJob {
     let rateLimited = 0;
     let consecutiveRateLimits = 0;
     let abandoned = false;
+    let abortReason: SweepErrorKind | null = null;
+    let mode: 'full' | 'delta' = 'full';
+
+    const abort = (kind: SweepErrorKind) => {
+      abandoned = true;
+      abortReason = kind;
+    };
 
     try {
       const local = this.repo.localStore();
       const stores = local ? [local] : [];
-      const categories = CLEARANCE_CATEGORIES;
+      const categories = sweepOrder(CLEARANCE_CATEGORIES);
 
       if (stores.length === 0) {
-        errors.push('no store on record — resolve the local store first');
+        errors.push('[error] no store on record - resolve the local store first');
       }
 
       this.progress = {
@@ -168,43 +240,81 @@ export class ClearanceSweepJob {
         currentCategory: null,
         finds: 0,
         rateLimited: 0,
+        readsSpent: 0,
+        readBudget: this.opts.readBudget,
         startedAt: new Date().toISOString(),
       };
       this.publish();
 
       for (const store of stores) {
         if (abandoned) break;
+
+        // Delta only when there is a previous full pass recent enough to lean on.
+        const lastFull = this.repo.lastFullSweepDate(store.locationId);
+        const delta =
+          this.opts.delta && lastFull !== null && daysBetween(lastFull, date) < this.opts.fullEveryDays;
+        mode = delta ? 'delta' : 'full';
+        const known = delta ? this.repo.knownItemIds(store.locationId) : new Set<string>();
+
         let sweptAnything = false;
+        let allComplete = true;
         for (const category of categories) {
           this.progress.currentStore = store.name;
           this.progress.currentCategory = category.slug;
           this.publish();
           try {
-            const result = await this.sweepCategory(date, store, category);
+            const result = await this.sweepCategory(date, store, category, delta ? known : null);
             finds += result.finds;
             alerts += result.alerts;
             sweptAnything = true;
+            if (!result.complete) allComplete = false;
             consecutiveRateLimits = 0;
           } catch (err) {
-            errors.push(`${store.name} / ${category.slug}: ${(err as Error).message}`);
-            if (!isRateLimit(err)) continue;
+            allComplete = false;
+            const kind = classifySweepError(err);
+
+            if (kind === 'budget') {
+              const left = categories.slice(categories.indexOf(category)).map((c) => c.slug).join(', ');
+              errors.push(
+                `[budget] read budget of ${this.opts.readBudget} spent (${this.readsSpent} reads) - not fully read: ${left}`,
+              );
+              abort('budget');
+              break;
+            }
+
+            errors.push(`[${kind}] ${store.name} / ${category.slug}: ${(err as Error).message}`);
+
+            if (kind === 'hash-expired' || kind === 'wrong-store') {
+              // Every further read would fail the same way and spend budget
+              // doing it.
+              abort(kind);
+              break;
+            }
+            if (kind !== 'rate-limited') continue;
 
             rateLimited++;
             consecutiveRateLimits++;
             this.progress.rateLimited = rateLimited;
             this.publish();
 
-            if (consecutiveRateLimits >= MAX_CONSECUTIVE_RATE_LIMITS) {
-              errors.push(
-                `gave up after ${consecutiveRateLimits} consecutive refusals — ${stores.length - this.progress.storesDone} store(s) not swept`,
-              );
-              abandoned = true;
+            if (err instanceof WalmartCooldownError) {
+              // The ledger says the edge is closed for longer than a read will
+              // wait. Come back on the next run.
+              abort('rate-limited');
               break;
             }
-            // Stand down. The pacer is told too, so the next read does not go
-            // out the moment this sleep ends.
-            backOffUntil(RATE_LIMIT_COOLDOWN_MS);
-            await new Promise((r) => setTimeout(r, RATE_LIMIT_COOLDOWN_MS));
+            if (consecutiveRateLimits >= this.opts.maxConsecutiveRateLimits) {
+              errors.push(
+                `[rate-limited] gave up after ${consecutiveRateLimits} consecutive refusals - ${stores.length - this.progress.storesDone} store(s) not swept`,
+              );
+              abort('rate-limited');
+              break;
+            }
+            // Stand down. The pacer and the ledger are told too, so the next
+            // read does not go out the moment this sleep ends - or after a
+            // restart.
+            backOffUntil(this.opts.cooldownMs);
+            await new Promise((r) => setTimeout(r, this.opts.cooldownMs));
           }
         }
         // Only a store that actually answered counts as swept, and only that
@@ -213,6 +323,8 @@ export class ClearanceSweepJob {
         if (sweptAnything) {
           storesSwept++;
           this.repo.markSwept(store.locationId);
+          if (delta) this.repo.carryForward(date, store.locationId);
+          else if (allComplete) this.repo.markFullSweep(store.locationId, date);
         }
         this.progress.storesDone++;
         this.progress.finds = finds;
@@ -224,9 +336,21 @@ export class ClearanceSweepJob {
       const recorded = this.repo.countFinds(date, stores.map((s) => s.locationId));
       this.repo.finishSweep(runId, storesSwept, recorded, errors.length > 0 ? errors.join('; ').slice(0, 2000) : null);
       if (alerts > 0) for (const fn of this.listeners) fn();
-      return { date, storesSwept, finds: recorded, alerts, rateLimited, abandoned, errors };
+      return {
+        date,
+        storesSwept,
+        finds: recorded,
+        alerts,
+        rateLimited,
+        abandoned,
+        abortReason,
+        readsSpent: this.readsSpent,
+        readBudget: this.opts.readBudget,
+        mode,
+        errors,
+      };
     } catch (err) {
-      this.repo.finishSweep(runId, storesSwept, finds, (err as Error).message);
+      this.repo.finishSweep(runId, storesSwept, finds, `[error] ${(err as Error).message}`);
       throw err;
     } finally {
       this.running = false;
@@ -234,22 +358,33 @@ export class ClearanceSweepJob {
     }
   }
 
+  /**
+   * Reads one shelf page by page. `known` is the set of item ids already on
+   * record at this store; when given the read is a delta - newest first, ending
+   * at the first page that holds nothing unfamiliar. `complete` says the shelf
+   * was read to its end rather than cut short by the budget or an error.
+   */
   private async sweepCategory(
     date: string,
     store: { locationId: string; postalCode: string; name: string },
     category: ClearanceCategory,
-  ): Promise<{ finds: number; alerts: number }> {
+    known: Set<string> | null,
+  ): Promise<{ finds: number; alerts: number; complete: boolean }> {
     const { locationId, postalCode } = store;
     let finds = 0;
     let alerts = 0;
 
-    for (let page = 1; page <= MAX_PAGES; page++) {
+    for (let page = 1; page <= MAX_PAGES_GUARD; page++) {
+      if (this.readsSpent >= this.opts.readBudget) throw new BudgetSpentError('read budget spent');
+      this.readsSpent++;
+      this.publish();
       const shelf = await this.readShelf({
         locationId,
         postalCode,
         categoryId: category.id,
         page,
         pageSize: PAGE_SIZE,
+        sort: this.opts.sort,
       });
 
       // Walmart echoes the store it answered for, and it is not always the one
@@ -258,36 +393,44 @@ export class ClearanceSweepJob {
       // one's rack. Recording that under the requested store would attribute
       // one shop's clearance to another, so the name has to match.
       if (shelf.storeName === null) {
-        throw new Error('response carried no store — refusing to record an unscoped shelf');
+        throw new WrongStoreError('response carried no store - refusing to record an unscoped shelf');
       }
       if (shelf.storeName.trim().toLowerCase() !== store.name.trim().toLowerCase()) {
-        throw new Error(
-          `asked for ${store.name} but Walmart answered for ${shelf.storeName} — refusing to record it`,
+        throw new WrongStoreError(
+          `asked for ${store.name} but Walmart answered for ${shelf.storeName} - refusing to record it`,
         );
       }
 
-      // A page can be all shipping-only items, which is not the end of the
-      // shelf — only an empty page from Walmart is.
-      if (shelf.pageItemCount === 0) break;
-      if (shelf.items.length === 0) {
-        if (shelf.pageItemCount < PAGE_SIZE) break;
-        continue;
+      // Only an empty page is the end for certain. A short page is not: pages
+      // come back anywhere from 22 to 48 items (ad tiles and repeats included)
+      // and a shelf's last-but-one page can be shorter than the full one.
+      if (shelf.pageItemCount === 0) return { finds, alerts, complete: true };
+
+      if (shelf.items.length > 0) {
+        const { written, newItemIds } = this.repo.recordFinds(
+          date,
+          locationId,
+          category.slug,
+          category.group,
+          shelf.items,
+        );
+        finds += written;
+        alerts += this.repo.alertOnNewFinds(date, locationId, newItemIds);
+
+        // Delta: nothing on this page was ever seen before, so by the shelf's
+        // newest-first order nothing deeper is new either.
+        if (known && shelf.items.every((i) => known.has(i.itemId))) return { finds, alerts, complete: true };
       }
 
-      const { written, newItemIds } = this.repo.recordFinds(
-        date,
-        locationId,
-        category.slug,
-        category.group,
-        shelf.items,
-      );
-      finds += written;
-      alerts += this.repo.alertOnNewFinds(date, locationId, newItemIds);
-
-      if (shelf.pageItemCount < PAGE_SIZE) break;
-      if (shelf.totalCount !== null && page * PAGE_SIZE >= shelf.totalCount) break;
+      // `maxPage` is Walmart's own page count and moves by one between reads,
+      // so it is a bound, not a promise; the empty page above is the proof.
+      if (shelf.maxPage != null) {
+        if (page >= shelf.maxPage) return { finds, alerts, complete: true };
+      } else if (shelf.totalCount !== null && page * PAGE_SIZE >= shelf.totalCount) {
+        return { finds, alerts, complete: true };
+      }
     }
 
-    return { finds, alerts };
+    return { finds, alerts, complete: false };
   }
 }
