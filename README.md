@@ -1,6 +1,6 @@
 # bastille
 
-Search Food Lion, Wegmans and Trader Joe's together, watch items across both, and get told
+Search Food Lion, Wegmans and Trader Joe's together, watch items across all three, and get told
 when a price moves — whether the move is a number or a "Buy 2 for $13.00".
 
 It also sweeps the in-store clearance racks at as many nearby Walmarts as you
@@ -156,7 +156,7 @@ looks up.
 
 ## Picking your stores
 
-Enter a ZIP once and both chains resolve to real nearby stores, nearest first
+Enter a ZIP once and every chain resolves to real nearby stores, nearest first
 with distances. The selected store and price scope remain explicit in every
 result.
 
@@ -218,7 +218,7 @@ server/src/
   clearance/     Walmart's GraphQL tier, its own store/find/watch tables and routes
   repo.ts        products, price history, watchlists, alerts
   routes.ts      HTTP API + SSE alert stream
-web/src/         React dashboard: search, deals, clearance, watchlist, alerts
+web/src/         React dashboard: search (plus paste-a-recipe), deals, clearance, watchlist, alerts (price moves and clearance watch-term matches)
 docs/            backend map
 DESIGN.md        colour, type, spacing, and what each colour is allowed to mean
 ```
@@ -227,10 +227,10 @@ DESIGN.md        colour, type, spacing, and what each colour is allowed to mean
 
 | method | path | |
 |---|---|---|
-| GET | `/api/search?q=&stores=&wegmansLocation=&foodlionLocation=&minDiscount=&promoKinds=&onSale=` | both stores, cheapest comparable first, filterable |
-| GET | `/api/deals?minDiscount=&promoKinds=&onSale=&stores=&sort=` | everything ≥N% off or of a promo kind (e.g. only BOGO), from the latest daily snapshot (live scan before the first snapshot) |
+| GET | `/api/search?q=&stores=&<store>Location=&minDiscount=&promoKinds=&onSale=` | every selected store, cheapest comparable first, filterable |
+| GET | `/api/deals?date=&minDiscount=&promoKinds=&onSale=&stores=&sort=` | everything ≥N% off or of a promo kind (e.g. only BOGO), from the latest daily snapshot (live scan before the first snapshot) |
 | GET | `/api/snapshot/status` · POST `/api/snapshot/run` | daily-snapshot state / trigger now |
-| GET | `/api/stores?postalCode=` | both chains' nearest stores, with distances and whether the chain prices per store |
+| GET | `/api/stores?postalCode=` | every chain's nearest stores, with distances and whether the chain prices per store |
 | GET/POST | `/api/watchlist` | list / add (add to an existing group to compare) |
 | PATCH/DELETE | `/api/watchlist/:id` | rename, set a target price, remove |
 | DELETE | `/api/watchlist/item/:itemId` | drop one store from a group |

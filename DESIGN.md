@@ -13,8 +13,8 @@ that is *not* a number should never be mistaken for one.
 2. **Never fake precision.** An offer that cannot be reduced to a number shows
    its own words and is visibly excluded from numeric ranking. No invented
    averages, no "approx".
-3. **Store identity is a colour, not a logo.** Food Lion and Wegmans are
-   distinguished by a single accent so a row's origin is readable peripherally.
+3. **Store identity is a colour, not a logo.** Food Lion, Wegmans and Trader Joe's are
+   each distinguished by a single accent so a row's origin is readable peripherally.
 4. **Alerts are calm by default.** Only an urgent alert gets saturated colour.
    A price rise is information, not an emergency.
 
@@ -37,10 +37,12 @@ hard-code a hex outside the token block.
 | `--promo` | `#7a4fa8` | `#b28ce0` | non-numeric offer |
 | `--urgent` | `#b03030` | `#e06a6a` | urgent alert |
 
-Store accents: Food Lion `#0053a0`, Wegmans `#ce3f24`, Walmart `#0071ce` — all
+Store accents: Food Lion `#0053a0`, Wegmans `#ce3f24`, Trader Joe's `#d8232a`,
+Walmart `#0071ce` — all
 taken from the stores' own marks so the mapping is learned instantly. Walmart's
-blue sits close to Food Lion's; the two never share a view, because Walmart
-appears only in Clearance and the grocers never do.
+blue sits close to Food Lion's. They meet only in the Alerts feed, where the
+Walmart source is carried by the words "Walmart clearance" in a badge, never
+by colour alone.
 
 Green means *the price went down*, red means *it went up*. That is the only
 meaning either colour carries; do not reuse them for success/error states.
@@ -98,8 +100,19 @@ dashboard that moves is a dashboard you cannot scan.
   shown on the others.
 - **Sparkline** — 40px tall, effective unit price over time, no axes. Its job
   is trend shape, not values.
-- **Alert row** — severity dot, message, relative time, dismiss. Non-numeric
-  alerts carry the promo colour.
+- **Alert row** — a left border whose colour says what happened (green fell,
+  red rose, purple is a non-numeric offer, grey is stock), 4px instead of 3px
+  when urgent; then a source badge, message, who/where/when line and dismiss.
+  Read rows drop to 55% opacity. The border is the severity cue, so there is
+  no separate dot. Clearance watch-term matches share the feed, marked by a
+  "Walmart clearance" badge and always drawn as a price drop.
+- **Tabs** — the main tab bar and the Clearance view switch follow the WAI-ARIA
+  tabs pattern: `aria-selected`, one tab stop (roving `tabindex`), arrow keys,
+  Home and End.
+- **Loading** — a first fetch shows "Loading …" in place of empty-state copy;
+  "nothing yet" appears only after an answer has arrived.
+- **Live region** — new alerts are announced through a visually-hidden polite
+  `role="status"` region; the unread badge alone is not announced.
 - **Clearance row** — Walmart accent bar, item name, then a metadata line whose
   only emphasised element is the **aisle**: it is set in `--text` at weight 600
   with tabular figures while the store and distance around it stay
