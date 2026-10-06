@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { PriceSnapshot, WatchGroup } from '../types';
 import { api, money, relativeTime } from '../lib/api';
-import { Delta, PromoChip, Sparkline, STORE_COLOR, STORE_LABEL } from './bits';
+import { Delta, Loading, PromoChip, Sparkline, STORE_COLOR, STORE_LABEL } from './bits';
 
 interface Props {
   groups: WatchGroup[];
+  loading: boolean;
   onChanged: () => void;
 }
 
@@ -102,13 +103,13 @@ function GroupCard({ group, onChanged }: { group: WatchGroup; onChanged: () => v
       <table className="compare">
         <thead>
           <tr>
-            <th>Store</th>
-            <th>Item</th>
-            <th>Offer</th>
-            <th className="num">You pay</th>
-            <th className="num">Since last check</th>
-            <th>Trend</th>
-            <th />
+            <th scope="col">Store</th>
+            <th scope="col">Item</th>
+            <th scope="col">Offer</th>
+            <th scope="col" className="num">You pay</th>
+            <th scope="col" className="num">Since last check</th>
+            <th scope="col">Trend</th>
+            <th scope="col"><span className="visually-hidden">Remove</span></th>
           </tr>
         </thead>
         <tbody>
@@ -176,7 +177,8 @@ function GroupCard({ group, onChanged }: { group: WatchGroup; onChanged: () => v
   );
 }
 
-export function Watchlist({ groups, onChanged }: Props) {
+export function Watchlist({ groups, loading, onChanged }: Props) {
+  if (loading) return <Loading what="watchlist" />;
   if (groups.length === 0) {
     return (
       <div className="empty">

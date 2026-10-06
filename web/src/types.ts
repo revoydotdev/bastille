@@ -90,6 +90,8 @@ export interface SnapshotStatus {
   latestDate: string | null;
   dates: string[];
   running: boolean;
+  /** ISO time of the last retention prune; absent on older servers */
+  lastPrunedAt?: string | null;
 }
 
 export interface StoredProduct extends Product {
@@ -275,4 +277,21 @@ export interface ClearanceFilters {
   maxPrice: number | null;
   newOnly: boolean;
   sort: 'discount' | 'price' | 'name';
+}
+
+/** A watch-term match from a clearance sweep, as GET /api/clearance/alerts returns it. */
+export interface ClearanceAlert {
+  id: number;
+  createdAt: string;
+  message: string;
+  acknowledged: boolean;
+  term: string | null;
+  find: ClearanceRow;
+}
+
+/** One line of a pasted recipe, as POST /api/recipes/parse returns it. */
+export interface ParsedIngredient {
+  raw: string;
+  pantry: boolean;
+  queries: string[];
 }

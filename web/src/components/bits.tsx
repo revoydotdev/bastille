@@ -88,3 +88,76 @@ export function Sparkline({ points, color }: { points: number[]; color: string }
     </svg>
   );
 }
+
+/** One toggle per chain the API reports, so a new chain needs no UI edit. */
+export function StoreToggles({
+  ids,
+  selected,
+  onToggle,
+}: {
+  ids: StoreId[];
+  selected: StoreId[];
+  onToggle: (id: StoreId) => void;
+}): React.ReactElement {
+  return (
+    <>
+      {ids.map((id) => (
+        <button
+          key={id}
+          type="button"
+          className="toggle"
+          data-on={selected.includes(id)}
+          style={{ color: selected.includes(id) ? STORE_COLOR[id] : 'var(--text-dim)' }}
+          aria-pressed={selected.includes(id)}
+          onClick={() => onToggle(id)}
+        >
+          <span className="swatch" />
+          {STORE_LABEL[id] ?? id}
+        </button>
+      ))}
+    </>
+  );
+}
+
+/**
+ * WAI-ARIA tabs keyboard model: arrows move (and activate) between tabs,
+ * Home/End jump to the ends. Pair with tabIndex={selected ? 0 : -1} on each tab
+ * and `${prefix}-tab-${id}` element ids.
+ */
+export function tabKeyHandler<T extends string>(ids: T[], current: T, select: (id: T) => void, prefix: string) {
+  return (e: React.KeyboardEvent): void => {
+    const i = ids.indexOf(current);
+    let next: number;
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        next = (i + 1) % ids.length;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        next = (i - 1 + ids.length) % ids.length;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = ids.length - 1;
+        break;
+      default:
+        return;
+    }
+    e.preventDefault();
+    const id = ids[next]!;
+    select(id);
+    document.getElementById(`${prefix}-tab-${id}`)?.focus();
+  };
+}
+
+/** Shown while a first fetch is in flight, so loading never reads as empty. */
+export function Loading({ what }: { what: string }): React.ReactElement {
+  return (
+    <div className="empty" role="status" aria-busy="true">
+      Loading {what}…
+    </div>
+  );
+}
