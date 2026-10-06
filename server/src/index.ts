@@ -5,6 +5,7 @@ import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDb } from './db.js';
+import { installRequestLog } from './metrics.js';
 import { Repo } from './repo.js';
 import { Poller } from './jobs/poller.js';
 import { SnapshotJob } from './jobs/snapshot.js';
@@ -26,13 +27,14 @@ async function main(): Promise<void> {
   await app.register(cors, { origin: true });
 
   const db = openDb(process.env.BASTILLE_DB ?? resolve(REPO_ROOT, 'data/bastille.db'));
+  installRequestLog(db);
   const repo = new Repo(db);
   const poller = new Poller(repo);
   const snapshotJob = new SnapshotJob(repo);
   const clearanceRepo = new ClearanceRepo(db);
   const clearanceSweep = new ClearanceSweepJob(clearanceRepo);
 
-  registerRoutes(app, repo, poller, snapshotJob);
+  registerRoutes(app, repo, poller, snapshotJob, { clearance: { repo: clearanceRepo, sweep: clearanceSweep } });
   registerClearanceRoutes(app, clearanceRepo, clearanceSweep);
 
   // Serve the built dashboard when it exists, so `npm start` is the whole app.
@@ -45,12 +47,18 @@ async function main(): Promise<void> {
     });
   }
 
-  poller.start();
-  snapshotJob.start();
-  clearanceSweep.start();
-  // Food Lion's search index is a crawl of its aisle tree; start it now so the
-  // first search is served from the full catalogue rather than building it.
-  for (const id of STORE_IDS) adapterFor(id).warm?.();
+  // BASTILLE_OFFLINE=1 boots the API with no schedulers and no warm-up reads,
+  // so profiling, CI smoke tests and Lighthouse runs need no network at all.
+  if (process.env.BASTILLE_OFFLINE === '1') {
+    app.log.warn('BASTILLE_OFFLINE=1: schedulers and catalogue warm-up disabled, upstream reads refused');
+  } else {
+    poller.start();
+    snapshotJob.start();
+    clearanceSweep.start();
+    // Food Lion's search index is a crawl of its aisle tree; start it now so the
+    // first search is served from the full catalogue rather than building it.
+    for (const id of STORE_IDS) adapterFor(id).warm?.();
+  }
 
   let shuttingDown = false;
   const shutdown = async () => {

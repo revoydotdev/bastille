@@ -9,6 +9,7 @@
 import { STORE_IDS, adapterFor } from '../adapters/index.js';
 import type { Repo, SnapshotOffer } from '../repo.js';
 import type { StoreId } from '../price/model.js';
+import { tallyRequests } from '../metrics.js';
 
 function localDate(d = new Date()): string {
   // YYYY-MM-DD in local time — the day the snapshot belongs to.
@@ -78,8 +79,9 @@ export class SnapshotJob {
     const runId = this.repo.startSnapshotRun(date, STORE_IDS.join(','));
     const result: SnapshotResult = { date, rows: 0, perStore: {}, errors: [] };
 
+    const spent = { requests: 0, bytes: 0 };
     try {
-      const perStore = await Promise.allSettled(
+      const tallied = await tallyRequests(() => Promise.allSettled(
         STORE_IDS.map(async (id) => {
           const location = snapshotLocation(id);
           const offers = await adapterFor(id).enumerate({
@@ -90,7 +92,10 @@ export class SnapshotJob {
           const written = this.repo.recordSnapshot(date, batch);
           return { id, written };
         }),
-      );
+      ));
+      const perStore = tallied.value;
+      spent.requests = tallied.requests;
+      spent.bytes = tallied.bytes;
 
       perStore.forEach((outcome, i) => {
         const id = STORE_IDS[i]!;
@@ -106,9 +111,9 @@ export class SnapshotJob {
       // history it did not replace.
       if (result.rows > 0) result.pruned = this.repo.pruneSnapshots(this.retentionDays);
 
-      this.repo.finishSnapshotRun(runId, result.rows, result.errors.join('; ') || null);
+      this.repo.finishSnapshotRun(runId, result.rows, result.errors.join('; ') || null, spent);
     } catch (err) {
-      this.repo.finishSnapshotRun(runId, result.rows, (err as Error).message);
+      this.repo.finishSnapshotRun(runId, result.rows, (err as Error).message, spent);
       result.errors.push((err as Error).message);
     } finally {
       this.running = false;

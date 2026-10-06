@@ -10,6 +10,9 @@ import type { DealFilter, DealRow } from './repo.js';
 import type { PromoKind } from './price/model.js';
 import { TtlCache } from './cache.js';
 import { normalizeZip, resolveZip, type ZipAnchor } from './geo.js';
+import { parseIngredient } from './recipes/ingredient.js';
+import type { ClearanceRepo } from './clearance/repo.js';
+import type { ClearanceSweepJob } from './jobs/clearance-sweep.js';
 
 interface SearchResultRow {
   storeId: StoreId;
@@ -58,7 +61,22 @@ function parseStores(raw: unknown): StoreId[] {
   return valid.length > 0 ? valid : STORE_IDS;
 }
 
-export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller, snapshotJob?: SnapshotJob): void {
+/** Most lines `POST /api/recipes/parse` will parse in one request. */
+const MAX_RECIPE_LINES = 200;
+
+/** Optional collaborators, so existing callers (and tests) can omit them. */
+export interface RouteExtras {
+  /** When present, a sweep that raises alerts is pushed down the alerts SSE stream. */
+  clearance?: { repo: ClearanceRepo; sweep: ClearanceSweepJob };
+}
+
+export function registerRoutes(
+  app: FastifyInstance,
+  repo: Repo,
+  poller: Poller,
+  snapshotJob?: SnapshotJob,
+  extras: RouteExtras = {},
+): void {
   // Several endpoints take no body (refresh, ack, delete). Fastify's default
   // JSON parser rejects an empty body outright, which turns a perfectly
   // ordinary `fetch(url, {method: 'POST'})` into a 400.
@@ -92,6 +110,13 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
   poller.onPoll(() => {
     const unread = repo.listAlerts({ unacknowledgedOnly: true, limit: 50 });
     const payload = JSON.stringify({ type: 'alerts', alerts: unread });
+    for (const send of sseClients) send(payload);
+  });
+  // Contract (the dashboard consumes this): same stream, distinct `type`, and
+  // `alerts` is exactly what GET /api/clearance/alerts?unread=1 returns.
+  extras.clearance?.sweep.onAlerts(() => {
+    const alerts = extras.clearance!.repo.listAlerts({ unacknowledgedOnly: true });
+    const payload = JSON.stringify({ type: 'clearance-alerts', alerts });
     for (const send of sseClients) send(payload);
   });
 
@@ -150,13 +175,7 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
     const locations = storeLocations(q);
 
     // Group membership lets the UI show what is already on the watchlist.
-    const membership = new Map<string, number[]>();
-    for (const group of repo.listGroups()) {
-      for (const item of group.items) {
-        const key = `${item.product.storeId}:${item.product.storeProductId}`;
-        membership.set(key, [...(membership.get(key) ?? []), group.id]);
-      }
-    }
+    const membership = repo.watchMembership();
 
     const settled = await Promise.allSettled(
       stores.map(async (id) => {
@@ -227,7 +246,8 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
 
     const adapter = adapterFor(body.storeId);
     const selected = body.locationId ?? adapter.defaultLocationId;
-    const offer = await adapter.fetchOffer(body.storeProductId, selected);
+    const known = repo.getProduct(body.storeId, body.storeProductId);
+    const offer = await adapter.fetchOffer(body.storeProductId, selected, { productUrl: known?.productUrl });
     if (!offer) return reply.code(404).send({ error: 'product not found at that store' });
 
     // Record against the scope the price actually belongs to. For a chain with
@@ -386,6 +406,7 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
     lastRun: repo.lastSnapshotRun(),
     latestDate: repo.latestSnapshotDate(),
     dates: repo.snapshotDates(),
+    lastPrunedAt: repo.lastPrunedAt(),
     running: snapshotJob?.isRunning ?? false,
   }));
 
@@ -393,6 +414,45 @@ export function registerRoutes(app: FastifyInstance, repo: Repo, poller: Poller,
     if (!snapshotJob) return reply.code(503).send({ error: 'snapshot job not configured' });
     const result = await snapshotJob.runOnce();
     return result;
+  });
+
+  /**
+   * Splits pasted recipe text into ingredients, one per non-empty line. Pure
+   * parsing: nothing is searched or saved, so the caller decides what to do
+   * with each line (the dashboard fans them out as store queries).
+   */
+  app.post('/api/recipes/parse', async (req, reply) => {
+    const text = (req.body as { text?: unknown } | undefined)?.text;
+    if (typeof text !== 'string' || text.trim() === '') {
+      return reply.code(400).send({ error: 'text is required' });
+    }
+    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    // Capped, not rejected: a pasted page with a long footer still yields its
+    // ingredients. `truncated` appears only when lines were dropped.
+    const kept = lines.slice(0, MAX_RECIPE_LINES);
+    return {
+      ingredients: kept.map(parseIngredient),
+      ...(lines.length > kept.length ? { truncated: true } : {}),
+    };
+  });
+
+  /** Operational counters: what we asked upstream, how it answered, what the caches saved. */
+  app.get('/api/metrics', async (req) => {
+    const hours = Math.min(Math.max(Number((req.query as { hours?: string }).hours ?? 24) || 24, 1), 24 * 14);
+    const adapterStats: Record<string, Record<string, number>> = {};
+    for (const id of STORE_IDS) {
+      const stats = adapterFor(id).stats?.();
+      if (stats) adapterStats[id] = stats;
+    }
+    return {
+      generatedAt: new Date().toISOString(),
+      windowHours: hours,
+      hosts: repo.requestMetrics(hours),
+      caches: { search: searchCache.stats() },
+      adapters: adapterStats,
+      jobs: repo.jobDurations(),
+      sse: { clients: sseClients.size },
+    };
   });
 
   app.get('/api/status', async () => ({
