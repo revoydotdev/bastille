@@ -236,6 +236,26 @@ CREATE TABLE IF NOT EXISTS sweep_run (
   error          TEXT
 );
 
+-- Durable read ledger for hosts that rate-limit by count. The pacer, the nightly
+-- sweep and a manual sweep all consult the same row, so a restart does not hand
+-- a refused connection a fresh allowance.
+CREATE TABLE IF NOT EXISTS host_budget (
+  host              TEXT PRIMARY KEY,
+  not_before        INTEGER NOT NULL DEFAULT 0,   -- epoch ms; no read before this
+  window_started_at INTEGER NOT NULL DEFAULT 0,   -- epoch ms
+  reads_in_window   INTEGER NOT NULL DEFAULT 0,
+  last_status       INTEGER,                      -- HTTP status of the last refusal
+  updated_at        TEXT NOT NULL
+);
+
+-- When a store last got a full read of every shelf. Delta sweeps (newest-first,
+-- stop at the familiar) cannot see items that left the rack, so a full pass is
+-- forced when this is old.
+CREATE TABLE IF NOT EXISTS walmart_sweep_state (
+  location_id    TEXT PRIMARY KEY,
+  last_full_date TEXT NOT NULL              -- YYYY-MM-DD (local)
+);
+
 CREATE TABLE IF NOT EXISTS poll_run (
   id           INTEGER PRIMARY KEY,
   started_at   TEXT NOT NULL,

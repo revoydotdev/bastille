@@ -21,7 +21,8 @@
  *
  * See docs/WALMART-CLEARANCE-API.md for the full write-up.
  */
-import { fetchJson } from '../adapters/http.js';
+import { fetchJson, HttpError } from '../adapters/http.js';
+import type { HostBudget } from './host-budget.js';
 import type { Point } from '../geo.js';
 
 const SITE = 'https://www.walmart.com';
@@ -53,19 +54,71 @@ const REQUEST_INTERVAL_MS = Number(process.env.WALMART_REQUEST_INTERVAL_MS ?? 20
 const REQUEST_JITTER_MS = Number(process.env.WALMART_REQUEST_JITTER_MS ?? 12_000);
 let nextRequestAt = 0;
 
+/** A cooldown longer than this is not slept through inside a read; it is raised. */
+const MAX_PACE_WAIT_MS = 90_000;
+const RATE_LIMIT_COOLDOWN_MS = Number(process.env.WALMART_RATE_LIMIT_COOLDOWN_MS ?? 5 * 60 * 1000);
+
+/**
+ * The durable ledger every read is checked against. Optional so the module
+ * stays usable without a database; `ClearanceRepo` installs one at start-up.
+ */
+let budget: HostBudget | null = null;
+export function setHostBudget(b: HostBudget | null): void {
+  budget = b;
+}
+
+/** Walmart's edge is closed to us for a while; the persisted not-before says how long. */
+export class WalmartCooldownError extends Error {
+  constructor(readonly waitMs: number) {
+    super(`Walmart reads are on hold for another ${Math.ceil(waitMs / 1000)}s (persisted cooldown)`);
+    this.name = 'WalmartCooldownError';
+  }
+}
+
+/** The persisted-query hash, or the operation's variables, no longer match what
+ *  Walmart serves. Every further read would fail the same way. */
+export class HashExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'HashExpiredError';
+  }
+}
+
+const HASH_ROT = /PersistedQueryNotFound|PERSISTED_QUERY|persisted query|VALIDATION_|must have a selection|Unknown (?:type|argument)|missing variable/i;
+
+function budgetCall(fn: (b: HostBudget) => void): void {
+  // The ledger is a safeguard, not a dependency: a failing database must not
+  // turn into a failing read path.
+  try {
+    if (budget) fn(budget);
+  } catch {
+    /* ignore */
+  }
+}
+
 async function pace(): Promise<void> {
-  const wait = nextRequestAt - Date.now();
+  let held = 0;
+  try {
+    held = budget?.waitMs() ?? 0;
+  } catch {
+    held = 0;
+  }
+  if (held > MAX_PACE_WAIT_MS) throw new WalmartCooldownError(held);
+
+  const wait = Math.max(nextRequestAt - Date.now(), held);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
+  budgetCall((b) => b.recordRead());
 }
 
 /**
- * Pushes the next read out by `ms`, so a caller that has just been rate-limited
- * can stand down without the pacer immediately letting the following request
- * through.
+ * Pushes the next read out by `ms`, in memory and in the ledger, so a caller
+ * that has just been rate-limited can stand down without the pacer — or a
+ * restarted process — immediately letting the following request through.
  */
 export function backOffUntil(ms: number): void {
   nextRequestAt = Math.max(nextRequestAt, Date.now() + ms);
+  budgetCall((b) => b.block(ms, null));
 }
 
 function correlationId(): string {
@@ -80,7 +133,7 @@ function correlationId(): string {
  * the store, which Walmart resolves from the requesting address. So it is sent
  * on every shelf read, with whatever is known, including nothing.
  */
-function headers(
+export function walmartHeaders(
   referer: string,
   operation: string,
   opts: { withStoreCookie?: boolean; locationId?: string; postalCode?: string } = {},
@@ -132,13 +185,31 @@ async function persistedQuery<T>(
 ): Promise<T> {
   await pace();
   const url = `${SITE}${path}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
-  const body = await fetchJson<T & GraphQLErrors>(url, {
-    headers: headers(opts.referer, operation, opts),
-    timeoutMs: 30_000,
-  });
+  let body: T & GraphQLErrors;
+  try {
+    // retries: 0 — a refusal is not something to knock on again. The sweep's
+    // cooldown (and the ledger) decide when the next read may go out.
+    body = await fetchJson<T & GraphQLErrors>(url, {
+      headers: walmartHeaders(opts.referer, operation, opts),
+      timeoutMs: 30_000,
+      retries: 0,
+    });
+  } catch (err) {
+    if (err instanceof HttpError) {
+      if (err.status === 412 || err.status === 429) {
+        nextRequestAt = Math.max(nextRequestAt, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+        budgetCall((b) => b.block(RATE_LIMIT_COOLDOWN_MS, err.status));
+      } else if (err.status >= 400 && err.status < 500 && HASH_ROT.test(err.message)) {
+        throw new HashExpiredError(`${operation}: Walmart rejected the query (${err.status}) - ${err.message.slice(0, 200)}`);
+      }
+    }
+    throw err;
+  }
   const errors = body.errors ?? [];
   if (errors.length > 0) {
-    throw new Error(`${operation}: ${errors.map((e) => e.message ?? 'unknown error').join('; ').slice(0, 400)}`);
+    const text = errors.map((e) => e.message ?? 'unknown error').join('; ').slice(0, 400);
+    if (HASH_ROT.test(JSON.stringify(errors))) throw new HashExpiredError(`${operation}: ${text}`);
+    throw new Error(`${operation}: ${text}`);
   }
   return body;
 }
@@ -240,6 +311,8 @@ export interface ShelfPage {
   shippedOnly: number;
   /** the store Walmart says it answered for; guards against an unscoped read */
   storeName: string | null;
+  /** how many pages Walmart says the shelf has (`paginationV2.maxPage`); jitters by one between reads */
+  maxPage?: number | null;
 }
 
 export interface BrowseResponse {
@@ -248,6 +321,7 @@ export interface BrowseResponse {
       searchResult?: {
         aggregatedCount?: number | null;
         pageMetadata?: { storeSelectionHeader?: { storeDislayName?: string } };
+        paginationV2?: { maxPage?: number | null };
         itemStacks?: RawStack[];
       };
     };
@@ -331,7 +405,6 @@ const BROWSE_FLAGS = {
   version: 'v2',
   postProcessingVersion: 2,
   prg: 'desktop',
-  sort: 'best_match',
   fetchDataV1: true,
   fetchDataV2: false,
   fetchMarquee: false,
@@ -396,7 +469,7 @@ const EMPTY_QUERY_PARAMS = {
   isLMPBrowsePage: false,
 } as const;
 
-function browseVariables(categoryId: string, page: number, pageSize: number): Record<string, unknown> {
+export function browseVariables(categoryId: string, page: number, pageSize: number, sort: string = 'best_match'): Record<string, unknown> {
   const searchArgs = { query: '', cat_id: categoryId, prg: 'desktop', facet: CLEARANCE_FACET };
   // The shelf identity is repeated in three places the storefront sends it:
   // top level, `searchArgs`, and the nested `searchParams`/`fitmentSearchParams`
@@ -413,7 +486,7 @@ function browseVariables(categoryId: string, page: number, pageSize: number): Re
     page,
     ps: pageSize,
     limit: pageSize,
-    sort: 'best_match',
+    sort,
     prg: 'desktop',
     ptss: '',
     trsp: '',
@@ -491,6 +564,7 @@ export function parseShelf(body: BrowseResponse): ShelfPage {
     pageItemCount,
     shippedOnly,
     storeName: result?.pageMetadata?.storeSelectionHeader?.storeDislayName ?? null,
+    maxPage: typeof result?.paginationV2?.maxPage === 'number' ? result.paginationV2.maxPage : null,
   };
 }
 
@@ -508,13 +582,15 @@ export async function clearanceShelf(opts: {
   categoryId: string;
   page?: number;
   pageSize?: number;
+  /** Walmart's sort token; `new` is newest-first (verified 2026-10-06). */
+  sort?: string;
 }): Promise<ShelfPage> {
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 40;
   const body = await persistedQuery<BrowseResponse>(
     `/orchestra/snb/graphql/Browse/${BROWSE_HASH}`,
     'Browse',
-    browseVariables(opts.categoryId, page, pageSize),
+    browseVariables(opts.categoryId, page, pageSize, opts.sort),
     {
       referer: `${SITE}/browse/${opts.categoryId.replace(/_/g, '/')}`,
       withStoreCookie: true,

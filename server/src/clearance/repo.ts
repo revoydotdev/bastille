@@ -7,7 +7,8 @@
  * matters is *which store*, *what aisle*, and *is it new today*.
  */
 import type { DB } from '../db.js';
-import type { ClearanceItem, WalmartStore } from './walmart-api.js';
+import { setHostBudget, type ClearanceItem, type WalmartStore } from './walmart-api.js';
+import { HostBudget } from './host-budget.js';
 import { isCategoryGroup, type CategoryGroup } from './categories.js';
 
 export interface SweptStore extends WalmartStore {
@@ -125,7 +126,11 @@ const ROW_SELECT = `
   JOIN walmart_store s ON s.location_id = f.location_id`;
 
 export class ClearanceRepo {
-  constructor(private db: DB) {}
+  constructor(private db: DB) {
+    // Every Walmart read in this process answers to one durable ledger, whether
+    // it comes from the nightly job, a manual sweep or a store lookup.
+    setHostBudget(new HostBudget(db));
+  }
 
   // ---- stores -----------------------------------------------------------
 
@@ -240,6 +245,58 @@ export class ClearanceRepo {
       discoveredZip: (r['discovered_zip'] as string | null) ?? null,
       lastSweptAt: (r['last_swept_at'] as string | null) ?? null,
     };
+  }
+
+  // ---- delta sweeps -----------------------------------------------------
+
+  /** Every item id ever recorded at a store, for "is this one familiar". */
+  knownItemIds(locationId: string): Set<string> {
+    const rows = this.db
+      .prepare('SELECT DISTINCT item_id FROM clearance_find WHERE location_id = ?')
+      .all(locationId) as unknown as { item_id: string }[];
+    return new Set(rows.map((r) => r.item_id));
+  }
+
+  lastFullSweepDate(locationId: string): string | null {
+    const r = this.db
+      .prepare('SELECT last_full_date AS d FROM walmart_sweep_state WHERE location_id = ?')
+      .get(locationId) as { d: string } | undefined;
+    return r?.d ?? null;
+  }
+
+  markFullSweep(locationId: string, date: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO walmart_sweep_state (location_id, last_full_date) VALUES (?,?)
+         ON CONFLICT (location_id) DO UPDATE SET last_full_date = excluded.last_full_date`,
+      )
+      .run(locationId, date);
+  }
+
+  /**
+   * A delta sweep reads only the newest end of each shelf, so it records only
+   * part of the rack. Rows from the previous sweep that were not re-read are
+   * copied onto `date` with their original `captured_at`, so the day's feed is
+   * complete and honest about how old each row is. Returns how many were copied.
+   */
+  carryForward(date: string, locationId: string): number {
+    const prev = this.previousSweepDate(date, locationId);
+    if (!prev) return 0;
+    const info = this.db
+      .prepare(
+        `INSERT INTO clearance_find (sweep_date, captured_at, location_id, item_id, category_slug,
+            item_group, category_path, department, name, brand, image_url, product_url,
+            now_cents, was_cents, savings_cents, discount_pct, aisle, in_stock)
+         SELECT ?, captured_at, location_id, item_id, category_slug, item_group, category_path,
+            department, name, brand, image_url, product_url, now_cents, was_cents,
+            savings_cents, discount_pct, aisle, in_stock
+         FROM clearance_find p
+         WHERE p.sweep_date = ? AND p.location_id = ?
+           AND NOT EXISTS (SELECT 1 FROM clearance_find t
+                           WHERE t.sweep_date = ? AND t.location_id = p.location_id AND t.item_id = p.item_id)`,
+      )
+      .run(date, prev, locationId, date);
+    return Number(info.changes);
   }
 
   // ---- sweep runs -------------------------------------------------------
