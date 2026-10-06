@@ -11,6 +11,11 @@ export interface StoreLocation {
   distanceMiles?: number | null;
 }
 
+/** What the poller remembers about a watched product between runs. */
+export interface OfferHint {
+  productUrl?: string | null;
+}
+
 export interface SearchOptions {
   query: string;
   locationId?: string;
@@ -44,8 +49,16 @@ export interface StoreAdapter {
   pricingLocationId(selectedLocationId?: string | null): string | null;
 
   search(opts: SearchOptions): Promise<Offer[]>;
-  /** Re-reads one product's current price. Used by the poller. */
-  fetchOffer(storeProductId: string, locationId?: string): Promise<Offer | null>;
+  /**
+   * Re-reads one product's current price. Used by the poller. `hint` is what
+   * was stored the last time this product was seen, so an adapter can go
+   * straight to it instead of searching.
+   */
+  fetchOffer(storeProductId: string, locationId?: string, hint?: OfferHint): Promise<Offer | null>;
+  /** Called by the poller before each run, so an adapter can budget per run. */
+  beginRun?(): void;
+  /** Adapter-specific counters surfaced in `/api/metrics`. */
+  stats?(): Record<string, number>;
   /**
    * Store finder. `near` is the ZIP resolved against every chain's store data
    * at once, so a ZIP one chain has never heard of still ranks its stores

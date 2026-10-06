@@ -10,10 +10,10 @@
  * to a bot-protected SPA we deliberately do not touch), so search is served
  * from a catalog index built out of the same category pages.
  */
-import { fetchText } from './http.js';
+import { fetchText, HttpError } from './http.js';
 import { loadStores, zipAnchors } from './foodlion-stores.js';
 import { milesBetween, normalizeZip, resolveZip, type Point, type ZipAnchor } from '../geo.js';
-import type { SearchOptions, StoreAdapter, StoreLocation } from './types.js';
+import type { OfferHint, SearchOptions, StoreAdapter, StoreLocation } from './types.js';
 import type { Offer, PriceSnapshot, PromoDetail, PromoKind } from '../price/model.js';
 import { centsFromDollars } from '../price/model.js';
 import { effectiveUnitCents } from '../price/promo.js';
@@ -126,6 +126,16 @@ export function extractProducts(html: string): FlProduct[] {
     .filter((p): p is FlProduct => p !== null);
 }
 
+/** True when `url` is a Food Lion product page for exactly this product id. */
+export function isProductPageFor(url: string, prodId: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.hostname.endsWith('foodlion.com') && u.pathname.startsWith('/groceries/product/') && u.pathname.split('/').filter(Boolean).at(-1) === prodId;
+  } catch {
+    return false;
+  }
+}
+
 function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
@@ -229,7 +239,13 @@ export function extractAisleLinks(html: string): string[] {
   return [...new Set(Array.from(html.matchAll(AISLE_LINK), (m) => m[1]!))];
 }
 
-const AISLE_TTL_MS = Number(process.env.FOODLION_AISLE_TTL_MS ?? 30 * 60 * 1000);
+/**
+ * Must outlast the poll interval: at the old 30 minutes the cache expired
+ * exactly as each poll began, so every poll paid for a cold walk. Twice the
+ * interval (and never under two hours) lets consecutive polls share reads.
+ */
+const POLL_INTERVAL_MS = Number(process.env.BASTILLE_POLL_INTERVAL_MS ?? 30 * 60 * 1000);
+const AISLE_TTL_MS = Number(process.env.FOODLION_AISLE_TTL_MS ?? Math.max(2 * 60 * 60 * 1000, 2 * POLL_INTERVAL_MS));
 /**
  * The deep walk costs ~250 requests, so it is rebuilt far less often than a
  * single aisle is refreshed.
@@ -253,6 +269,9 @@ export class FoodLionAdapter implements StoreAdapter {
     return 'national';
   }
 
+  /** The read itself is injectable so refresh logic can be tested without egress. */
+  constructor(private fetch: (url: string) => Promise<string> = (url) => fetchText(url)) {}
+
   private cache = new Map<string, CacheEntry>();
   /** In-flight fetches, so a burst of searches makes one request per aisle. */
   private inflight = new Map<string, Promise<CacheEntry>>();
@@ -271,7 +290,7 @@ export class FoodLionAdapter implements StoreAdapter {
 
     const job = (async () => {
       try {
-        const html = await fetchText(`${SITE}/groceries/browse-aisles/${slug}`);
+        const html = await this.fetch(`${SITE}/groceries/browse-aisles/${slug}`);
         const entry: CacheEntry = {
           products: extractProducts(html),
           children: extractAisleLinks(html),
@@ -290,8 +309,13 @@ export class FoodLionAdapter implements StoreAdapter {
     return job;
   }
 
-  private catalogue: { products: FlProduct[]; builtAt: number } | null = null;
+  private catalogue: { products: FlProduct[]; index: Map<string, FlProduct>; builtAt: number } | null = null;
   private catalogueBuild: Promise<FlProduct[]> | null = null;
+  /** Deep walks started, and when the last one did; both feed `/api/metrics`. */
+  private catalogueBuilds = 0;
+  private lastWalkAt = 0;
+  /** Set by `beginRun`; a miss may trigger one walk per run, never more. */
+  private runStartedAt = 0;
 
   /**
    * Every product across the top-level aisles and the sub-aisles they link,
@@ -299,6 +323,8 @@ export class FoodLionAdapter implements StoreAdapter {
    */
   private buildCatalogue(): Promise<FlProduct[]> {
     if (this.catalogueBuild) return this.catalogueBuild;
+    this.catalogueBuilds++;
+    this.lastWalkAt = Date.now();
     const job = (async () => {
       const roots = await Promise.all(TOP_AISLES.map((slug) => this.load(slug)));
       const slugs = new Set<string>(TOP_AISLES);
@@ -309,7 +335,7 @@ export class FoodLionAdapter implements StoreAdapter {
         for (const p of (await this.load(slug)).products) byId.set(p.prodId, p);
       }
       const products = [...byId.values()];
-      this.catalogue = { products, builtAt: Date.now() };
+      this.catalogue = { products, index: byId, builtAt: Date.now() };
       return products;
     })();
     this.catalogueBuild = job.finally(() => {
@@ -368,25 +394,80 @@ export class FoodLionAdapter implements StoreAdapter {
     return scored.slice(0, limit).map((s) => s.offer);
   }
 
-  async fetchOffer(storeProductId: string): Promise<Offer | null> {
-    // Product pages are cheap and always current; the aisle cache is only a
-    // search index, so a refresh never reads from it.
-    for (const slug of TOP_AISLES) {
-      const cached = this.cache.get(slug);
-      const known = cached?.products.find((p) => p.prodId === storeProductId);
-      if (known) {
-        const html = await fetchText(this.productPageUrl(known));
+  /**
+   * Starts a poll run. A refresh that cannot place a product may walk the
+   * catalogue once per run; this is what re-arms that allowance.
+   */
+  beginRun(): void {
+    this.runStartedAt = Date.now();
+  }
+
+  stats(): Record<string, number> {
+    return { catalogueBuilds: this.catalogueBuilds, lastWalkAt: this.lastWalkAt };
+  }
+
+  /** The product as the search index last saw it, sub-aisles included. */
+  private indexed(prodId: string): FlProduct | undefined {
+    const fromCatalogue = this.catalogue?.index.get(prodId);
+    if (fromCatalogue) return fromCatalogue;
+    for (const entry of this.cache.values()) {
+      const hit = entry.products.find((p) => p.prodId === prodId);
+      if (hit) return hit;
+    }
+    return undefined;
+  }
+
+  /** A miss may walk the aisles at most once per run (once per TTL outside one). */
+  private canWalk(): boolean {
+    return this.lastWalkAt < Math.max(this.runStartedAt, Date.now() - AISLE_TTL_MS);
+  }
+
+  /**
+   * Re-reads one product's price. The product page is the source of truth, and
+   * the cheap path is one read: the URL stored when the product was last seen
+   * (`hint`), else the URL the deep catalogue index implies. The index covers
+   * sub-aisles, so an item that exists only on `2334-fresh-vegetables` is found
+   * without crawling anything. Only when neither place knows the product does
+   * a walk run, and then at most once per run so a discontinued item cannot
+   * make every poll pay for the crawl.
+   */
+  async fetchOffer(storeProductId: string, _locationId?: string, hint?: OfferHint): Promise<Offer | null> {
+    const tried = new Set<string>();
+    const readPage = async (url: string): Promise<Offer | null> => {
+      tried.add(url);
+      try {
+        const html = await this.fetch(url);
         const fresh = extractProducts(html).find((p) => p.prodId === storeProductId);
-        if (fresh) return toOffer(fresh);
+        return fresh ? toOffer(fresh) : null;
+      } catch (err) {
+        // A page that is gone is a miss; a network failure is not, and must
+        // not be mistaken for one (it would trigger a walk during an outage).
+        if (err instanceof HttpError && err.status < 500) return null;
+        throw err;
       }
+    };
+
+    if (hint?.productUrl && isProductPageFor(hint.productUrl, storeProductId)) {
+      const offer = await readPage(hint.productUrl);
+      if (offer) return offer;
     }
-    // Not in the cached aisles: fall back to reading the aisles until found.
-    for (const slug of TOP_AISLES) {
-      const products = await this.aisle(slug);
-      const found = products.find((p) => p.prodId === storeProductId);
-      if (found) return toOffer(found);
+
+    let known = this.indexed(storeProductId);
+    if (known && !tried.has(this.productPageUrl(known))) {
+      const offer = await readPage(this.productPageUrl(known));
+      if (offer) return offer;
     }
-    return null;
+
+    if (!this.catalogueBuild && !this.canWalk()) return null;
+    await this.buildCatalogue().catch(() => undefined);
+    known = this.indexed(storeProductId);
+    if (!known) return null;
+    if (!tried.has(this.productPageUrl(known))) {
+      const offer = await readPage(this.productPageUrl(known));
+      if (offer) return offer;
+    }
+    // The page would not confirm it, but the walk just found it listed.
+    return toOffer(known);
   }
 
   private productPageUrl(p: FlProduct): string {
@@ -429,7 +510,12 @@ export class FoodLionAdapter implements StoreAdapter {
    * completion because the snapshot wants the store, not whatever is warm.
    */
   async enumerate({ maxProducts }: { locationId?: string | null; maxProducts?: number }): Promise<Offer[]> {
-    const products = await this.buildCatalogue();
+    // A catalogue built inside the aisle TTL is as fresh as a rebuild would be
+    // (the rebuild would reuse the same cached aisles), so the snapshot takes
+    // it rather than walking again. A build it does trigger restamps
+    // `builtAt`, which is what keeps search from rebuilding right behind it.
+    const fresh = this.catalogue && Date.now() - this.catalogue.builtAt < AISLE_TTL_MS;
+    const products = fresh ? this.catalogue!.products : await this.buildCatalogue();
     const out: Offer[] = [];
     for (const p of products) {
       out.push(toOffer(p));
