@@ -6,6 +6,7 @@ import type { DB } from './db.js';
 import type { Offer, PriceSnapshot, PromoDetail, PromoKind, StoreId } from './price/model.js';
 import { diffSnapshots, severityOf, type PriceChange } from './price/diff.js';
 import { discountPercent } from './price/model.js';
+import { hostMetrics, type HostMetrics } from './metrics.js';
 
 export interface DealFilter {
   /** minimum percent off the regular unit price (0 = any) */
@@ -348,38 +349,121 @@ export class Repo {
   }
 
   listGroups(): WatchGroupView[] {
-    const groups = this.db.prepare('SELECT id FROM watch_group ORDER BY created_at DESC').all() as unknown as { id: number }[];
-    return groups.map((g) => this.groupView(g.id)!).filter(Boolean);
+    return this.loadGroupViews(null);
   }
 
   groupView(groupId: number): WatchGroupView | null {
-    const group = this.getGroup(groupId);
-    if (!group) return null;
-    const rows = this.db
-      .prepare('SELECT id, product_id, location_id FROM watch_item WHERE group_id = ? ORDER BY id')
-      .all(groupId) as unknown as { id: number; product_id: number; location_id: string | null }[];
+    return this.loadGroupViews(groupId)[0] ?? null;
+  }
 
-    const items: WatchEntry[] = rows.map((r) => {
-      const history = this.priceHistory(r.product_id, r.location_id, 2);
+  /**
+   * Which watch groups each product already belongs to, keyed
+   * `storeId:storeProductId`. One SELECT; search uses it to mark results.
+   */
+  watchMembership(): Map<string, number[]> {
+    const rows = this.stmt(
+      `SELECT p.store_id, p.store_product_id, wi.group_id
+         FROM watch_item wi
+         JOIN product p ON p.id = wi.product_id
+         JOIN watch_group wg ON wg.id = wi.group_id
+        ORDER BY wg.created_at DESC, wg.id DESC, wi.id`,
+    ).all() as unknown as { store_id: string; store_product_id: string; group_id: number }[];
+    const out = new Map<string, number[]>();
+    for (const r of rows) {
+      const key = `${r.store_id}:${r.store_product_id}`;
+      const ids = out.get(key);
+      if (ids) ids.push(r.group_id);
+      else out.set(key, [r.group_id]);
+    }
+    return out;
+  }
+
+  /**
+   * Three queries however many groups there are: the groups, their items with
+   * the product joined in, and each item's two newest price points. The price
+   * query is a correlated top-2 per item, which walks `price_point_product_time`
+   * and so stays cheap as history grows (a window function would scan every
+   * reading of every watched product).
+   */
+  private loadGroupViews(onlyGroupId: number | null): WatchGroupView[] {
+    const one = onlyGroupId !== null;
+    const scope = one ? 'WHERE wi.group_id = ?' : '';
+    const args = one ? [onlyGroupId] : [];
+
+    const groupRows = (
+      one
+        ? this.stmt('SELECT * FROM watch_group WHERE id = ?').all(onlyGroupId)
+        : this.stmt('SELECT * FROM watch_group ORDER BY created_at DESC').all()
+    ) as unknown as {
+      id: number;
+      label: string;
+      created_at: string;
+      target_cents: number | null;
+      notify_promos: number;
+    }[];
+    if (groupRows.length === 0) return [];
+
+    const itemRows = this.stmt(
+      `SELECT wi.id AS item_id, wi.group_id, wi.location_id AS watch_location, p.*
+         FROM watch_item wi JOIN product p ON p.id = wi.product_id
+         ${scope} ORDER BY wi.id`,
+    ).all(...args) as unknown as Record<string, unknown>[];
+
+    const priceRows = this.stmt(
+      `SELECT wi.id AS item_id, pp.*
+         FROM watch_item wi
+         JOIN price_point pp ON pp.id IN (
+           SELECT id FROM price_point
+            WHERE product_id = wi.product_id AND location_id IS wi.location_id
+            ORDER BY captured_at DESC, id DESC LIMIT 2)
+         ${scope} ORDER BY pp.captured_at, pp.id`,
+    ).all(...args) as unknown as (PriceRow & { item_id: number })[];
+
+    // Oldest first, so the last entry is the newest, as `priceHistory` returns.
+    const history = new Map<number, PriceSnapshot[]>();
+    for (const r of priceRows) {
+      const list = history.get(r.item_id);
+      if (list) list.push(rowToSnapshot(r));
+      else history.set(r.item_id, [rowToSnapshot(r)]);
+    }
+
+    const itemsByGroup = new Map<number, WatchEntry[]>();
+    for (const r of itemRows) {
+      const h = history.get(r['item_id'] as number) ?? [];
+      const entry: WatchEntry = {
+        watchItemId: r['item_id'] as number,
+        product: this.mapProduct(r),
+        locationId: (r['watch_location'] as string | null) ?? null,
+        price: h.at(-1) ?? null,
+        previousPrice: h.length > 1 ? h.at(-2)! : null,
+      };
+      const list = itemsByGroup.get(r['group_id'] as number);
+      if (list) list.push(entry);
+      else itemsByGroup.set(r['group_id'] as number, [entry]);
+    }
+
+    return groupRows.map((g) => {
+      const items = itemsByGroup.get(g.id) ?? [];
+      let bestCents: number | null = null;
+      let bestStoreId: StoreId | null = null;
+      for (const item of items) {
+        const c = item.price?.effectiveUnitCents;
+        if (c != null && (bestCents === null || c < bestCents)) {
+          bestCents = c;
+          bestStoreId = item.product.storeId;
+        }
+      }
       return {
-        watchItemId: r.id,
-        product: this.getProductById(r.product_id)!,
-        locationId: r.location_id,
-        price: history.at(-1) ?? null,
-        previousPrice: history.length > 1 ? history.at(-2)! : null,
+        id: g.id,
+        label: g.label,
+        createdAt: g.created_at,
+        targetCents: g.target_cents,
+        notifyPromos: g.notify_promos === 1,
+        items,
+        bestCents,
+        bestStoreId,
       };
     });
-
-    let bestCents: number | null = null;
-    let bestStoreId: StoreId | null = null;
-    for (const item of items) {
-      const c = item.price?.effectiveUnitCents;
-      if (c != null && (bestCents === null || c < bestCents)) {
-        bestCents = c;
-        bestStoreId = item.product.storeId;
-      }
-    }
-    return { ...group, items, bestCents, bestStoreId };
   }
 
   listAlerts(opts: { limit?: number; unacknowledgedOnly?: boolean } = {}): AlertRow[] {
@@ -428,13 +512,29 @@ export class Repo {
     return Number(info.lastInsertRowid);
   }
 
-  finishPollRun(id: number, itemsPolled: number, changes: number, error: string | null): void {
+  finishPollRun(
+    id: number,
+    itemsPolled: number,
+    changes: number,
+    error: string | null,
+    spent: { requests: number; bytes: number } = { requests: 0, bytes: 0 },
+  ): void {
     this.db
-      .prepare('UPDATE poll_run SET finished_at = ?, items_polled = ?, changes = ?, error = ? WHERE id = ?')
-      .run(new Date().toISOString(), itemsPolled, changes, error, id);
+      .prepare(
+        'UPDATE poll_run SET finished_at = ?, items_polled = ?, changes = ?, error = ?, requests = ?, bytes = ? WHERE id = ?',
+      )
+      .run(new Date().toISOString(), itemsPolled, changes, error, spent.requests, spent.bytes, id);
   }
 
-  lastPollRun(): { startedAt: string; finishedAt: string | null; itemsPolled: number; changes: number; error: string | null } | null {
+  lastPollRun(): {
+    startedAt: string;
+    finishedAt: string | null;
+    itemsPolled: number;
+    changes: number;
+    error: string | null;
+    requests: number;
+    bytes: number;
+  } | null {
     const r = this.db.prepare('SELECT * FROM poll_run ORDER BY id DESC LIMIT 1').get() as Record<string, unknown> | undefined;
     if (!r) return null;
     return {
@@ -443,6 +543,8 @@ export class Repo {
       itemsPolled: r['items_polled'] as number,
       changes: r['changes'] as number,
       error: (r['error'] as string | null) ?? null,
+      requests: (r['requests'] as number) ?? 0,
+      bytes: (r['bytes'] as number) ?? 0,
     };
   }
 
@@ -455,10 +557,17 @@ export class Repo {
     return Number(info.lastInsertRowid);
   }
 
-  finishSnapshotRun(id: number, rows: number, error: string | null): void {
+  finishSnapshotRun(
+    id: number,
+    rows: number,
+    error: string | null,
+    spent: { requests: number; bytes: number } = { requests: 0, bytes: 0 },
+  ): void {
     this.db
-      .prepare('UPDATE snapshot_run SET finished_at = ?, rows_written = ?, error = ? WHERE id = ?')
-      .run(new Date().toISOString(), rows, error, id);
+      .prepare(
+        'UPDATE snapshot_run SET finished_at = ?, rows_written = ?, error = ?, requests = ?, bytes = ? WHERE id = ?',
+      )
+      .run(new Date().toISOString(), rows, error, spent.requests, spent.bytes, id);
   }
 
   /**
@@ -544,10 +653,57 @@ export class Repo {
         c: number;
       }
     ).c;
+    this.setMeta('last_pruned_at', new Date().toISOString());
     if (removed === 0) return 0;
     this.db.prepare('DELETE FROM daily_snapshot WHERE snapshot_date < ?').run(iso);
     this.db.prepare('DELETE FROM snapshot_run WHERE snapshot_date < ?').run(iso);
     return removed;
+  }
+
+  /** Per-host request aggregates over the last `hours` of the request log. */
+  requestMetrics(hours = 24): Record<string, HostMetrics> {
+    return hostMetrics(this.db, hours);
+  }
+
+  /** When retention last ran (even if it found nothing to drop); null if never. */
+  lastPrunedAt(): string | null {
+    return this.getMeta('last_pruned_at');
+  }
+
+  private getMeta(key: string): string | null {
+    const r = this.stmt('SELECT value FROM bastille_meta WHERE key = ?').get(key) as { value: string } | undefined;
+    return r?.value ?? null;
+  }
+
+  private setMeta(key: string, value: string): void {
+    this.stmt(
+      'INSERT INTO bastille_meta (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value',
+    ).run(key, value);
+  }
+
+  /** Most recent finished run of each job, for `/api/metrics`. */
+  jobDurations(): Record<
+    string,
+    { startedAt: string; durationMs: number; requests: number | null; bytes: number | null; error: string | null } | null
+  > {
+    const latest = (table: string, counted: boolean) => {
+      const r = this.db
+        .prepare(
+          `SELECT started_at, finished_at, error${counted ? ', requests, bytes' : ''} FROM ${table}
+            WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
+        )
+        .get() as Record<string, unknown> | undefined;
+      if (!r) return null;
+      const started = r['started_at'] as string;
+      return {
+        startedAt: started,
+        durationMs: Date.parse(r['finished_at'] as string) - Date.parse(started),
+        requests: counted ? (r['requests'] as number) : null,
+        bytes: counted ? (r['bytes'] as number) : null,
+        error: (r['error'] as string | null) ?? null,
+      };
+    };
+    return { poll: latest('poll_run', true), snapshot: latest('snapshot_run', true), clearanceSweep: latest('sweep_run', false) };
   }
 
   snapshotDates(limit = 60): string[] {
@@ -557,7 +713,15 @@ export class Repo {
     return rows.map((r) => r.snapshot_date);
   }
 
-  lastSnapshotRun(): { date: string; startedAt: string; finishedAt: string | null; rows: number; error: string | null } | null {
+  lastSnapshotRun(): {
+    date: string;
+    startedAt: string;
+    finishedAt: string | null;
+    rows: number;
+    error: string | null;
+    requests: number;
+    bytes: number;
+  } | null {
     const r = this.db.prepare('SELECT * FROM snapshot_run ORDER BY id DESC LIMIT 1').get() as
       | Record<string, unknown>
       | undefined;
@@ -568,6 +732,8 @@ export class Repo {
       finishedAt: (r['finished_at'] as string | null) ?? null,
       rows: r['rows_written'] as number,
       error: (r['error'] as string | null) ?? null,
+      requests: (r['requests'] as number) ?? 0,
+      bytes: (r['bytes'] as number) ?? 0,
     };
   }
 

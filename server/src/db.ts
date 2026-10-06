@@ -254,6 +254,12 @@ CREATE TABLE IF NOT EXISTS poll_run (
  */
 const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: 'walmart_store', column: 'last_swept_at', definition: 'TEXT' },
+  // ---- begin: observability columns (O-2)
+  { table: 'poll_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'poll_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'snapshot_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'snapshot_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  // ---- end: observability columns
 ];
 
 function applyAddedColumns(db: DB): void {
@@ -265,6 +271,34 @@ function applyAddedColumns(db: DB): void {
   }
 }
 
+// ---- begin: observability and perf additions --------------------------------
+// Kept apart from SCHEMA above so it merges cleanly with changes to that block.
+const EXTRA_SCHEMA = `
+-- One row per upstream read (O-1), written by adapters/http.ts. Pruned by age
+-- and row count in metrics.ts. No query strings, headers or cookies.
+CREATE TABLE IF NOT EXISTS request_log (
+  id      INTEGER PRIMARY KEY,
+  ts      TEXT NOT NULL,             -- ISO-8601
+  host    TEXT NOT NULL,
+  op      TEXT NOT NULL,             -- URL path only
+  status  INTEGER NOT NULL,          -- 0 = no response
+  ms      INTEGER NOT NULL,
+  bytes   INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS request_log_ts ON request_log (ts);
+
+-- previousSweepDate / seenBefore filter on the store first (P-8).
+CREATE INDEX IF NOT EXISTS clearance_find_location
+  ON clearance_find (location_id, sweep_date DESC);
+
+-- Small key/value store for facts that must survive a restart (P-9).
+CREATE TABLE IF NOT EXISTS bastille_meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`;
+// ---- end: observability and perf additions ----------------------------------
+
 /** The monitor a fresh install starts with: a quarter off, everything swept. */
 const DEFAULT_MONITOR = {
   minDiscount: Number(process.env.BASTILLE_DEAL_MIN_DISCOUNT ?? 25),
@@ -275,6 +309,7 @@ export function openDb(path: string = process.env.BASTILLE_DB ?? resolve('data/b
   mkdirSync(dirname(path), { recursive: true });
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
+  db.exec(EXTRA_SCHEMA);
   applyAddedColumns(db);
   db.prepare(
     `INSERT INTO deal_monitor (id, min_discount, groups, enabled, updated_at)
