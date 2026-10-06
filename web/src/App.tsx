@@ -46,10 +46,16 @@ export function App() {
   const [snapshotRunning, setSnapshotRunning] = useState(false);
 
   const loadWatchlist = useCallback(async () => {
-    const [w, a, c] = await Promise.all([api.watchlist(), api.alerts(), api.clearanceAlerts()]);
+    // Clearance alerts come from a separate job; their failure must not take
+    // the watchlist and grocery alerts down with them.
+    const [w, a, c] = await Promise.all([
+      api.watchlist(),
+      api.alerts(),
+      api.clearanceAlerts().catch(() => null),
+    ]);
     setGroups(w.groups);
     setAlerts(a.alerts);
-    setClearanceAlerts(c.alerts);
+    if (c) setClearanceAlerts(c.alerts);
   }, []);
 
   /**
@@ -139,9 +145,9 @@ export function App() {
     try {
       const res = await api.refresh();
       setGroups(res.groups);
-      const [all, clearance] = await Promise.all([api.alerts(), api.clearanceAlerts()]);
+      const [all, clearance] = await Promise.all([api.alerts(), api.clearanceAlerts().catch(() => null)]);
       setAlerts(all.alerts);
-      setClearanceAlerts(clearance.alerts);
+      if (clearance) setClearanceAlerts(clearance.alerts);
       setLastRefresh(new Date().toISOString());
       if (res.errors.length > 0) setError(res.errors.join('; '));
     } catch (e) {
