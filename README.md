@@ -150,7 +150,12 @@ looks up.
 | `WALMART_REQUEST_JITTER_MS` | `12000` | extra random spread on top of that floor |
 | `WALMART_RATE_LIMIT_COOLDOWN_MS` | `300000` | how long the sweep stands down after a refusal |
 | `WALMART_MAX_CONSECUTIVE_RATE_LIMITS` | `4` | consecutive refusals after which the run gives up |
-| `WALMART_SWEEP_MAX_PAGES` | `8` | pages of 40 items per category per store |
+| `WALMART_SWEEP_READ_BUDGET` | `12` | reads one sweep may spend, refusals included; shelves are spent Computers → Electronics → Video games |
+| `WALMART_SWEEP_SORT` | `new` | shelf ordering; `new` pages without the overlap `best_match` re-ranking causes |
+| `WALMART_SWEEP_DELTA` | off | `1` stops each shelf at the first page with nothing new and carries the rest forward |
+| `WALMART_FULL_SWEEP_DAYS` | `7` | in delta mode, days between forced full passes |
+| `WALMART_BUDGET_WINDOW_MS` | `1800000` | window the persisted read count is kept over |
+| `WALMART_WINDOW_READ_LIMIT` | `18` | reads allowed per window, shared by the sweep, manual sweeps and restarts |
 | `WALMART_STORE_FINDER_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
 | `WALMART_BROWSE_HASH` | *(pinned)* | persisted-query hash, if Walmart rotates it |
 

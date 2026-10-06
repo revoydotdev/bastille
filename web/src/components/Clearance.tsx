@@ -22,6 +22,7 @@ const SWEEP_FAILURE: Record<string, string> = {
   'rate-limited': 'Walmart rate-limited the sweep',
   'wrong-store': 'Walmart answered for a different store',
   'hash-expired': 'Walmart query hash expired',
+  budget: 'Read budget ran out before every shelf was swept',
   error: 'Sweep failed',
 };
 

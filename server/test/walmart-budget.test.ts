@@ -23,7 +23,8 @@ setGlobalDispatcher(agent);
 const { openDb } = await import('../src/db.js');
 const { HostBudget } = await import('../src/clearance/host-budget.js');
 const api = await import('../src/clearance/walmart-api.js');
-const { HttpError } = await import('../src/adapters/http.js');
+const { HttpError, setHttpDispatcher } = await import('../src/adapters/http.js');
+setHttpDispatcher(agent);
 
 const pool = agent.get('https://www.walmart.com');
 

@@ -1,4 +1,4 @@
-import { Agent, request, interceptors } from 'undici';
+import { Agent, request, interceptors, type Dispatcher } from 'undici';
 import { recordRequest } from '../metrics.js';
 
 /**
@@ -20,7 +20,13 @@ const lastRequestAt = new Map<string, number>();
 // The agent is our own rather than getGlobalDispatcher(): Node bundles its own
 // undici for the global one, and composing this package's interceptors onto a
 // different undici version fails every request with UND_ERR_INVALID_ARG.
-const dispatcher = new Agent().compose(interceptors.redirect({ maxRedirections: 5 }));
+let dispatcher: Dispatcher = new Agent().compose(interceptors.redirect({ maxRedirections: 5 }));
+
+/** Swaps the dispatcher every adapter read goes through; tests pass a
+ *  MockAgent so nothing leaves the machine. */
+export function setHttpDispatcher(d: Dispatcher): void {
+  dispatcher = d;
+}
 
 /**
  * Per-host queue. Each caller chains onto the previous caller's slot, so the
@@ -109,6 +115,8 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
     } finally {
       recordRequest({ host, op: parsed.pathname, status, ms: performance.now() - started, bytes });
     }
+    // No sleep after the last attempt: the caller gets the error now.
+    if (attempt === retries) break;
     // A throttled edge needs longer than a flaky one: 500ms is enough to ride
     // out a transient 5xx, nowhere near enough to clear a rate limit.
     const base = lastError instanceof HttpError && RETRYABLE.has(lastError.status) ? 5_000 : 500;
