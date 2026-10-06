@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DealFilters, DealRow, DealsResponse, PromoKind, StoreId, StoreSelection } from '../types';
 import { api, money, relativeTime } from '../lib/api';
-import { STORE_COLOR, STORE_LABEL } from './bits';
+import { STORE_COLOR, STORE_LABEL, StoreToggles } from './bits';
 
 /** Promo kinds worth an explicit toggle. 'sale' covers plain markdowns. */
 const PROMO_TOGGLES: { kind: PromoKind; label: string }[] = [
@@ -16,6 +16,8 @@ const PROMO_TOGGLES: { kind: PromoKind; label: string }[] = [
 const DISCOUNT_STEPS = [0, 10, 25, 50, 70, 90];
 
 interface Props {
+  /** chains the API reports; drives the store toggles */
+  storeIds: StoreId[];
   selection: StoreSelection;
   lastSnapshot: { date: string; rows: number } | null;
   onRunSnapshot: () => void;
@@ -61,29 +63,35 @@ const DealRowView = memo(function DealRowView({ row }: { row: DealRow }) {
   );
 });
 
-export function Deals({ selection, lastSnapshot, onRunSnapshot, snapshotRunning }: Props) {
+export function Deals({ storeIds, selection, lastSnapshot, onRunSnapshot, snapshotRunning }: Props) {
   const [filters, setFilters] = useState<DealFilters>({
     minDiscount: 50,
     promoKinds: [],
     onSale: true,
-    stores: ['foodlion', 'wegmans'],
+    stores: [],
     sort: 'discount',
   });
+  // null = every chain the API reports, so a chain added later starts enabled.
+  const [pickedStores, setPickedStores] = useState<StoreId[] | null>(null);
+  const [dates, setDates] = useState<string[]>([]);
+  // '' = latest snapshot (or a live scan when there is none).
+  const [date, setDate] = useState('');
+  const stores = pickedStores ?? storeIds;
   const [data, setData] = useState<DealsResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reqId = useRef(0);
 
   const load = useCallback(
-    async (f: DealFilters) => {
+    async (f: DealFilters, forDate: string) => {
       const id = ++reqId.current;
       setBusy(true);
       setError(null);
       try {
         const res = await api.deals({
           ...f,
-          wegmansLocation: selection.wegmans,
-          foodlionLocation: selection.foodlion,
+          locations: selection,
+          date: forDate || null,
           limit: 200,
         });
         if (id === reqId.current) setData(res);
@@ -93,20 +101,24 @@ export function Deals({ selection, lastSnapshot, onRunSnapshot, snapshotRunning 
         if (id === reqId.current) setBusy(false);
       }
     },
-    [selection.wegmans, selection.foodlion],
+    [selection],
   );
 
   // Debounce filter changes so dragging the slider does not spam the server.
   useEffect(() => {
-    const t = setTimeout(() => void load(filters), 250);
+    if (stores.length === 0) return; // wait for the store list
+    const t = setTimeout(() => void load({ ...filters, stores }, date), 250);
     return () => clearTimeout(t);
-  }, [filters, load]);
+    // `stores` is rebuilt each render; its contents are what matter.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, load, date, stores.join(',')]);
+
+  useEffect(() => {
+    void api.snapshotStatus().then((st) => setDates(st.dates)).catch(() => undefined);
+  }, [lastSnapshot]);
 
   const toggleStore = (id: StoreId) =>
-    setFilters((f) => ({
-      ...f,
-      stores: f.stores.includes(id) ? f.stores.filter((s) => s !== id) : [...f.stores, id],
-    }));
+    setPickedStores(stores.includes(id) ? stores.filter((s) => s !== id) : [...stores, id]);
 
   const togglePromo = (kind: PromoKind) =>
     setFilters((f) => ({
@@ -166,26 +178,22 @@ export function Deals({ selection, lastSnapshot, onRunSnapshot, snapshotRunning 
         </div>
 
         <div className="deal-row">
-          {(['foodlion', 'wegmans'] as StoreId[]).map((id) => (
-            <button
-              key={id}
-              className="toggle"
-              data-on={filters.stores.includes(id)}
-              style={{ color: filters.stores.includes(id) ? STORE_COLOR[id] : 'var(--text-dim)' }}
-              aria-pressed={filters.stores.includes(id)}
-              onClick={() => toggleStore(id)}
-            >
-              <span className="swatch" />
-              {STORE_LABEL[id]}
-            </button>
-          ))}
+          <StoreToggles ids={storeIds} selected={stores} onToggle={toggleStore} />
           <select className="field" value={filters.sort} onChange={(e) => setFilters((f) => ({ ...f, sort: e.target.value as DealFilters['sort'] }))} aria-label="Sort deals">
             <option value="discount">Biggest % off</option>
             <option value="price">Cheapest unit</option>
             <option value="name">Name</option>
           </select>
+          {dates.length > 0 && (
+            <select className="field" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Snapshot date">
+              <option value="">Latest snapshot</option>
+              {dates.map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+          )}
           <span className="spacer" style={{ flex: 1 }} />
-          <button className="btn small ghost" onClick={onRunSnapshot} disabled={snapshotRunning} title="Snapshot both catalogues now for analysis + faster deals">
+          <button className="btn small ghost" onClick={onRunSnapshot} disabled={snapshotRunning} title="Snapshot every catalogue now for analysis + faster deals">
             {snapshotRunning ? 'Snapshotting…' : 'Snapshot now'}
           </button>
         </div>

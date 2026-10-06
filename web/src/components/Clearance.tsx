@@ -12,6 +12,24 @@ import type {
   SweepRun,
 } from '../types';
 import { api, money, relativeTime } from '../lib/api';
+import { tabKeyHandler } from './bits';
+
+/**
+ * Sweep failures arrive as "[token] message". The token says why in a word;
+ * the full message stays available underneath.
+ */
+const SWEEP_FAILURE: Record<string, string> = {
+  'rate-limited': 'Walmart rate-limited the sweep',
+  'wrong-store': 'Walmart answered for a different store',
+  'hash-expired': 'Walmart query hash expired',
+  error: 'Sweep failed',
+};
+
+export function classifySweepError(message: string): { label: string; detail: string } {
+  const m = /^\[([a-z-]+)\]\s*(.*)$/s.exec(message);
+  if (!m) return { label: 'Sweep reported problems', detail: message };
+  return { label: SWEEP_FAILURE[m[1]!] ?? 'Sweep failed', detail: m[2] || message };
+}
 
 /**
  * Walmart in-store clearance, across several nearby stores at once.
@@ -51,6 +69,9 @@ export function Clearance() {
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Empty-state copy waits for the first answer, so loading never reads as empty.
+  const [setupLoaded, setSetupLoaded] = useState(false);
+  const [rowsLoaded, setRowsLoaded] = useState(false);
 
   const [store, setStore] = useState<ClearanceStore | null>(null);
   const [groups, setGroups] = useState<ClearanceGroupOption[]>([]);
@@ -86,7 +107,6 @@ export function Clearance() {
     setProgress(s.progress);
     setGroups(c.groups);
     setWatches(w.watches);
-
   }, []);
 
   const loadRows = useCallback(
@@ -118,13 +138,16 @@ export function Clearance() {
         setError((e as Error).message);
       } finally {
         setLoading(false);
+        setRowsLoaded(true);
       }
     },
     [filters, view],
   );
 
   useEffect(() => {
-    void loadSetup().catch((e) => setError((e as Error).message));
+    void loadSetup()
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setSetupLoaded(true));
   }, [loadSetup]);
 
   useEffect(() => {
@@ -220,11 +243,24 @@ export function Clearance() {
         <div>
           <h2 className="section-heading">Walmart in-store clearance</h2>
           <p className="meta">
-            {date ? `swept ${date}` : 'never swept'}
+            {!rowsLoaded ? 'loading…' : date ? `swept ${date}` : 'never swept'}
             {store && ` · ${store.name}`}
             {lastSweep?.finishedAt && ` · last run ${relativeTime(lastSweep.finishedAt)}`}
-            {lastSweep?.error && ' · last run reported problems'}
+            {lastSweep?.error && (
+              <>
+                {' · '}
+                <span className="sweep-fail-label" title={lastSweep.error}>
+                  last run failed: {classifySweepError(lastSweep.error).label}
+                </span>
+              </>
+            )}
           </p>
+          {lastSweep?.error && (
+            <details className="meta sweep-fail">
+              <summary>Details</summary>
+              <pre>{classifySweepError(lastSweep.error).detail}</pre>
+            </details>
+          )}
         </div>
         <span className="spacer" />
         <button className="btn small" onClick={() => void sweepNow()} disabled={sweeping || store === null}>
@@ -251,7 +287,7 @@ export function Clearance() {
             {store.lastSweptAt && <span className="meta"> · rack read {relativeTime(store.lastSweptAt)}</span>}
           </p>
         ) : (
-          <p className="meta">No store on record yet.</p>
+          <p className="meta">{setupLoaded ? 'No store on record yet.' : 'Loading…'}</p>
         )}
         <p className="meta">
           Walmart decides this from your connection, not from a setting — the same request answers for
@@ -300,24 +336,34 @@ export function Clearance() {
               </span>
             </li>
           ))}
-          {watches.length === 0 && <li className="meta">Nothing watched yet.</li>}
+          {watches.length === 0 && <li className="meta">{setupLoaded ? 'Nothing watched yet.' : 'Loading…'}</li>}
         </ul>
       </div>
 
       <div className="view-switch" role="tablist" aria-label="Clearance view">
-        <button
-          role="tab"
-          className="chip toggle"
-          aria-pressed={view === 'deals'}
-          onClick={() => setView('deals')}
-        >
-          Deals{monitor ? ` — ${monitor.minDiscount}%+ off` : ''}
-        </button>
-        <button role="tab" className="chip toggle" aria-pressed={view === 'all'} onClick={() => setView('all')}>
-          Everything on clearance
-        </button>
+        {(
+          [
+            ['deals', `Deals${monitor ? ` — ${monitor.minDiscount}%+ off` : ''}`],
+            ['all', 'Everything on clearance'],
+          ] as ['deals' | 'all', string][]
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            id={`clearance-tab-${id}`}
+            role="tab"
+            className="chip toggle"
+            aria-selected={view === id}
+            aria-controls="clearance-panel"
+            tabIndex={view === id ? 0 : -1}
+            onClick={() => setView(id)}
+            onKeyDown={tabKeyHandler(['deals', 'all'], view, setView, 'clearance')}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
+      <div role="tabpanel" id="clearance-panel" aria-labelledby={`clearance-tab-${view}`}>
       {view === 'deals' && monitor && (
         <div className="card monitor-panel">
           <h3 className="section-heading">What counts as a deal</h3>
@@ -431,7 +477,7 @@ export function Clearance() {
       )}
 
       <p className="meta">
-        {loading && rows.length === 0 ? 'Loading…' : `${total} item${total === 1 ? '' : 's'}`}
+        {!rowsLoaded || (loading && rows.length === 0) ? 'Loading…' : `${total} item${total === 1 ? '' : 's'}`}
       </p>
 
       <ul className="clearance-rows">
@@ -472,7 +518,7 @@ export function Clearance() {
         ))}
       </ul>
 
-      {rows.length === 0 && !loading && (
+      {rows.length === 0 && rowsLoaded && setupLoaded && !loading && (
         <p className="meta empty">
           {store === null
             ? 'No store on record yet — ask Walmart which one it serves you.'
@@ -489,6 +535,7 @@ export function Clearance() {
           {loading ? 'Loading…' : `Show more (${total - rows.length} left)`}
         </button>
       )}
+      </div>
     </section>
   );
 }
