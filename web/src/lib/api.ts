@@ -1,6 +1,6 @@
 import type {
   Alert, SearchResult, StoresResponse, WatchGroup, PriceSnapshot, DealsResponse, DealFilters, SnapshotStatus,
-  ClearanceCategory, ClearanceGroupOption, ClearanceStore, SweepProgress, DealMonitor, ClearanceDealsResponse, ClearanceResponse, ClearanceStatus, ClearanceWatch, ClearanceFilters, SweepRun,
+  ClearanceCategory, ClearanceGroupOption, ClearanceStore, SweepProgress, DealMonitor, ClearanceDealsResponse, ClearanceResponse, ClearanceStatus, ClearanceWatch, ClearanceFilters, SweepRun, ClearanceAlert, ParsedIngredient, StoreId,
 } from '../types';
 
 async function json<T>(url: string, init?: RequestInit): Promise<T> {
@@ -15,6 +15,12 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+function setLocations(qs: URLSearchParams, locations?: Partial<Record<StoreId, string | null>>): void {
+  for (const [id, loc] of Object.entries(locations ?? {})) {
+    if (id !== 'zip' && loc) qs.set(`${id}Location`, loc);
+  }
+}
+
 export const api = {
   stores: (postalCode?: string) =>
     json<StoresResponse>(`/api/stores${postalCode ? `?postalCode=${encodeURIComponent(postalCode)}` : ''}`),
@@ -22,16 +28,15 @@ export const api = {
   search: (params: {
     q: string;
     stores: string[];
-    wegmansLocation?: string | null;
-    foodlionLocation?: string | null;
+    /** chosen location per chain, sent as `<storeId>Location` */
+    locations?: Partial<Record<StoreId, string | null>>;
     limit?: number;
     minDiscount?: number;
     promoKinds?: string[];
     onSale?: boolean;
   }) => {
     const qs = new URLSearchParams({ q: params.q, stores: params.stores.join(',') });
-    if (params.wegmansLocation) qs.set('wegmansLocation', params.wegmansLocation);
-    if (params.foodlionLocation) qs.set('foodlionLocation', params.foodlionLocation);
+    setLocations(qs, params.locations);
     if (params.limit) qs.set('limit', String(params.limit));
     if (params.minDiscount) qs.set('minDiscount', String(params.minDiscount));
     if (params.promoKinds && params.promoKinds.length) qs.set('promoKinds', params.promoKinds.join(','));
@@ -43,13 +48,13 @@ export const api = {
 
   watchlist: () => json<{ groups: WatchGroup[] }>('/api/watchlist'),
 
-  deals: (f: DealFilters & { wegmansLocation?: string | null; foodlionLocation?: string | null; limit?: number; offset?: number }) => {
+  deals: (f: DealFilters & { locations?: Partial<Record<StoreId, string | null>>; date?: string | null; limit?: number; offset?: number }) => {
     const qs = new URLSearchParams({ stores: f.stores.join(','), sort: f.sort });
     if (f.minDiscount) qs.set('minDiscount', String(f.minDiscount));
     if (f.onSale) qs.set('onSale', '1');
     if (f.promoKinds.length) qs.set('promoKinds', f.promoKinds.join(','));
-    if (f.wegmansLocation) qs.set('wegmansLocation', f.wegmansLocation);
-    if (f.foodlionLocation) qs.set('foodlionLocation', f.foodlionLocation);
+    setLocations(qs, f.locations);
+    if (f.date) qs.set('date', f.date);
     if (f.limit) qs.set('limit', String(f.limit));
     if (f.offset) qs.set('offset', String(f.offset));
     return json<DealsResponse>(`/api/deals?${qs}`);
@@ -83,6 +88,23 @@ export const api = {
   ackAlert: (id: number) => json<{ ok: true }>(`/api/alerts/${id}/ack`, { method: 'POST' }),
 
   ackAll: () => json<{ ok: true }>('/api/alerts/ack-all', { method: 'POST' }),
+
+  // ---- Clearance watch-term alerts -------------------------------------
+
+  clearanceAlerts: (unreadOnly = false) =>
+    json<{ alerts: ClearanceAlert[] }>(`/api/clearance/alerts?unread=${unreadOnly ? 1 : 0}`),
+
+  ackClearanceAlert: (id: number) =>
+    json<{ acknowledged: number }>(`/api/clearance/alerts/${id}/ack`, { method: 'POST' }),
+
+  ackAllClearanceAlerts: () =>
+    json<{ acknowledged: number }>('/api/clearance/alerts/ack-all', { method: 'POST' }),
+
+  parseRecipe: (text: string) =>
+    json<{ ingredients: ParsedIngredient[] }>('/api/recipes/parse', {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
 
   refresh: () =>
     json<{ itemsPolled: number; errors: string[]; groups: WatchGroup[]; alerts: Alert[] }>('/api/refresh', {
