@@ -94,12 +94,17 @@ CREATE TABLE IF NOT EXISTS alert (
 );
 CREATE INDEX IF NOT EXISTS alert_created ON alert (created_at DESC);
 
--- One row per product per store per day: a durable cross-source price record
--- for analysis, and the corpus the deals filter reads. Append-only.
+-- One row per product per *interval* of unchanged price. The price tuple is
+-- stable for as long as the row's valid_to is NULL; a nightly run that
+-- observes the same tuple as the open row closes nothing and writes nothing.
+-- /api/deals reconstructs any date by interval join, not by snapshot_date
+-- equality — snapshot_date is the day the interval was first observed and
+-- is preserved only for partition-style reports. A single product can have
+-- many rows for the same snapshot_date across its history.
 CREATE TABLE IF NOT EXISTS daily_snapshot (
   id                   INTEGER PRIMARY KEY,
-  snapshot_date        TEXT NOT NULL,          -- YYYY-MM-DD (local)
-  captured_at          TEXT NOT NULL,          -- ISO-8601
+  snapshot_date        TEXT NOT NULL,          -- YYYY-MM-DD (local); partition key, not uniqueness
+  captured_at          TEXT NOT NULL,          -- ISO-8601; row uniqueness + deals ordering
   store_id             TEXT NOT NULL,
   location_id          TEXT,
   store_product_id     TEXT NOT NULL,
@@ -117,13 +122,27 @@ CREATE TABLE IF NOT EXISTS daily_snapshot (
   promo_text           TEXT,
   unit_price_text      TEXT,
   in_stock             INTEGER,
-  UNIQUE (snapshot_date, store_id, location_id, store_product_id)
+  valid_from           TEXT NOT NULL,          -- ISO-8601; interval opens here
+  valid_to             TEXT,                   -- ISO-8601; NULL while the price tuple is still current
+  UNIQUE (captured_at, store_id, location_id, store_product_id)
 );
--- Deals queries filter one date by discount / promo / store, so lead with date.
+-- Deals queries use the latest capture per product; captured_at leads for ordering.
 CREATE INDEX IF NOT EXISTS daily_snapshot_deals
-  ON daily_snapshot (snapshot_date, store_id, discount_pct DESC);
+  ON daily_snapshot (captured_at DESC, store_id, discount_pct DESC);
 CREATE INDEX IF NOT EXISTS daily_snapshot_product
-  ON daily_snapshot (store_id, store_product_id, snapshot_date DESC);
+  ON daily_snapshot (store_id, store_product_id, captured_at DESC);
+-- At most one OPEN interval per (store, location, product) at a time. SQLite
+-- treats NULLs in UNIQUE tuples as distinct, so a partial index is the only
+-- way to enforce this; a closed row (valid_to IS NOT NULL) and a new open row
+-- can share a (captured_at, store, location, product) tuple because they live
+-- in different table rows, not in the same UNIQUE slot.
+CREATE UNIQUE INDEX IF NOT EXISTS daily_snapshot_open
+  ON daily_snapshot (store_id, location_id, store_product_id) WHERE valid_to IS NULL;
+-- Interval-bounded reads: the deals feed asks "what was the price on day D",
+-- which is an interval-overlap query, not a partition lookup. Leading on
+-- valid_from lets the planner walk a date range cheaply.
+CREATE INDEX IF NOT EXISTS daily_snapshot_interval
+  ON daily_snapshot (valid_from, valid_to);
 
 -- ---- Egress nodes (W-9) -------------------------------------------------
 -- One row per residential-proxy exit point. The sweep dials the proxy_url and
@@ -308,6 +327,17 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: 'snapshot_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'snapshot_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
   // ---- end: observability columns
+  // ---- begin: daily_snapshot interval columns (todo 3)
+  // Convert `daily_snapshot` from a per-day partition to per-interval rows so
+  // an unchanged product over 30 days writes 1 row, not 30. The sentinel
+  // default for `valid_from` lets the backfill UPDATE identify pre-migration
+  // rows; `valid_to` defaults to NULL ("current interval"). Both columns are
+  // NOT NULL or NULL respectively — the partial unique index on
+  // `(store, location, product) WHERE valid_to IS NULL` is what stops a
+  // product from holding two open intervals at once.
+  { table: 'daily_snapshot', column: 'valid_from', definition: `TEXT NOT NULL DEFAULT '1970-01-01 00:00:00'` },
+  { table: 'daily_snapshot', column: 'valid_to', definition: 'TEXT' },
+  // ---- end: daily_snapshot interval columns
 ];
 
 function applyAddedColumns(db: DB): void {
@@ -317,6 +347,36 @@ function applyAddedColumns(db: DB): void {
     if (columns.some((c) => c.name === column)) continue;
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
+}
+
+/**
+ * One-time per-database backfill of the interval columns on `daily_snapshot`.
+ * Pre-migration rows had no notion of `valid_from`/`valid_to`; the schema
+ * default for `valid_from` is the sentinel `'1970-01-01 00:00:00'`, so this
+ * UPDATE rewrites only those. For each row, `valid_from` is set to the start
+ * of that row's `snapshot_date` and `valid_to` to the end of the same day
+ * (a fully closed interval covering the snapshot day) — this keeps the
+ * historical date reconstructable: `/api/deals?date=<that-day>` still returns
+ * the row. Rows written after migration have `valid_to = NULL` (current
+ * interval) and the sentinel never reappears, so subsequent opens are no-ops.
+ */
+function backfillSnapshotIntervals(db: DB): void {
+  const cols = db.prepare(`PRAGMA table_info(daily_snapshot)`).all() as unknown as { name: string }[];
+  if (!cols.some((c) => c.name === 'valid_from')) return; // columns not added yet
+  const row = db
+    .prepare(
+      `SELECT 1 FROM daily_snapshot
+        WHERE valid_from = '1970-01-01 00:00:00'
+        LIMIT 1`,
+    )
+    .get();
+  if (!row) return; // already backfilled
+  db.exec(
+    `UPDATE daily_snapshot
+        SET valid_from = snapshot_date || ' 00:00:00',
+            valid_to   = snapshot_date || ' 23:59:59'
+      WHERE valid_from = '1970-01-01 00:00:00'`,
+  );
 }
 
 // ---- begin: observability and perf additions --------------------------------
@@ -359,6 +419,7 @@ export function openDb(path: string = process.env.BASTILLE_DB ?? resolve('data/b
   db.exec(SCHEMA);
   db.exec(EXTRA_SCHEMA);
   applyAddedColumns(db);
+  backfillSnapshotIntervals(db);
   db.prepare(
     `INSERT INTO deal_monitor (id, min_discount, groups, enabled, updated_at)
      VALUES (1, ?, ?, 1, ?) ON CONFLICT (id) DO NOTHING`,

@@ -127,6 +127,24 @@ function rowToSnapshot(r: PriceRow): PriceSnapshot {
   };
 }
 
+interface PriceTuple {
+  regular_cents: number | null;
+  current_cents: number | null;
+  promo_kind: string;
+  promo_text: string | null;
+  in_stock: number | null;
+  discount_pct: number | null;
+}
+
+function tupleEqual(a: PriceTuple, b: PriceTuple): boolean {
+  return a.regular_cents === b.regular_cents
+    && a.current_cents === b.current_cents
+    && a.promo_kind === b.promo_kind
+    && a.promo_text === b.promo_text
+    && a.in_stock === b.in_stock
+    && a.discount_pct === b.discount_pct;
+}
+
 export class Repo {
   /** Compiled statements are reused across calls so hot paths (price inserts,
    *  latest-price reads, alerts) don't recompile SQL every time. */
@@ -571,52 +589,85 @@ export class Repo {
   }
 
   /**
-   * Writes a batch of offers as one day's snapshot rows in a single
-   * transaction. Idempotent per (date, store, location, product): re-running a
-   * day overwrites rather than duplicating, so a retried job is safe.
+   * Writes a batch of offers as interval rows in a single transaction. A row
+   * is written (or replaced) only when the price tuple — `(regular_cents,
+   * current_cents, promo_kind, promo_text, in_stock, discount_pct)` — changes
+   * for that `(store_id, location_id, store_product_id)`. An identical tuple
+   * over a 30-day run produces one row, not 30, because the existing open
+   * row's tuple already matches.
+   *
+   * When the tuple does change, the prior open row is closed (its `valid_to`
+   * becomes NOW) and a new row is opened with `valid_from = NOW` and
+   * `valid_to = NULL` ("current"). The partial unique index on
+   * `(store_id, location_id, store_product_id) WHERE valid_to IS NULL` is
+   * what makes at most one open row per product possible: the close-then-open
+   * pair is performed inside the same transaction so the index only ever
+   * carries one of the two.
+   *
+   * The `date` parameter is preserved as `snapshot_date` for partition-style
+   * reports (e.g. "which day's sweep wrote the row that was current as of
+   * last Tuesday") but is no longer part of the uniqueness key.
    */
   recordSnapshot(date: string, offers: SnapshotOffer[]): number {
     const now = new Date().toISOString();
-    const stmt = this.db.prepare(
-      `INSERT INTO daily_snapshot (snapshot_date, captured_at, store_id, location_id, store_product_id,
-          name, brand, size, category, image_url, product_url, regular_cents, current_cents,
-          effective_unit_cents, discount_pct, promo_kind, promo_text, unit_price_text, in_stock)
+    const findOpen = this.stmt(
+      `SELECT regular_cents, current_cents, promo_kind, promo_text, in_stock, discount_pct
+         FROM daily_snapshot
+        WHERE store_id = ? AND location_id IS ? AND store_product_id = ?
+          AND valid_to IS NULL`,
+    );
+    const closeOpen = this.stmt(
+      `UPDATE daily_snapshot SET valid_to = ?
+        WHERE store_id = ? AND location_id IS ? AND store_product_id = ?
+          AND valid_to IS NULL`,
+    );
+    const insert = this.stmt(
+      `INSERT INTO daily_snapshot (snapshot_date, captured_at, store_id, location_id,
+          store_product_id, name, brand, size, category, image_url, product_url,
+          regular_cents, current_cents, effective_unit_cents, discount_pct,
+          promo_kind, promo_text, unit_price_text, in_stock, valid_from, valid_to)
        VALUES (@date,@now,@store_id,@location_id,@store_product_id,@name,@brand,@size,@category,
           @image_url,@product_url,@regular_cents,@current_cents,@effective_unit_cents,@discount_pct,
-          @promo_kind,@promo_text,@unit_price_text,@in_stock)
-       ON CONFLICT (snapshot_date, store_id, location_id, store_product_id) DO UPDATE SET
-          captured_at=excluded.captured_at, name=excluded.name, brand=excluded.brand, size=excluded.size,
-          category=excluded.category, image_url=excluded.image_url, product_url=excluded.product_url,
-          regular_cents=excluded.regular_cents, current_cents=excluded.current_cents,
-          effective_unit_cents=excluded.effective_unit_cents, discount_pct=excluded.discount_pct,
-          promo_kind=excluded.promo_kind, promo_text=excluded.promo_text,
-          unit_price_text=excluded.unit_price_text, in_stock=excluded.in_stock`,
+          @promo_kind,@promo_text,@unit_price_text,@in_stock,@now,NULL)`,
     );
     let n = 0;
     this.db.exec('BEGIN IMMEDIATE');
     try {
       for (const { offer, locationId } of offers) {
         const p = offer.price;
-        stmt.run({
+        const storeId = offer.product.storeId;
+        const productId = offer.product.storeProductId;
+        const tuple = {
+          regular_cents: p.regularCents,
+          current_cents: p.currentCents,
+          promo_kind: p.promoKind,
+          promo_text: p.promoText,
+          in_stock: p.inStock === null ? null : p.inStock ? 1 : 0,
+          discount_pct: discountPercent(p),
+        };
+        const open = findOpen.get(storeId, locationId, productId) as
+          | { regular_cents: number | null; current_cents: number | null; promo_kind: string;
+              promo_text: string | null; in_stock: number | null; discount_pct: number | null }
+          | undefined;
+        if (open && tupleEqual(open, tuple)) continue; // price tuple unchanged — no write
+        // Close the prior open row (if any) so the partial unique index frees
+        // the (store, location, product) slot, then open the new interval.
+        closeOpen.run(now, storeId, locationId, productId);
+        insert.run({
           date,
           now,
-          store_id: offer.product.storeId,
+          store_id: storeId,
           location_id: locationId,
-          store_product_id: offer.product.storeProductId,
+          store_product_id: productId,
           name: offer.product.name,
           brand: offer.product.brand,
           size: offer.product.size,
           category: offer.product.category,
           image_url: offer.product.imageUrl,
           product_url: offer.product.productUrl,
-          regular_cents: p.regularCents,
-          current_cents: p.currentCents,
+          ...tuple,
           effective_unit_cents: p.effectiveUnitCents,
-          discount_pct: discountPercent(p),
-          promo_kind: p.promoKind,
-          promo_text: p.promoText,
           unit_price_text: p.unitPriceText,
-          in_stock: p.inStock === null ? null : p.inStock ? 1 : 0,
         });
         n++;
       }
@@ -629,6 +680,10 @@ export class Repo {
   }
 
   latestSnapshotDate(): string | null {
+    // The "latest snapshot" is the most recent day any interval opened on;
+    // deals queries that omit `date` default to that day. Closed rows whose
+    // interval is still current (valid_to IS NULL on a row opened today) are
+    // included, so a freshly written product is queryable immediately.
     const r = this.db.prepare('SELECT MAX(snapshot_date) AS d FROM daily_snapshot').get() as
       | { d: string | null }
       | undefined;
@@ -636,26 +691,39 @@ export class Repo {
   }
 
   /**
-   * Drops snapshot days older than `keepDays`, and the run rows that describe
-   * them. The corpus is ~65,000 rows and ~29 MB a day, so keeping every day
-   * forever grows about 10 GB a year for data nothing reads: `/api/deals` uses
-   * the latest day, and watched-item history lives in `price_point`, which is
-   * never touched here. `keepDays <= 0` keeps everything.
+   * Drops CLOSED snapshot intervals whose `valid_to` is older than the cutoff,
+   * plus the run rows for days no interval touches anymore. Open intervals
+   * (`valid_to IS NULL`) are never pruned by date — a product whose price is
+   * still current, regardless of how long ago it was first observed, is kept.
+   * This is the interval-aware rewrite: the old `WHERE snapshot_date < ?`
+   * would have deleted an open interval that started before the cutoff and is
+   * still current, which would have broken `/api/deals?date=today` for any
+   * product first observed more than `keepDays` ago.
    *
-   * Returns the number of snapshot rows removed.
+   * Scope is local DISK. The corpus is ~65,000 rows and ~29 MB a day (per
+   * the comment at `server/src/clearance/repo.ts:640-641` — a comment, not a
+   * measurement), so keeping every day forever grows about 10 GB a year
+   * for data nothing reads: `/api/deals` uses the latest interval, watched-
+   * item history lives in `price_point` and is never touched here. None of
+   * this consumes the 500 MB upstream ceiling; see ROADMAP P-6.
+   *
+   * `keepDays <= 0` keeps everything. Returns the number of snapshot rows
+   * removed.
    */
   pruneSnapshots(keepDays: number, today = new Date()): number {
     if (!Number.isFinite(keepDays) || keepDays <= 0) return 0;
     const cutoff = new Date(today.getTime() - keepDays * 24 * 60 * 60 * 1000);
     const iso = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
     const removed = (
-      this.db.prepare('SELECT COUNT(*) AS c FROM daily_snapshot WHERE snapshot_date < ?').get(iso) as {
-        c: number;
-      }
+      this.db
+        .prepare('SELECT COUNT(*) AS c FROM daily_snapshot WHERE valid_to IS NOT NULL AND valid_to < ?')
+        .get(iso) as { c: number }
     ).c;
     this.setMeta('last_pruned_at', new Date().toISOString());
     if (removed === 0) return 0;
-    this.db.prepare('DELETE FROM daily_snapshot WHERE snapshot_date < ?').run(iso);
+    this.db
+      .prepare('DELETE FROM daily_snapshot WHERE valid_to IS NOT NULL AND valid_to < ?')
+      .run(iso);
     this.db.prepare('DELETE FROM snapshot_run WHERE snapshot_date < ?').run(iso);
     return removed;
   }
@@ -737,13 +805,25 @@ export class Repo {
     };
   }
 
-  /** Filter one day's snapshot by discount / promo / store — the deals feed. */
+  /**
+   * Filter by interval overlap: the row whose `[valid_from, valid_to]`
+   * covers the queried date. An open interval (`valid_to IS NULL`) covers
+   * every date from `valid_from` onward, which is what makes "the price
+   * today" work without re-running the snapshot every day.
+   *
+   * `date()` is applied on the timestamp columns so a row written at
+   * `2026-01-01T12:34:56Z` still matches a `?date=2026-01-01` query — the
+   * interval's start of day is the natural comparison unit.
+   */
   queryDeals(filter: DealFilter): { date: string | null; total: number; rows: DealRow[] } {
     const date = filter.date ?? this.latestSnapshotDate();
     if (!date) return { date: null, total: 0, rows: [] };
 
-    const where: string[] = ['snapshot_date = ?'];
-    const params: (string | number)[] = [date];
+    const where: string[] = [
+      "date(valid_from) <= ?",
+      "(valid_to IS NULL OR date(valid_to) >= ?)",
+    ];
+    const params: (string | number)[] = [date, date];
 
     if (filter.stores && filter.stores.length > 0) {
       where.push(`store_id IN (${filter.stores.map(() => '?').join(',')})`);
