@@ -138,7 +138,18 @@ async function githubRawControl() {
 // Refusal codes
 // ---------------------------------------------------------------------------
 
-const REFUSAL_CODES = new Set([403, 412, 418, 429, 503]);
+const REFUSAL_CODES = new Set([403, 405, 412, 418, 429, 503]);
+
+/** A refusal/transport-error row: no measurement, only the reason. */
+const refused = (status, encoding, error) => ({
+  wire_bytes: null,
+  uncompressed_bytes: null,
+  compression_ratio: null,
+  content_encoding: encoding,
+  http_status: status,
+  measured_at: new Date().toISOString(),
+  error,
+});
 
 // ---------------------------------------------------------------------------
 // Measurement using native http/https with socket byte tracking
@@ -166,23 +177,24 @@ async function measureOneNative(url, { method = 'GET', headers = {}, body = unde
         path: parsedUrl.pathname + parsedUrl.search,
         method,
         headers: { ...headers },
+        // One-shot agent per request: Node's global agent pools keep-alive
+        // sockets, which stay referenced and keep the event loop alive long
+        // after the measurement is written — the script would never exit.
+        agent: false,
       };
 
       const req = mod.request(options, (res) => {
         const contentEncoding = (res.headers['content-encoding'] ?? 'identity').toLowerCase();
 
-        // 4xx from the server is a refusal
+        // 4xx/5xx from the server is a refusal, not a measurement
         if (REFUSAL_CODES.has(res.statusCode)) {
           clearTimeout(timeout);
           const durationMs = Math.round(performance.now() - startedAt);
-          resolve({
-            wire_bytes: null,
-            uncompressed_bytes: null,
-            compression_ratio: null,
-            content_encoding: contentEncoding,
-            http_status: res.statusCode,
-            error: { kind: `http_${res.statusCode}`, message: `HTTP ${res.statusCode} refusal`, duration_ms: durationMs },
-          });
+          resolve(refused(
+            res.statusCode,
+            contentEncoding,
+            { kind: `http_${res.statusCode}`, message: `HTTP ${res.statusCode} refusal`, duration_ms: durationMs },
+          ));
           return;
         }
 
@@ -205,6 +217,7 @@ async function measureOneNative(url, { method = 'GET', headers = {}, body = unde
               compression_ratio: null,
               content_encoding: contentEncoding,
               http_status: res.statusCode,
+              measured_at: new Date().toISOString(),
               error: null,
             });
             return;
@@ -213,30 +226,49 @@ async function measureOneNative(url, { method = 'GET', headers = {}, body = unde
           const rawBody = Buffer.concat(chunks);
           const wireBytes = rawBody.length; // actual compressed bytes on the wire
 
-          // Calculate uncompressed bytes by decompressing the raw body
-          let uncompressedBytes = 0;
-          if (contentEncoding === 'gzip') {
-            try {
+          // Uncompressed size by decompressing the observed body. A failed
+          // decompression is recorded as an error, never as an assumed
+          // uncompressed==wire size — the plan forbids an estimate posing as
+          // a measurement.
+          let uncompressedBytes = null;
+          let decompressError = null;
+          try {
+            if (contentEncoding === 'gzip') {
               uncompressedBytes = zlib.gunzipSync(rawBody).length;
-            } catch {
-              uncompressedBytes = wireBytes;
-            }
-          } else if (contentEncoding === 'br') {
-            try {
+            } else if (contentEncoding === 'br') {
               uncompressedBytes = zlib.brotliDecompressSync(rawBody).length;
-            } catch {
+            } else {
+              // identity (or an encoding we do not decode) — the body is the body
               uncompressedBytes = wireBytes;
             }
-          } else {
-            // identity or unknown — raw body is already uncompressed
-            uncompressedBytes = wireBytes;
+          } catch (err) {
+            decompressError = {
+              kind: 'decompress_failed',
+              message: String(err.message).slice(0, 200),
+              duration_ms: durationMs,
+            };
           }
 
-          // compression_ratio: null when uncompressed <= wire (no compression or error)
-          let compressionRatio = null;
-          if (uncompressedBytes > wireBytes) {
-            compressionRatio = Math.round((uncompressedBytes / wireBytes) * 100) / 100;
+          if (decompressError) {
+            // wire_bytes is still a true observation, so keep it; only the
+            // decompressed half of the pair is unknown.
+            resolve({
+              wire_bytes: wireBytes,
+              uncompressed_bytes: null,
+              compression_ratio: null,
+              content_encoding: contentEncoding,
+              http_status: res.statusCode,
+              measured_at: new Date().toISOString(),
+              error: decompressError,
+            });
+            return;
           }
+
+          // compression_ratio is null when there is nothing to compress
+          // (identity encoding), where uncompressed === wire by definition.
+          const compressionRatio = contentEncoding === 'identity' || uncompressedBytes <= wireBytes
+            ? null
+            : Math.round((uncompressedBytes / wireBytes) * 100) / 100;
 
           resolve({
             wire_bytes: wireBytes,
@@ -244,6 +276,7 @@ async function measureOneNative(url, { method = 'GET', headers = {}, body = unde
             compression_ratio: compressionRatio,
             content_encoding: contentEncoding,
             http_status: res.statusCode,
+            measured_at: new Date().toISOString(),
             error: null,
           });
         });
@@ -251,14 +284,11 @@ async function measureOneNative(url, { method = 'GET', headers = {}, body = unde
         res.on('error', (err) => {
           clearTimeout(timeout);
           const durationMs = Math.round(performance.now() - startedAt);
-          resolve({
-            wire_bytes: null,
-            uncompressed_bytes: null,
-            compression_ratio: null,
-            content_encoding: contentEncoding,
-            http_status: 0,
-            error: { kind: 'network', message: String(err.message).slice(0, 200), duration_ms: durationMs },
-          });
+          resolve(refused(
+            null,
+            contentEncoding,
+            { kind: 'network', message: String(err.message).slice(0, 200), duration_ms: durationMs },
+          ));
         });
       });
 
@@ -266,27 +296,21 @@ async function measureOneNative(url, { method = 'GET', headers = {}, body = unde
         clearTimeout(timeout);
         const durationMs = Math.round(performance.now() - startedAt);
         const kind = err.code === 'ECONNREFUSED' ? 'refused' : /** @type {string} */ (err.code ?? 'unknown');
-        resolve({
-          wire_bytes: null,
-          uncompressed_bytes: null,
-          compression_ratio: null,
-          content_encoding: 'identity',
-          http_status: 0,
-          error: { kind, message: String(err.message).slice(0, 200), duration_ms: durationMs },
-        });
+        resolve(refused(
+          null,
+          'identity',
+          { kind, message: String(err.message).slice(0, 200), duration_ms: durationMs },
+        ));
       });
 
       req.on('abort', () => {
         clearTimeout(timeout);
         const durationMs = Math.round(performance.now() - startedAt);
-        resolve({
-          wire_bytes: null,
-          uncompressed_bytes: null,
-          compression_ratio: null,
-          content_encoding: 'identity',
-          http_status: 0,
-          error: { kind: 'timeout', message: 'Request aborted/timeout', duration_ms: durationMs },
-        });
+        resolve(refused(
+          null,
+          'identity',
+          { kind: 'timeout', message: 'Request aborted/timeout', duration_ms: durationMs },
+        ));
       });
 
       controller.signal.addEventListener('abort', () => {
@@ -300,14 +324,11 @@ async function measureOneNative(url, { method = 'GET', headers = {}, body = unde
     } catch (err) {
       clearTimeout(timeout);
       const durationMs = Math.round(performance.now() - startedAt);
-      resolve({
-        wire_bytes: null,
-        uncompressed_bytes: null,
-        compression_ratio: null,
-        content_encoding: 'identity',
-        http_status: 0,
-        error: { kind: 'unknown', message: String(err.message).slice(0, 200), duration_ms: durationMs },
-      });
+      resolve(refused(
+        null,
+        'identity',
+        { kind: 'unknown', message: String(err.message).slice(0, 200), duration_ms: durationMs },
+      ));
     }
   });
 }
@@ -373,7 +394,7 @@ async function main() {
 
   const result = {
     measured_at: new Date().toISOString(),
-    script_version: '1.3.0',
+    script_version: '1.4.0',
     paths: rows,
   };
 
@@ -392,6 +413,13 @@ async function main() {
     process.stdout.write('WARNING: no path showed wire_bytes < uncompressed_bytes; check socket tracking is working.\n');
   }
 }
+
+// Belt and braces: drop any pooled sockets the global agents may still hold,
+// so the CLI terminates instead of idling on keep-alive connections.
+process.on('beforeExit', () => {
+  http.globalAgent.destroy();
+  https.globalAgent.destroy();
+});
 
 // Guard: only run main() when executed directly, not when imported as a module
 // (e.g. by `node --test scripts/measure-bytes.test.mjs`)

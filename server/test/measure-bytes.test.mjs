@@ -11,7 +11,7 @@ import http from 'node:http';
 import zlib from 'node:zlib';
 import { pathToFileURL } from 'node:url';
 
-const { measureOneNative } = await import('../../scripts/measure-bytes.mjs');
+const { measureOneNative, REFUSAL_CODES } = await import('../../scripts/measure-bytes.mjs');
 
 let server;
 let serverPort;
@@ -22,6 +22,12 @@ const GZIPPED_BODY = zlib.gzipSync(TEST_BODY);
 
 before(() => {
   server = http.createServer((req, res) => {
+    if (req.url === '/lying-gzip') {
+      // Advertises gzip, sends something that is not gzip.
+      res.writeHead(200, { 'content-encoding': 'gzip' });
+      res.end('this is definitely not gzip');
+      return;
+    }
     if (req.headers['accept-encoding']?.includes('gzip')) {
       res.writeHead(200, { 'content-encoding': 'gzip' });
       res.end(GZIPPED_BODY);
@@ -120,31 +126,55 @@ test('identity: wire_bytes equals uncompressed_bytes (no compression)', async ()
     'identity encoding must have null compression_ratio');
 });
 
-test('refusal: 418 returns null wire_bytes and null compression_ratio', async () => {
-  // Attach a one-shot server that returns 418
+test('refusal: every REFUSAL_CODES entry records error and null measurement fields', async () => {
+  assert.ok(REFUSAL_CODES.has(405) && REFUSAL_CODES.has(412) && REFUSAL_CODES.has(418),
+    '405/412/418 must all be refusal codes');
+
+  // One server for every refusal code — the status comes from the path, so the
+  // whole set is covered without opening six listeners.
   const refusalServer = http.createServer((req, res) => {
-    res.writeHead(418, { 'content-encoding': 'identity' });
+    const code = Number(new URL(req.url, 'http://x').pathname.slice(1));
+    res.writeHead(code, { 'content-encoding': 'identity' });
     res.end();
   });
 
-  await new Promise((resolve) => {
-    refusalServer.listen(0, '127.0.0.1', () => {
-      resolve();
-    });
-  });
+  await new Promise((resolve) => refusalServer.listen(0, '127.0.0.1', resolve));
 
   try {
     const port = refusalServer.address().port;
-    const result = await measureOneNative(
-      `http://127.0.0.1:${port}/`,
-      { method: 'GET', headers: { 'accept-encoding': 'gzip, br', accept: '*/*' } }
-    );
 
-    assert.strictEqual(result.http_status, 418);
-    assert.strictEqual(result.wire_bytes, null, 'wire_bytes must be null for 418 refusal');
-    assert.strictEqual(result.compression_ratio, null, 'compression_ratio must be null when wire_bytes is null');
-    assert.strictEqual(result.error.kind, 'http_418');
+    for (const code of REFUSAL_CODES) {
+      const result = await measureOneNative(
+        `http://127.0.0.1:${port}/${code}`,
+        { method: 'GET', headers: { 'accept-encoding': 'gzip, br', accept: '*/*' } }
+      );
+
+      assert.strictEqual(result.http_status, code, `status for ${code}`);
+      assert.strictEqual(result.wire_bytes, null, `wire_bytes must be null for ${code}`);
+      assert.strictEqual(result.uncompressed_bytes, null, `uncompressed_bytes must be null for ${code}`);
+      assert.strictEqual(result.compression_ratio, null, `compression_ratio must be null for ${code}`);
+      assert.ok(result.error, `error must be recorded for ${code}`);
+      assert.strictEqual(result.error.kind, `http_${code}`);
+      assert.strictEqual(typeof result.error.duration_ms, 'number');
+      assert.match(result.measured_at, /^\d{4}-\d{2}-\d{2}T.*Z$/, `measured_at for ${code}`);
+    }
   } finally {
+    refusalServer.closeAllConnections();
     refusalServer.close();
   }
+});
+
+test('undecodable gzip is an error, not an assumed uncompressed==wire size', async () => {
+  // Server advertises gzip but sends garbage: the decompressed half of the
+  // pair is unknown, so it must be null rather than fabricated as wire_bytes.
+  const result = await measureOneNative(
+    `http://127.0.0.1:${serverPort}/lying-gzip`,
+    { method: 'GET', headers: { 'accept-encoding': 'gzip, br', accept: '*/*' } }
+  );
+
+  assert.strictEqual(result.http_status, 200);
+  assert.ok(result.wire_bytes > 0, 'wire_bytes is a true observation even when decode fails');
+  assert.strictEqual(result.uncompressed_bytes, null);
+  assert.strictEqual(result.compression_ratio, null);
+  assert.strictEqual(result.error.kind, 'decompress_failed');
 });
