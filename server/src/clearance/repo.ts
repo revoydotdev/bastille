@@ -163,6 +163,64 @@ export interface ShelfMapEntry {
   bestDiscountPct: number | null;
 }
 
+/**
+ * Counts of stores that did not end in `'succeeded'`, partitioned by the
+ * per-store terminal state the sweep recorded. `aborted` is the total of the
+ * rest; the named buckets partition it so a dashboard can show e.g. "1 wrong
+ * store, 2 refused" without parsing the JSON detail.
+ */
+export interface PerStoreCounts {
+  wrongStore: number;
+  budgetExhausted: number;
+  hashExpired: number;
+  refused: number;
+  failed: number;
+  skipped: number;
+  aborted: number;
+}
+
+/**
+ * Per-store terminal state, serialized to the `sweep_run.per_store_reasons`
+ * JSON column. `status` is the same vocabulary the DAG engine uses so the
+ * dashboard does not need a translation table.
+ */
+export interface PerStoreReason {
+  locationId: string;
+  name: string;
+  status: 'succeeded' | 'failed' | 'budget-exhausted' | 'refused' | 'wrong-store' | 'hash-expired' | 'skipped';
+  message: string | null;
+}
+
+export interface SweepRunRow {
+  date: string;
+  startedAt: string;
+  finishedAt: string | null;
+  storesSwept: number;
+  storesAborted: number;
+  perStoreCounts: PerStoreCounts;
+  perStoreReasons: PerStoreReason[];
+  finds: number;
+  error: string | null;
+}
+
+function parsePerStoreReasons(raw: unknown): PerStoreReason[] {
+  if (typeof raw !== 'string' || raw.length === 0) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (e): e is PerStoreReason =>
+        !!e &&
+        typeof e === 'object' &&
+        typeof (e as PerStoreReason).locationId === 'string' &&
+        typeof (e as PerStoreReason).name === 'string' &&
+        typeof (e as PerStoreReason).status === 'string',
+    );
+  } catch {
+    return [];
+  }
+}
+
 export class ClearanceRepo {
   private readonly budget: HostBudget;
 
@@ -501,20 +559,49 @@ export class ClearanceRepo {
     return Number(info.lastInsertRowid);
   }
 
-  finishSweep(id: number, storesSwept: number, finds: number, error: string | null): void {
+  finishSweep(
+    id: number,
+    storesSwept: number,
+    finds: number,
+    perStoreCounts: PerStoreCounts,
+    perStoreReasons: PerStoreReason[],
+    error: string | null,
+  ): void {
     this.db
-      .prepare('UPDATE sweep_run SET finished_at=?, stores_swept=?, finds_written=?, error=? WHERE id=?')
-      .run(new Date().toISOString(), storesSwept, finds, error, id);
+      .prepare(
+        `UPDATE sweep_run
+            SET finished_at=?,
+                stores_swept=?,
+                finds_written=?,
+                stores_aborted=?,
+                stores_with_wrong_store=?,
+                stores_with_budget_exhausted=?,
+                stores_with_hash_expired=?,
+                stores_with_refused=?,
+                stores_with_failed=?,
+                stores_with_skipped=?,
+                per_store_reasons=?,
+                error=?
+          WHERE id=?`,
+      )
+      .run(
+        new Date().toISOString(),
+        storesSwept,
+        finds,
+        perStoreCounts.aborted,
+        perStoreCounts.wrongStore,
+        perStoreCounts.budgetExhausted,
+        perStoreCounts.hashExpired,
+        perStoreCounts.refused,
+        perStoreCounts.failed,
+        perStoreCounts.skipped,
+        JSON.stringify(perStoreReasons),
+        error,
+        id,
+      );
   }
 
-  lastSweep(): {
-    date: string;
-    startedAt: string;
-    finishedAt: string | null;
-    storesSwept: number;
-    finds: number;
-    error: string | null;
-  } | null {
+  lastSweep(): SweepRunRow | null {
     const r = this.db.prepare('SELECT * FROM sweep_run ORDER BY id DESC LIMIT 1').get() as
       | Record<string, unknown>
       | undefined;
@@ -524,6 +611,17 @@ export class ClearanceRepo {
       startedAt: r['started_at'] as string,
       finishedAt: (r['finished_at'] as string | null) ?? null,
       storesSwept: r['stores_swept'] as number,
+      storesAborted: (r['stores_aborted'] as number | null) ?? 0,
+      perStoreCounts: {
+        wrongStore: (r['stores_with_wrong_store'] as number | null) ?? 0,
+        budgetExhausted: (r['stores_with_budget_exhausted'] as number | null) ?? 0,
+        hashExpired: (r['stores_with_hash_expired'] as number | null) ?? 0,
+        refused: (r['stores_with_refused'] as number | null) ?? 0,
+        failed: (r['stores_with_failed'] as number | null) ?? 0,
+        skipped: (r['stores_with_skipped'] as number | null) ?? 0,
+        aborted: (r['stores_aborted'] as number | null) ?? 0,
+      },
+      perStoreReasons: parsePerStoreReasons(r['per_store_reasons']),
       finds: r['finds_written'] as number,
       error: (r['error'] as string | null) ?? null,
     };

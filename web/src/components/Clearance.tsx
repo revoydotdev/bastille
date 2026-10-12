@@ -5,6 +5,7 @@ import type {
   ClearanceFilters,
   ClearanceResponse,
   DealMonitor,
+  PerStoreReason,
   SweepProgress,
   ClearanceRow,
   ClearanceStore,
@@ -30,6 +31,45 @@ export function classifySweepError(message: string): { label: string; detail: st
   const m = /^\[([a-z-]+)\]\s*(.*)$/s.exec(message);
   if (!m) return { label: 'Sweep reported problems', detail: message };
   return { label: SWEEP_FAILURE[m[1]!] ?? 'Sweep failed', detail: m[2] || message };
+}
+
+const PER_STORE_STATUS_LABEL: Record<PerStoreReason['status'], string> = {
+  succeeded: 'swept',
+  failed: 'failed',
+  'budget-exhausted': 'budget spent',
+  refused: 'refused',
+  'wrong-store': 'wrong store',
+  'hash-expired': 'hash expired',
+  skipped: 'skipped',
+};
+
+/** One short line per non-success store, with the specific reason. */
+function perStoreSummary(run: SweepRun): string {
+  const others = (run.perStoreReasons ?? []).filter((p) => p.status !== 'succeeded');
+  return others
+    .map((p) => `${p.name}: ${PER_STORE_STATUS_LABEL[p.status] ?? p.status}${p.message ? ` - ${p.message}` : ''}`)
+    .join('; ');
+}
+
+function PerStoreReasons({ reasons }: { reasons: PerStoreReason[] }) {
+  const others = reasons.filter((p) => p.status !== 'succeeded');
+  if (others.length === 0) return null;
+  return (
+    <details className="meta sweep-fail">
+      <summary>
+        {others.length} of {reasons.length} stores not swept
+      </summary>
+      <ul className="per-store-reasons">
+        {others.map((p) => (
+          <li key={p.locationId}>
+            <span className="store-name">{p.name}</span>
+            <span className="meta"> · {PER_STORE_STATUS_LABEL[p.status] ?? p.status}</span>
+            {p.message && <span className="meta"> · {p.message}</span>}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 /**
@@ -247,6 +287,14 @@ export function Clearance() {
             {!rowsLoaded ? 'loading…' : date ? `swept ${date}` : 'never swept'}
             {store && ` · ${store.name}`}
             {lastSweep?.finishedAt && ` · last run ${relativeTime(lastSweep.finishedAt)}`}
+            {lastSweep && lastSweep.storesAborted > 0 && lastSweep.storesSwept > 0 && (
+              <>
+                {' · '}
+                <span className="sweep-partial" title={perStoreSummary(lastSweep)}>
+                  {lastSweep.storesSwept} of {lastSweep.storesSwept + lastSweep.storesAborted} stores swept
+                </span>
+              </>
+            )}
             {lastSweep?.error && (
               <>
                 {' · '}
@@ -256,6 +304,9 @@ export function Clearance() {
               </>
             )}
           </p>
+          {lastSweep && lastSweep.perStoreReasons && lastSweep.perStoreReasons.length > 0 && (
+            <PerStoreReasons reasons={lastSweep.perStoreReasons} />
+          )}
           {lastSweep?.error && (
             <details className="meta sweep-fail">
               <summary>Details</summary>

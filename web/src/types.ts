@@ -235,11 +235,33 @@ export interface ClearanceDealsResponse extends ClearanceResponse {
   monitor: DealMonitor;
 }
 
+/** One per-store outcome from a sweep run. */
+export interface PerStoreReason {
+  locationId: string;
+  name: string;
+  status: 'succeeded' | 'failed' | 'budget-exhausted' | 'refused' | 'wrong-store' | 'hash-expired' | 'skipped';
+  message: string | null;
+}
+
+/** Per-store terminal state counts: named buckets partition `aborted`. */
+export interface PerStoreCounts {
+  wrongStore: number;
+  budgetExhausted: number;
+  hashExpired: number;
+  refused: number;
+  failed: number;
+  skipped: number;
+  aborted: number;
+}
+
 export interface SweepRun {
   date: string;
   startedAt: string;
   finishedAt: string | null;
   storesSwept: number;
+  storesAborted: number;
+  perStoreCounts: PerStoreCounts;
+  perStoreReasons: PerStoreReason[];
   finds: number;
   error: string | null;
 }

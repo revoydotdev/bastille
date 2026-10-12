@@ -254,6 +254,24 @@ CREATE TABLE IF NOT EXISTS sweep_run (
   finished_at    TEXT,
   stores_swept   INTEGER NOT NULL DEFAULT 0,
   finds_written  INTEGER NOT NULL DEFAULT 0,
+  -- ---- begin: todo 13 — per-store terminal states
+  -- stores_aborted = the number of stores that did not end in 'succeeded'.
+  -- The named counts partition stores_aborted by terminal state, so a run
+  -- that hit one wrong-store and one refusal can be answered with the two
+  -- numbers; the per_store_reasons JSON keeps the by-store detail (location
+  -- id, name, status, message) for the dashboard.
+  -- sweep_run.error is reserved for run-level failures: a partial run that
+  -- completed with stores_swept=7, stores_aborted=5 leaves it NULL and puts
+  -- each per-store reason in per_store_reasons.
+  stores_aborted              INTEGER NOT NULL DEFAULT 0,
+  stores_with_wrong_store     INTEGER NOT NULL DEFAULT 0,
+  stores_with_budget_exhausted INTEGER NOT NULL DEFAULT 0,
+  stores_with_hash_expired    INTEGER NOT NULL DEFAULT 0,
+  stores_with_refused         INTEGER NOT NULL DEFAULT 0,
+  stores_with_failed          INTEGER NOT NULL DEFAULT 0,
+  stores_with_skipped         INTEGER NOT NULL DEFAULT 0,
+  per_store_reasons           TEXT,
+  -- ---- end: todo 13
   error          TEXT
 );
 
@@ -308,6 +326,19 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: 'snapshot_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'snapshot_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
   // ---- end: observability columns
+  // ---- begin: todo 13 — per-store terminal state columns on sweep_run.
+  // The fresh CREATE TABLE above already names them, so a brand-new install
+  // gets the full schema. Existing installs see the columns added here on
+  // their next open; applyAddedColumns runs the ALTER for each missing one.
+  { table: 'sweep_run', column: 'stores_aborted', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'sweep_run', column: 'stores_with_wrong_store', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'sweep_run', column: 'stores_with_budget_exhausted', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'sweep_run', column: 'stores_with_hash_expired', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'sweep_run', column: 'stores_with_refused', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'sweep_run', column: 'stores_with_failed', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'sweep_run', column: 'stores_with_skipped', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { table: 'sweep_run', column: 'per_store_reasons', definition: 'TEXT' },
+  // ---- end: todo 13
 ];
 
 function applyAddedColumns(db: DB): void {
