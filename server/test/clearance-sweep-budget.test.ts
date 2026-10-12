@@ -42,6 +42,10 @@ function setup(): { repo: ClearanceRepo; dir: string } {
   const dir = mkdtempSync(join(tmpdir(), 'bastille-budget-'));
   const repo = new ClearanceRepo(openDb(join(dir, 't.db')));
   repo.setLocalStore(STORE, null);
+  // The sweep reads every store through a bound egress node; without one the
+  // store is skipped and nothing is read.
+  repo.upsertEgressNode({ id: 'node-test', label: 'test node', proxyUrl: 'http://127.0.0.1:1', region: null, enabled: true });
+  repo.setStoreEgressNode(STORE, 'node-test');
   return { repo, dir };
 }
 

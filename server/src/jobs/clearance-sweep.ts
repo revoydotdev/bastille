@@ -1,19 +1,23 @@
 /**
  * Nightly Walmart in-store clearance sweep.
  *
- * Reads the clearance rack of the one store Walmart serves this connection and
- * records what is on it, with its aisle. Walmart resolves the store from the
- * requesting address, so there is no choosing one: the sweep checks the store
+ * Reads the clearance rack of every enabled store bound to an enabled egress
+ * node and records what is on it, with its aisle. Walmart resolves the store
+ * from the requesting address, so there is no choosing one: each node's proxy
+ * decides which metro the edge answers for, and the sweep checks the store
  * Walmart names in each response against the one on record, which is what would
  * catch the address changing under it - a VPN, a move, a new ISP route -
  * rather than quietly filing another town's clearance under this one.
  *
  * Reads are the scarce resource. Walmart's edge limits on count, not cadence,
- * so a run has a *read budget* (`WALMART_SWEEP_READ_BUDGET`, default 12) spent
- * on shelves in priority order - Computers, Electronics, Video games - and the
- * pacer in `walmart-api` shares a durable ledger with every other caller.
- * Nothing here retries: a refusal stands the sweep down for a cooldown, and
- * enough of them in a row end the run.
+ * so each *node* has a read budget (`WALMART_SWEEP_READ_BUDGET`, default 12)
+ * spent on shelves in priority order - Computers, Electronics, Video games -
+ * and the pacer in `walmart-api` shares a durable per-node ledger with every
+ * other caller. The budget is per node, not per run: fanning out to three nodes
+ * is three allowances, and a refusal on one exit point does not spend another's.
+ *
+ * Nothing here retries. A refusal stands its own node down for a cooldown, and
+ * enough of them in a row end that store's pass; the other nodes keep going.
  *
  * Every error the run records starts with a classification token the dashboard
  * can show: `[rate-limited]`, `[wrong-store]`, `[hash-expired]`, `[budget]` or
@@ -80,12 +84,13 @@ export interface SweepResult {
   alerts: number;
   /** how many reads the edge refused (no retries are made) */
   rateLimited: number;
-  /** true when the run stopped early: refusals, a wrong store, an expired hash or a spent budget */
+  /** true when anything was left unswept: refusals, a wrong store, an expired hash or a spent budget */
   abandoned: boolean;
-  /** the classification of what stopped the run, when something did */
+  /** the classification of what was abandoned, when something was */
   abortReason: SweepErrorKind | null;
-  /** reads made against Walmart this run, refused ones included */
+  /** reads made against Walmart this run across every node, refused ones included */
   readsSpent: number;
+  /** the read budget *per egress node*, not for the run as a whole */
   readBudget: number;
   /** `full` reads every shelf to its end; `delta` reads newest-first and stops at the familiar */
   mode: 'full' | 'delta';
@@ -101,12 +106,13 @@ export interface SweepProgress {
   finds: number;
   rateLimited: number;
   readsSpent: number;
+  /** per-node budget; the run total may be a multiple of it */
   readBudget: number;
   startedAt: string;
 }
 
 export interface SweepOptions {
-  /** Reads per run. Default `WALMART_SWEEP_READ_BUDGET` or 12. */
+  /** Reads per egress node per run. Default `WALMART_SWEEP_READ_BUDGET` or 12. */
   readBudget?: number;
   /** Stand-down after a refusal, ms. */
   cooldownMs?: number;
@@ -149,8 +155,10 @@ export class ClearanceSweepJob {
   private progressListeners = new Set<(p: SweepProgress) => void>();
   private progress: SweepProgress | null = null;
   private readonly opts: Required<SweepOptions>;
-  /** reads made in the run in flight */
+  /** reads made in the run in flight, across every node */
   private readsSpent = 0;
+  /** reads made per egress node in the run in flight: the budget is a node's, not the run's */
+  private readsByNode = new Map<string, number>();
 
   constructor(
     private repo: ClearanceRepo,
@@ -208,6 +216,7 @@ export class ClearanceSweepJob {
     if (this.running) throw new Error('a sweep is already running');
     this.running = true;
     this.readsSpent = 0;
+    this.readsByNode = new Map<string, number>();
 
     // Per-node host budgets. Each egress node burns its own 18-read window
     // against walmart.com so a block on one IP doesn't stop the others.
@@ -220,19 +229,29 @@ export class ClearanceSweepJob {
     let alerts = 0;
     let storesSwept = 0;
     let rateLimited = 0;
-    let consecutiveRateLimits = 0;
     let abandoned = false;
+    /** set only by what is true run-wide (an expired hash) and stops the store loop */
+    let runAborted = false;
     let abortReason: SweepErrorKind | null = null;
     let mode: 'full' | 'delta' = 'full';
 
+    /** Stands the whole run down: what failed will fail for every node. */
     const abort = (kind: SweepErrorKind) => {
+      abandoned = true;
+      runAborted = true;
+      abortReason = kind;
+    };
+    /** Stands one node's store down. The run carries on over the next node. */
+    const abandonStore = (kind: SweepErrorKind) => {
       abandoned = true;
       abortReason = kind;
     };
 
     try {
-      const local = this.repo.localStore();
-      const stores = local ? [local] : [];
+      // Every enabled store, not just the one this connection happens to
+      // answer for: each is read through its own egress node, and that is what
+      // lets one night cover several metros.
+      const stores = this.repo.listStores().filter((s) => s.enabled);
       const categories = sweepOrder(CLEARANCE_CATEGORIES);
 
       if (stores.length === 0) {
@@ -253,27 +272,34 @@ export class ClearanceSweepJob {
       this.publish();
 
       for (const store of stores) {
-        if (abandoned) break;
+        if (runAborted) break;
+        // Counted per node: a refusal on one exit point is not evidence about
+        // the next one's.
+        let consecutiveRateLimits = 0;
 
-        // Look up the egress node for this store. Without one, the read goes
-        // out the process's own egress (which Walmart's edge resolves to one
-        // store, typically the closest to the server's real IP). With one, the
-        // read goes through the residential proxy, and Walmart picks the store
-        // that node is in. This is what lets one sweep cover multiple metros.
-        const node = store.egressNodeId ? this.repo.getEgressNode(store.egressNodeId) : null;
-        if (store.egressNodeId) {
-          if (!node) {
-            errors.push(`[error] ${store.name} (${store.locationId}): assigned egress node "${store.egressNodeId}" not found`);
-            continue;
-          }
-          if (!node.enabled) {
-            errors.push(`[error] ${store.name} (${store.locationId}): egress node "${store.egressNodeId}" is disabled`);
-            continue;
-          }
-          this.repo.touchEgressNode(node.id);
+        // Resolve this store's egress node once, here, and use it for every
+        // read of this store. A store with no node, or one whose node is gone
+        // or disabled, cannot be read at all: there is no other way to be sure
+        // which shop Walmart answers for, so it is skipped and named rather
+        // than read out of this process's own egress and filed under whichever
+        // store that happens to resolve to.
+        if (!store.egressNodeId) {
+          errors.push(
+            `[error] ${store.name} (${store.locationId}): no egress node bound - every store swept must be read through one`,
+          );
+          continue;
         }
-        const proxyUrl = node?.proxyUrl;
-        const egressNodeId = node?.id;
+        const node = this.repo.getEgressNode(store.egressNodeId);
+        if (!node) {
+          errors.push(`[error] ${store.name} (${store.locationId}): assigned egress node "${store.egressNodeId}" not found`);
+          continue;
+        }
+        if (!node.enabled) {
+          errors.push(`[error] ${store.name} (${store.locationId}): egress node "${store.egressNodeId}" is disabled`);
+          continue;
+        }
+        const proxyUrl = node.proxyUrl;
+        const egressNodeId = node.id;
 
         // Delta only when there is a previous full pass recent enough to lean on.
         const lastFull = this.repo.lastFullSweepDate(store.locationId);
@@ -304,17 +330,26 @@ export class ClearanceSweepJob {
             if (kind === 'budget') {
               const left = categories.slice(categories.indexOf(category)).map((c) => c.slug).join(', ');
               errors.push(
-                `[budget] read budget of ${this.opts.readBudget} spent (${this.readsSpent} reads) - not fully read: ${left}`,
+                `[budget] read budget of ${this.opts.readBudget} spent on node "${egressNodeId}" (${this.readsOnNode(egressNodeId)} reads) - not fully read: ${left}`,
               );
-              abort('budget');
+              // This node's allowance is gone; the next node still has its own.
+              abandonStore('budget');
               break;
             }
 
             errors.push(`[${kind}] ${store.name} / ${category.slug}: ${(err as Error).message}`);
 
-            if (kind === 'hash-expired' || kind === 'wrong-store') {
-              // Every further read would fail the same way and spend budget
-              // doing it.
+            if (kind === 'wrong-store') {
+              // The exit point answered for another shop. Every further read
+              // through it would fail the same way and spend budget doing it -
+              // but another node reads for its own store, so this abandons the
+              // store, not the run.
+              abandonStore(kind);
+              break;
+            }
+            if (kind === 'hash-expired') {
+              // The hash is shared by every node's reads, so there is nothing
+              // left worth spending.
               abort(kind);
               break;
             }
@@ -327,15 +362,16 @@ export class ClearanceSweepJob {
 
             if (err instanceof WalmartCooldownError) {
               // The ledger says the edge is closed for longer than a read will
-              // wait. Come back on the next run.
-              abort('rate-limited');
+              // wait. Come back on the next run for this node; the others are
+              // unaffected.
+              abandonStore('rate-limited');
               break;
             }
             if (consecutiveRateLimits >= this.opts.maxConsecutiveRateLimits) {
               errors.push(
-                `[rate-limited] gave up after ${consecutiveRateLimits} consecutive refusals - ${stores.length - this.progress.storesDone} store(s) not swept`,
+                `[rate-limited] gave up on node "${egressNodeId}" after ${consecutiveRateLimits} consecutive refusals - this store is not swept`,
               );
-              abort('rate-limited');
+              abandonStore('rate-limited');
               break;
             }
             // Stand down. The pacer and the ledger are told too, so the next
@@ -348,6 +384,9 @@ export class ClearanceSweepJob {
         // Only a store that actually answered counts as swept, and only that
         // store moves to the back of the rotation queue. One that was refused
         // stays at the front and is retried first next run.
+        // Marked after the pass, not before: `last_used_at` says when this node
+        // was actually read, which is what an operator ages nodes on.
+        this.repo.touchEgressNode(node.id);
         if (sweptAnything) {
           storesSwept++;
           this.repo.markSwept(store.locationId);
@@ -386,16 +425,27 @@ export class ClearanceSweepJob {
     }
   }
 
+  /** reads made against one egress node in the run in flight */
+  private readsOnNode(egressNodeId: string | undefined): number {
+    return this.readsByNode.get(egressNodeId ?? '') ?? 0;
+  }
+
+  private spendRead(egressNodeId: string | undefined): void {
+    const key = egressNodeId ?? '';
+    this.readsByNode.set(key, (this.readsByNode.get(key) ?? 0) + 1);
+    this.readsSpent++;
+  }
+
   /**
    * Reads one shelf page by page. `known` is the set of item ids already on
    * record at this store; when given the read is a delta - newest first, ending
    * at the first page that holds nothing unfamiliar. `complete` says the shelf
    * was read to its end rather than cut short by the budget or an error.
    *
-   * `store` is the full SweptStore (with `egressNodeId` if assigned). The
-   * per-store egress node is resolved to a proxy URL once and used for every
-   * page of this shelf. Nodes are looked up in `localEgressNodes` which the
-   * job pre-populates from the repo at run start.
+   * `store` is the full SweptStore (with `egressNodeId`). The job resolves that
+   * node once per store and hands its proxy URL down, so every page of this
+   * shelf goes out the same exit point - and is counted against that node's
+   * budget rather than the run's.
    */
   private async sweepCategory(
     date: string,
@@ -415,8 +465,12 @@ export class ClearanceSweepJob {
     let alerts = 0;
 
     for (let page = 1; page <= MAX_PAGES_GUARD; page++) {
-      if (this.readsSpent >= this.opts.readBudget) throw new BudgetSpentError('read budget spent');
-      this.readsSpent++;
+      // The budget is the node's, not the run's: three nodes on a night get
+      // three allowances, and one node running dry cannot starve the others.
+      if (this.readsOnNode(egressNodeId) >= this.opts.readBudget) {
+        throw new BudgetSpentError(`read budget of ${this.opts.readBudget} spent on node ${egressNodeId}`);
+      }
+      this.spendRead(egressNodeId);
       this.publish();
       const shelf = await this.readShelf({
         locationId,
