@@ -7,7 +7,7 @@
  * matters is *which store*, *what aisle*, and *is it new today*.
  */
 import type { DB } from '../db.js';
-import { setHostBudget, setNodeHostBudget, type ClearanceItem, type WalmartStore } from './walmart-api.js';
+import { setHostBudget, setNodeHostBudget, forgetNodePacer, forgetProxyAgent, type ClearanceItem, type WalmartStore } from './walmart-api.js';
 import { HostBudget } from './host-budget.js';
 import { isCategoryGroup, type CategoryGroup } from './categories.js';
 
@@ -163,6 +163,10 @@ export interface ShelfMapEntry {
   bestDiscountPct: number | null;
 }
 
+/** The per-node ledger key. A node's budget lives under its own host row, so
+ *  N nodes are N independent windows. */
+const budgetHostFor = (nodeId: string): string => `www.walmart.com:${nodeId}`;
+
 export class ClearanceRepo {
   private readonly budget: HostBudget;
 
@@ -188,7 +192,7 @@ export class ClearanceRepo {
    */
   installEgressBudgets(): void {
     for (const n of this.listEgressNodes().filter((n) => n.enabled)) {
-      setNodeHostBudget(n.id, new HostBudget(this.db, `www.walmart.com:${n.id}`));
+      setNodeHostBudget(n.id, new HostBudget(this.db, budgetHostFor(n.id)));
     }
   }
 
@@ -385,6 +389,7 @@ export class ClearanceRepo {
 
   upsertEgressNode(node: Omit<EgressNode, 'addedAt' | 'lastUsedAt'> & { addedAt?: string }): EgressNode {
     const addedAt = node.addedAt ?? new Date().toISOString();
+    const prior = this.getEgressNode(node.id);
     this.db
       .prepare(
         `INSERT INTO egress_node (id, label, proxy_url, region, enabled, added_at)
@@ -394,19 +399,48 @@ export class ClearanceRepo {
            enabled=excluded.enabled`,
       )
       .run(node.id, node.label, node.proxyUrl, node.region, node.enabled ? 1 : 0, addedAt);
+    // Re-pointing a node id at a different proxy is a different region, so the
+    // old region's spent window and cooldown must not carry over: retire the
+    // whole lifecycle and start from a fresh ledger row.
+    if (prior && prior.proxyUrl !== node.proxyUrl) {
+      this.retireNodeState(node.id, prior.proxyUrl);
+      if (node.enabled) setNodeHostBudget(node.id, new HostBudget(this.db, budgetHostFor(node.id)));
+    }
     return this.getEgressNode(node.id)!;
   }
 
+  /**
+   * Drops every piece of state a node owns: its durable ledger row, its
+   * in-memory pacer slot and its cached proxy agent.
+   *
+   * The `host_budget` key is `www.walmart.com:<nodeId>`, not a child of
+   * `egress_node`, so nothing cascades to it on its own — the FK added for the
+   * per-node ledger lives on `(host, egress_node_id)` and only fires once the
+   * node row is gone *and* something names the node. This explicit DELETE is
+   * therefore the canonical way to drop a node's ledger row, and it is
+   * idempotent, so calling it before the node row is deleted (a re-point) and
+   * after (a delete) is the same operation.
+   */
+  private retireNodeState(id: string, proxyUrl: string | null): void {
+    this.db.prepare('DELETE FROM host_budget WHERE host = ?').run(budgetHostFor(id));
+    forgetNodePacer(id);
+    forgetProxyAgent(proxyUrl);
+  }
+
   deleteEgressNode(id: string): void {
+    const node = this.getEgressNode(id);
     this.db.exec('BEGIN IMMEDIATE');
     try {
       this.db.prepare('UPDATE walmart_store SET egress_node_id = NULL WHERE egress_node_id = ?').run(id);
+      this.db.prepare('DELETE FROM host_budget WHERE host = ?').run(budgetHostFor(id));
       this.db.prepare('DELETE FROM egress_node WHERE id = ?').run(id);
       this.db.exec('COMMIT');
     } catch (err) {
       this.db.exec('ROLLBACK');
       throw err;
     }
+    if (node) forgetProxyAgent(node.proxyUrl);
+    forgetNodePacer(id);
   }
 
   /**
@@ -415,9 +449,24 @@ export class ClearanceRepo {
    * egress (the original behaviour, still useful for single-store setups).
    */
   setStoreEgressNode(locationId: string, egressNodeId: string | null): void {
+    const prev = (
+      this.db
+        .prepare('SELECT egress_node_id FROM walmart_store WHERE location_id = ?')
+        .get(locationId) as { egress_node_id: string | null } | undefined
+    )?.egress_node_id ?? null;
     this.db
       .prepare('UPDATE walmart_store SET egress_node_id = ? WHERE location_id = ?')
       .run(egressNodeId, locationId);
+    // A node nobody reads through any more holds no budget and must not hold a
+    // cooldown: free its pacer slot so it cannot delay a later read.
+    if (prev && prev !== egressNodeId) this.forgetIfUnbound(prev);
+  }
+
+  private forgetIfUnbound(nodeId: string): void {
+    const bound = this.db
+      .prepare('SELECT COUNT(*) AS n FROM walmart_store WHERE egress_node_id = ?')
+      .get(nodeId) as { n: number };
+    if (bound.n === 0) forgetNodePacer(nodeId);
   }
 
   /**

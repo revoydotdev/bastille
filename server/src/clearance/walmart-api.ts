@@ -89,6 +89,34 @@ export function forgetNodePacer(nodeId: string): void {
   perNodeBudget.delete(nodeId);
 }
 
+/**
+ * Proxy agents, keyed by proxy URL. One agent per URL (not per read): a fresh
+ * agent per call meant a deleted or re-registered node left its sockets open
+ * with no handle for anyone to close them with.
+ */
+const proxyAgents = new Map<string, ProxyAgent>();
+function proxyAgentFor(proxyUrl: string): ProxyAgent {
+  let a = proxyAgents.get(proxyUrl);
+  if (!a) {
+    a = new ProxyAgent({ uri: proxyUrl, pipelining: 0 });
+    proxyAgents.set(proxyUrl, a);
+  }
+  return a;
+}
+
+/**
+ * Closes and forgets the agent cached for a proxy URL. Called when a node is
+ * deleted or re-pointed at a different proxy, so a repurposed node id does not
+ * inherit the previous region's connection pool.
+ */
+export function forgetProxyAgent(proxyUrl: string | null | undefined): void {
+  if (!proxyUrl) return;
+  const a = proxyAgents.get(proxyUrl);
+  if (!a) return;
+  proxyAgents.delete(proxyUrl);
+  void a.close().catch(() => undefined);
+}
+
 /** A cooldown longer than this is not slept through inside a read; it is raised. */
 const MAX_PACE_WAIT_MS = 90_000;
 const RATE_LIMIT_COOLDOWN_MS = Number(process.env.WALMART_RATE_LIMIT_COOLDOWN_MS ?? 5 * 60 * 1000);
@@ -240,10 +268,9 @@ interface GraphQLErrors {
  * reads downstream as "this store has nothing on clearance", which is the most
  * expensive kind of wrong answer here — so it is raised instead.
  *
- * `opts.proxyUrl` makes the read go through a residential-proxy exit. A fresh
- * ProxyAgent is built per call (cheap; the agent is just config) so each node
- * has its own connection pool and a node cooldown can't poison the default
- * dispatcher.
+ * `opts.proxyUrl` makes the read go through a residential-proxy exit. Agents
+ * are cached per proxy URL so each node has its own connection pool and a node
+ * cooldown can't poison the default dispatcher.
  */
 async function persistedQuery<T>(
   path: string,
@@ -260,7 +287,7 @@ async function persistedQuery<T>(
 ): Promise<T> {
   await pace({ egressNodeId: opts.egressNodeId });
   const url = `${SITE}${path}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
-  const dispatcher = opts.proxyUrl ? new ProxyAgent({ uri: opts.proxyUrl, pipelining: 0 }) : undefined;
+  const dispatcher = opts.proxyUrl ? proxyAgentFor(opts.proxyUrl) : undefined;
   let body: T & GraphQLErrors;
   try {
     // retries: 0 — a refusal is not something to knock on again. The sweep's

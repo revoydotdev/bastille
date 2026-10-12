@@ -125,3 +125,170 @@ test('each node keeps its own durable budget row', async (t) => {
 });
 
 test.after(() => agent.close());
+// ---- node lifecycle -------------------------------------------------------
+// A node that is deleted, unbound or re-pointed must not leave its spent
+// window or its cooldown behind: a reused id has to start clean.
+
+function dbRowCount(db: ReturnType<typeof openDb>, sql: string, ...args: unknown[]): number {
+  return (db.prepare(sql).get(...(args as [])) as { n: number }).n;
+}
+
+test('deleteEgressNode removes the budget row and the pacer slot', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'bastille-node-lifecycle-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const db = openDb(join(dir, 'lc.db'));
+  const { ClearanceRepo } = await import('../src/clearance/repo.js');
+
+  const repo = new ClearanceRepo(db);
+  repo.upsertEgressNode({
+    id: 'node-x',
+    label: 'X',
+    proxyUrl: 'http://proxy-x:1',
+    region: 'rva',
+    enabled: true,
+  });
+  repo.installEgressBudgets();
+
+  const budget = new HostBudget(db, 'www.walmart.com:node-x', { windowMs: 60_000, windowLimit: 2 });
+  budget.recordRead();
+  budget.recordRead();
+  assert.ok(budget.waitMs() > 59_000, 'node-x should be spent');
+  assert.equal(dbRowCount(db, 'SELECT COUNT(*) AS n FROM host_budget WHERE host = ?', 'www.walmart.com:node-x'), 1);
+
+  // Put the in-memory pacer on cooldown too, so both halves are live.
+  api.setNodeHostBudget('node-x', budget);
+  api.backOffUntil(120_000, 'node-x');
+
+  repo.deleteEgressNode('node-x');
+
+  assert.equal(
+    dbRowCount(db, 'SELECT COUNT(*) AS n FROM host_budget WHERE host = ?', 'www.walmart.com:node-x'),
+    0,
+    'the node ledger row must be gone',
+  );
+  assert.equal(dbRowCount(db, 'SELECT COUNT(*) AS n FROM egress_node WHERE id = ?', 'node-x'), 0);
+
+  // The pacer slot and its per-node budget binding are gone, so a read on the
+  // same id is neither paced nor blocked.
+  pool
+    .intercept({ path: /orchestra\/snb\/graphql\/Browse/, method: 'GET' })
+    .reply(200, shelfBody('Henrico Supercenter'));
+  const started = Date.now();
+  const got = await api.clearanceShelf({ categoryId: '3944', egressNodeId: 'node-x' });
+  assert.equal(got.storeName, 'Henrico Supercenter');
+  assert.ok(Date.now() - started < 5_000, 'a deleted node id must not inherit its cooldown');
+});
+
+test('re-registering the same node id yields waitMs() === 0', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'bastille-node-lifecycle-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const db = openDb(join(dir, 'lc2.db'));
+  const { ClearanceRepo } = await import('../src/clearance/repo.js');
+
+  const repo = new ClearanceRepo(db);
+  const node = {
+    id: 'node-y',
+    label: 'Y',
+    proxyUrl: 'http://proxy-y:1',
+    region: 'rva',
+    enabled: true,
+  };
+  repo.upsertEgressNode(node);
+  repo.installEgressBudgets();
+
+  const spent = new HostBudget(db, 'www.walmart.com:node-y', { windowMs: 60_000, windowLimit: 2 });
+  spent.recordRead();
+  spent.recordRead();
+  assert.ok(spent.waitMs() > 59_000);
+  api.setNodeHostBudget('node-y', spent);
+  api.backOffUntil(120_000, 'node-y');
+
+  repo.deleteEgressNode('node-y');
+  repo.upsertEgressNode(node);
+  repo.installEgressBudgets();
+
+  const fresh = new HostBudget(db, 'www.walmart.com:node-y', { windowMs: 60_000, windowLimit: 2 });
+  assert.equal(fresh.waitMs(), 0, 'a re-registered node id must start from a clean ledger');
+
+  pool
+    .intercept({ path: /orchestra\/snb\/graphql\/Browse/, method: 'GET' })
+    .reply(200, shelfBody('Chester Supercenter'));
+  const started = Date.now();
+  await api.clearanceShelf({ categoryId: '3944', egressNodeId: 'node-y' });
+  assert.ok(Date.now() - started < 5_000, 'no stale cooldown on a reused id');
+});
+
+test('re-pointing a node at another proxy resets its budget', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'bastille-node-lifecycle-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const db = openDb(join(dir, 'lc3.db'));
+  const { ClearanceRepo } = await import('../src/clearance/repo.js');
+
+  const repo = new ClearanceRepo(db);
+  repo.upsertEgressNode({
+    id: 'node-z',
+    label: 'Z',
+    proxyUrl: 'http://proxy-z-rva:1',
+    region: 'rva',
+    enabled: true,
+  });
+  const first = new HostBudget(db, 'www.walmart.com:node-z', { windowMs: 60_000, windowLimit: 2 });
+  first.recordRead();
+  first.recordRead();
+  assert.ok(first.waitMs() > 59_000);
+
+  repo.upsertEgressNode({
+    id: 'node-z',
+    label: 'Z',
+    proxyUrl: 'http://proxy-z-iad:1',
+    region: 'iad',
+    enabled: true,
+  });
+
+  const second = new HostBudget(db, 'www.walmart.com:node-z', { windowMs: 60_000, windowLimit: 2 });
+  assert.equal(second.waitMs(), 0, 'a re-pointed node is a different region: clean budget');
+});
+
+test('unbinding the last store frees the pacer; rebinding does not carry it over', async (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'bastille-node-lifecycle-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const db = openDb(join(dir, 'lc4.db'));
+  const { ClearanceRepo } = await import('../src/clearance/repo.js');
+
+  db.prepare(
+    `INSERT INTO walmart_store (location_id, name, lat, lng, enabled, added_at)
+     VALUES (?,?,?,?,1,?)`,
+  ).run('s1', 'Store One', 38.0, -78.0, new Date().toISOString());
+
+  const repo = new ClearanceRepo(db);
+  repo.upsertEgressNode({
+    id: 'node-a',
+    label: 'A',
+    proxyUrl: 'http://proxy-a:1',
+    region: null,
+    enabled: true,
+  });
+  repo.upsertEgressNode({
+    id: 'node-b',
+    label: 'B',
+    proxyUrl: 'http://proxy-b:1',
+    region: null,
+    enabled: true,
+  });
+
+  api.setHostBudget(null);
+  repo.setStoreEgressNode('s1', 'node-a');
+  api.backOffUntil(120_000, 'node-a');
+
+  // Move the store to node-b: node-a has no remaining bound store, so its
+  // cooldown slot must be released rather than left lying around.
+  repo.setStoreEgressNode('s1', 'node-b');
+
+  pool
+    .intercept({ path: /orchestra\/snb\/graphql\/Browse/, method: 'GET' })
+    .reply(200, shelfBody('Sheila Lane Supercenter'));
+  const started = Date.now();
+  await api.clearanceShelf({ categoryId: '3944', egressNodeId: 'node-a' });
+  assert.ok(Date.now() - started < 5_000, 'node-a must not keep a cooldown after losing its last store');
+  void t;
+});
