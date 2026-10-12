@@ -41,9 +41,11 @@ async function walmartStoreFinder() {
 }
 
 async function walmartBrowse() {
-  // ps=40 (production page size) for realistic byte cost measurement
+  // Same persisted-query hash and host the app itself uses (BROWSE_HASH and the
+  // `/orchestra/snb/graphql/Browse/` path in server/src/clearance/walmart-api.ts).
+  // ps=40 is the production page size.
   return {
-    url: 'https://www.walmart.com/orchestra/home/graphql/browse/6d3a5c2b15c96f4fd5e5e7c3c9e3f2a9c8d7b6e4f5a3c2d1e0f9a8b7c6d5e4f3?variables=' + encodeURIComponent(JSON.stringify({ catId: '3944', page: 1, ps: 40, sort: 'new' })),
+    url: 'https://www.walmart.com/orchestra/snb/graphql/Browse/8aa4d8ce0587319fb70bdafd8d6a70e873cdc85ae79de801a21da658d1457f12?variables=' + encodeURIComponent(JSON.stringify({ catId: '3944', page: 1, ps: 40, sort: 'new' })),
     method: 'GET',
     headers: {
       'accept-encoding': 'gzip, br',
@@ -110,20 +112,10 @@ async function foodLionAisle() {
   };
 }
 
-async function controlUrl() {
-  return {
-    url: 'https://example.com/',
-    method: 'GET',
-    headers: {
-      'accept-encoding': 'gzip, br',
-      accept: '*/*',
-    },
-  };
-}
-
 async function githubRawControl() {
-  // GitHub raw: content-length + gzip — good offline-verifiable control that
-  // wire_bytes (raw body length) matches what curl --compressed reports
+  // The single control the plan asks for: a known static asset that serves
+  // content-length alongside gzip, so measured wire_bytes can be checked
+  // against the server's own content-length for the same request.
   return {
     url: 'https://raw.githubusercontent.com/nodejs/node/main/README.md',
     method: 'GET',
@@ -348,7 +340,6 @@ async function main() {
     { path: 'wegmans-algolia', label: 'Wegmans Algolia products_v2 search "milk"', buildRequest: wegmansAlgolia },
     { path: 'traderjoes-graphql', label: "Trader Joe's GraphQL StoresSearch", buildRequest: traderJoesGraphQL },
     { path: 'foodlion-aisle', label: 'Food Lion aisle page (produce)', buildRequest: foodLionAisle },
-    { path: 'control', label: 'example.com static control', buildRequest: controlUrl },
     { path: 'github-raw-control', label: 'GitHub raw README.md (content-length+gzip control)', buildRequest: githubRawControl },
   ];
 
@@ -394,7 +385,7 @@ async function main() {
 
   const result = {
     measured_at: new Date().toISOString(),
-    script_version: '1.4.0',
+    script_version: '1.5.0',
     paths: rows,
   };
 
