@@ -14,6 +14,7 @@ import { adapterFor, STORE_IDS } from './adapters/index.js';
 import { ClearanceRepo } from './clearance/repo.js';
 import { ClearanceSweepJob } from './jobs/clearance-sweep.js';
 import { registerClearanceRoutes } from './clearance/routes.js';
+import { closeProxyAgents } from './clearance/walmart-api.js';
 
 // Resolve paths against the repo, not the shell's cwd — `npm start
 // --workspace=server` runs from server/, `node dist/index.js` from anywhere.
@@ -72,6 +73,7 @@ async function main(): Promise<void> {
     const failsafe = setTimeout(() => process.exit(1), 5_000);
     failsafe.unref();
     await app.close();
+    await closeProxyAgents();
     db.close();
     process.exit(0);
   };

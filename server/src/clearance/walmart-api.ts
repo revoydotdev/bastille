@@ -27,7 +27,7 @@
  * See docs/WALMART-CLEARANCE-API.md for the full write-up.
  */
 import { fetchJson, HttpError } from '../adapters/http.js';
-import { ProxyAgent } from 'undici';
+import { ProxyAgent, type Dispatcher } from 'undici';
 import type { HostBudget } from './host-budget.js';
 import type { Point } from '../geo.js';
 
@@ -87,6 +87,53 @@ function pacerFor(nodeId: string | null | undefined): NodePacer {
 export function forgetNodePacer(nodeId: string): void {
   pacers.delete(nodeId);
   perNodeBudget.delete(nodeId);
+}
+
+// ---- proxy agents ----------------------------------------------------------
+
+/**
+ * A ProxyAgent is not "just config": it owns a socket pool and a tunnel, so a
+ * fresh one per read leaked a whole pool each time and DAG fan-out multiplies
+ * it. One agent per proxy URL, held for the process lifetime and closed at
+ * shutdown. Keying by URL keeps an agent off every other proxy's pool, so a
+ * node's pool and a node's cooldown stay independent.
+ */
+type PooledAgent = Dispatcher & { destroy(): Promise<void> };
+
+const proxyAgents = new Map<string, PooledAgent>();
+
+/** Test seam: lets a test count constructions instead of dialing a real proxy. */
+let makeAgent = (uri: string): PooledAgent => new ProxyAgent({ uri, pipelining: 0 });
+export function setProxyAgentFactory(f: (uri: string) => PooledAgent): void {
+  makeAgent = f;
+}
+
+function agentFor(proxyUrl: string): PooledAgent {
+  let a = proxyAgents.get(proxyUrl);
+  if (!a) {
+    a = makeAgent(proxyUrl);
+    proxyAgents.set(proxyUrl, a);
+  }
+  return a;
+}
+
+/**
+ * Closes and drops one proxy URL's agent. Symmetrical to `forgetNodePacer`:
+ * called when a node is unbound or re-pointed, so a retired proxy's sockets
+ * don't outlive it.
+ */
+export function forgetProxyAgent(proxyUrl: string): void {
+  const a = proxyAgents.get(proxyUrl);
+  if (!a) return;
+  proxyAgents.delete(proxyUrl);
+  void a.destroy().catch(() => {});
+}
+
+/** Shutdown hook, alongside `db.close()`: destroys every cached agent. */
+export async function closeProxyAgents(): Promise<void> {
+  const agents = [...proxyAgents.values()];
+  proxyAgents.clear();
+  await Promise.all(agents.map((a) => a.destroy().catch(() => {})));
 }
 
 /** A cooldown longer than this is not slept through inside a read; it is raised. */
@@ -240,10 +287,10 @@ interface GraphQLErrors {
  * reads downstream as "this store has nothing on clearance", which is the most
  * expensive kind of wrong answer here — so it is raised instead.
  *
- * `opts.proxyUrl` makes the read go through a residential-proxy exit. A fresh
- * ProxyAgent is built per call (cheap; the agent is just config) so each node
- * has its own connection pool and a node cooldown can't poison the default
- * dispatcher.
+ * `opts.proxyUrl` makes the read go through a residential-proxy exit. Its
+ * ProxyAgent is one per proxy URL, held for the process lifetime and closed at
+ * shutdown, so each node keeps its own connection pool and a node cooldown
+ * can't poison the default dispatcher.
  */
 async function persistedQuery<T>(
   path: string,
@@ -260,7 +307,7 @@ async function persistedQuery<T>(
 ): Promise<T> {
   await pace({ egressNodeId: opts.egressNodeId });
   const url = `${SITE}${path}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
-  const dispatcher = opts.proxyUrl ? new ProxyAgent({ uri: opts.proxyUrl, pipelining: 0 }) : undefined;
+  const dispatcher = opts.proxyUrl ? agentFor(opts.proxyUrl) : undefined;
   let body: T & GraphQLErrors;
   try {
     // retries: 0 — a refusal is not something to knock on again. The sweep's
