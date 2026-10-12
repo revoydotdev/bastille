@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { applyMigrations, LOCAL_EGRESS_NODE_ID } from './db/migrations.js';
 
 export type DB = DatabaseSync;
 
@@ -128,9 +129,10 @@ CREATE INDEX IF NOT EXISTS daily_snapshot_product
 -- ---- Egress nodes (W-9) -------------------------------------------------
 -- One row per residential-proxy exit point. The sweep dials the proxy_url and
 -- appends the geo suffix to the proxy password to get an IP in <region>.
--- The host budget is keyed by (host, egress_node_id) so each exit point burns
--- its own 18-read window.  This is what implements the W-9 federation path:
--- one process, multiple egress nodes, one store per node.
+-- The host budget is keyed by (host, egress_node_id) — see the host_budget
+-- table below — so each exit point burns its own read and byte window.  This is
+-- what implements the W-9 federation path: one process, multiple egress nodes,
+-- one store per node.
 --
 -- proxy_url is a full URL with embedded credentials (e.g. a per-region password
 -- suffix that IPRoyal understands). Keeping it in the DB means rotating
@@ -257,16 +259,24 @@ CREATE TABLE IF NOT EXISTS sweep_run (
   error          TEXT
 );
 
--- Durable read ledger for hosts that rate-limit by count. The pacer, the nightly
--- sweep and a manual sweep all consult the same row, so a restart does not hand
--- a refused connection a fresh allowance.
+-- Durable read ledger for hosts that rate-limit by count and by bytes. The
+-- pacer, the nightly sweep and a manual sweep all consult the same row, so a
+-- restart does not hand a refused connection a fresh allowance.
+--
+-- Keyed by (host, egress_node_id): Walmart's limit is per exit IP, so a node
+-- that gets refused must not spend the default egress's window, and deleting a
+-- node retires its ledger with it. The bytes column is what makes the ceiling
+-- enforceable in the same place the read count is.
 CREATE TABLE IF NOT EXISTS host_budget (
-  host              TEXT PRIMARY KEY,
+  host              TEXT NOT NULL,
+  egress_node_id    TEXT NOT NULL REFERENCES egress_node(id) ON DELETE CASCADE,
   not_before        INTEGER NOT NULL DEFAULT 0,   -- epoch ms; no read before this
   window_started_at INTEGER NOT NULL DEFAULT 0,   -- epoch ms
   reads_in_window   INTEGER NOT NULL DEFAULT 0,
+  bytes_in_window   INTEGER NOT NULL DEFAULT 0,
   last_status       INTEGER,                      -- HTTP status of the last refusal
-  updated_at        TEXT NOT NULL
+  updated_at        TEXT NOT NULL,
+  PRIMARY KEY (host, egress_node_id)
 );
 
 -- When a store last got a full read of every shelf. Delta sweeps (newest-first,
@@ -324,6 +334,11 @@ function applyAddedColumns(db: DB): void {
 const EXTRA_SCHEMA = `
 -- One row per upstream read (O-1), written by adapters/http.ts. Pruned by age
 -- and row count in metrics.ts. No query strings, headers or cookies.
+--
+-- The host alone cannot say which exit point a read went out through, so a
+-- federated run attributed every node's bytes to one host row. egress_node_id
+-- carries that (the request's identityKey); it is NULL for reads made
+-- through the process's own egress.
 CREATE TABLE IF NOT EXISTS request_log (
   id      INTEGER PRIMARY KEY,
   ts      TEXT NOT NULL,             -- ISO-8601
@@ -331,7 +346,8 @@ CREATE TABLE IF NOT EXISTS request_log (
   op      TEXT NOT NULL,             -- URL path only
   status  INTEGER NOT NULL,          -- 0 = no response
   ms      INTEGER NOT NULL,
-  bytes   INTEGER NOT NULL DEFAULT 0
+  bytes   INTEGER NOT NULL DEFAULT 0,
+  egress_node_id TEXT
 );
 CREATE INDEX IF NOT EXISTS request_log_ts ON request_log (ts);
 
@@ -359,6 +375,14 @@ export function openDb(path: string = process.env.BASTILLE_DB ?? resolve('data/b
   db.exec(SCHEMA);
   db.exec(EXTRA_SCHEMA);
   applyAddedColumns(db);
+  // The process's own egress is a node like any other, so the budget's foreign
+  // key has something to point at. Seeded before the migrations run, because
+  // moving a legacy concatenated budget row onto this id is part of one of them.
+  db.prepare(
+    `INSERT INTO egress_node (id, label, proxy_url, enabled, added_at)
+     VALUES (?, 'process egress (no proxy)', '', 0, ?) ON CONFLICT (id) DO NOTHING`,
+  ).run(LOCAL_EGRESS_NODE_ID, new Date().toISOString());
+  applyMigrations(db);
   db.prepare(
     `INSERT INTO deal_monitor (id, min_discount, groups, enabled, updated_at)
      VALUES (1, ?, ?, 1, ?) ON CONFLICT (id) DO NOTHING`,

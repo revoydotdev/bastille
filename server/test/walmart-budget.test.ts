@@ -21,6 +21,7 @@ agent.disableNetConnect();
 setGlobalDispatcher(agent);
 
 const { openDb } = await import('../src/db.js');
+const { LOCAL_EGRESS_NODE_ID } = await import('../src/db/migrations.js');
 const { HostBudget } = await import('../src/clearance/host-budget.js');
 const api = await import('../src/clearance/walmart-api.js');
 const { HttpError, setHttpDispatcher } = await import('../src/adapters/http.js');
@@ -33,14 +34,14 @@ test('host budget persists its not-before and window count across handles', (t) 
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const path = join(dir, 'hb.db');
 
-  const a = new HostBudget(openDb(path), 'h', { windowMs: 60_000, windowLimit: 3 });
+  const a = new HostBudget(openDb(path), 'h', LOCAL_EGRESS_NODE_ID, { windowMs: 60_000, windowLimit: 3 });
   assert.equal(a.waitMs(), 0);
   a.recordRead();
   a.recordRead();
   a.block(120_000, 412);
 
   // A "restart": a fresh handle on the same file sees all of it.
-  const b = new HostBudget(openDb(path), 'h', { windowMs: 60_000, windowLimit: 3 });
+  const b = new HostBudget(openDb(path), 'h', LOCAL_EGRESS_NODE_ID, { windowMs: 60_000, windowLimit: 3 });
   assert.ok(b.waitMs() > 100_000);
   assert.equal(b.state().readsInWindow, 2);
   assert.equal(b.state().lastStatus, 412);
@@ -49,7 +50,7 @@ test('host budget persists its not-before and window count across handles', (t) 
 test('a spent window holds reads until it closes', (t) => {
   const dir = mkdtempSync(join(tmpdir(), 'bastille-hb-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const b = new HostBudget(openDb(join(dir, 'hb.db')), 'h', { windowMs: 60_000, windowLimit: 2 });
+  const b = new HostBudget(openDb(join(dir, 'hb.db')), 'h', LOCAL_EGRESS_NODE_ID, { windowMs: 60_000, windowLimit: 2 });
   const t0 = 1_000_000;
   b.recordRead(t0);
   assert.equal(b.waitMs(t0 + 1), 0);

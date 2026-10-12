@@ -27,6 +27,7 @@
  * See docs/WALMART-CLEARANCE-API.md for the full write-up.
  */
 import { fetchJson, HttpError } from '../adapters/http.js';
+import { tallyRequests } from '../metrics.js';
 import { ProxyAgent } from 'undici';
 import type { HostBudget } from './host-budget.js';
 import type { Point } from '../geo.js';
@@ -265,13 +266,20 @@ async function persistedQuery<T>(
   try {
     // retries: 0 — a refusal is not something to knock on again. The sweep's
     // cooldown (and the ledger) decide when the next read may go out.
-    body = await fetchJson<T & GraphQLErrors>(url, {
-      headers: walmartHeaders(opts.referer, operation, opts),
-      timeoutMs: 30_000,
-      retries: 0,
-      ...(dispatcher ? { dispatcher } : {}),
-      ...(opts.egressNodeId ? { identityKey: opts.egressNodeId } : {}),
-    });
+    // The tally is the same decompressed size request_log.bytes records, so the
+    // ledger and the log cannot disagree about what a read cost.
+    const read = await tallyRequests(() =>
+      fetchJson<T & GraphQLErrors>(url, {
+        headers: walmartHeaders(opts.referer, operation, opts),
+        timeoutMs: 30_000,
+        retries: 0,
+        ...(dispatcher ? { dispatcher } : {}),
+        ...(opts.egressNodeId ? { identityKey: opts.egressNodeId } : {}),
+      }),
+    );
+    body = read.value;
+    const ledger = budgetFor(opts.egressNodeId);
+    if (ledger) budgetCall(ledger, (b) => b.recordBytes(read.bytes));
   } catch (err) {
     if (err instanceof HttpError) {
       if (err.status === 412 || err.status === 429) {

@@ -8,7 +8,7 @@
  */
 import type { DB } from '../db.js';
 import { setHostBudget, setNodeHostBudget, type ClearanceItem, type WalmartStore } from './walmart-api.js';
-import { HostBudget } from './host-budget.js';
+import { HostBudget, WALMART_HOST } from './host-budget.js';
 import { isCategoryGroup, type CategoryGroup } from './categories.js';
 
 export interface SweptStore extends WalmartStore {
@@ -183,12 +183,12 @@ export class ClearanceRepo {
    * every run. Each node's budget is independent of the default one, so a
    * 412 against the Charlottesville proxy does not block a read through the
    * Powhatan one. The budgets live in the same SQLite file (host_budget table)
-   * keyed by host = `www.walmart.com:<nodeId>` so they share the durable
-   * ledger across restarts.
+   * on its real `(host, egress_node_id)` key, so they share the durable ledger
+   * across restarts without the id being pasted into a string.
    */
   installEgressBudgets(): void {
     for (const n of this.listEgressNodes().filter((n) => n.enabled)) {
-      setNodeHostBudget(n.id, new HostBudget(this.db, `www.walmart.com:${n.id}`));
+      setNodeHostBudget(n.id, new HostBudget(this.db, WALMART_HOST, n.id));
     }
   }
 
@@ -368,11 +368,16 @@ export class ClearanceRepo {
 
   // ---- egress_node CRUD ---------------------------------------------------
 
+  /**
+   * Operator-registered proxies only. The `local` row exists so the budget's
+   * foreign key has something to point at for reads made through the process's
+   * own egress; it has no proxy and is not a node anybody can bind a store to.
+   */
   listEgressNodes(opts: { enabledOnly?: boolean } = {}): EgressNode[] {
-    const sql = opts.enabledOnly
-      ? 'SELECT * FROM egress_node WHERE enabled = 1 ORDER BY id'
-      : 'SELECT * FROM egress_node ORDER BY id';
-    const rows = this.db.prepare(sql).all() as Record<string, unknown>[];
+    const where = opts.enabledOnly ? 'enabled = 1 AND' : '';
+    const rows = this.db
+      .prepare(`SELECT * FROM egress_node WHERE ${where} proxy_url <> '' ORDER BY id`)
+      .all() as Record<string, unknown>[];
     return rows.map((r) => this.toEgressNode(r));
   }
 

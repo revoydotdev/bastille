@@ -109,8 +109,14 @@ test('each node keeps its own durable budget row', async (t) => {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const db = openDb(join(dir, 'nb.db'));
 
-  const a = new HostBudget(db, 'www.walmart.com:node-a', { windowMs: 60_000, windowLimit: 2 });
-  const b = new HostBudget(db, 'www.walmart.com:node-b', { windowMs: 60_000, windowLimit: 2 });
+  for (const id of ['node-a', 'node-b']) {
+    db.prepare(
+      `INSERT INTO egress_node (id, label, proxy_url, enabled, added_at) VALUES (?, ?, 'http://p', 1, ?)`,
+    ).run(id, id, new Date().toISOString());
+  }
+
+  const a = new HostBudget(db, 'www.walmart.com', 'node-a', { windowMs: 60_000, windowLimit: 2 });
+  const b = new HostBudget(db, 'www.walmart.com', 'node-b', { windowMs: 60_000, windowLimit: 2 });
   assert.equal(a.waitMs(), 0);
   assert.equal(b.waitMs(), 0);
 

@@ -10,6 +10,7 @@
  */
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { DB } from './db.js';
+import { LOCAL_EGRESS_NODE_ID } from './db/migrations.js';
 
 export interface RequestRecord {
   host: string;
@@ -19,6 +20,13 @@ export interface RequestRecord {
   status: number;
   ms: number;
   bytes: number;
+  /**
+   * Which egress node the read went out through — the HTTP client's
+   * `identityKey`. Null for a read made through the process's own egress,
+   * which is what every request looked like before federation existed and all
+   * it can say is "somebody read this host".
+   */
+  egressNodeId?: string | null;
 }
 
 type Sink = (r: RequestRecord) => void;
@@ -57,11 +65,13 @@ const PRUNE_EVERY = 500;
 
 /** Persists request records to `request_log`; returns an uninstall function. */
 export function installRequestLog(db: DB): () => void {
-  const insert = db.prepare('INSERT INTO request_log (ts, host, op, status, ms, bytes) VALUES (?,?,?,?,?,?)');
+  const insert = db.prepare(
+    'INSERT INTO request_log (ts, host, op, status, ms, bytes, egress_node_id) VALUES (?,?,?,?,?,?,?)',
+  );
   let sinceLastPrune = 0;
   pruneRequestLog(db);
   const mine: Sink = (r) => {
-    insert.run(new Date().toISOString(), r.host, r.op, r.status, Math.round(r.ms), r.bytes);
+    insert.run(new Date().toISOString(), r.host, r.op, r.status, Math.round(r.ms), r.bytes, r.egressNodeId ?? null);
     if (++sinceLastPrune >= PRUNE_EVERY) {
       sinceLastPrune = 0;
       pruneRequestLog(db);
@@ -105,17 +115,34 @@ function percentile(sorted: number[], p: number): number | null {
   return sorted[Math.min(sorted.length - 1, Math.ceil(p * sorted.length) - 1)]!;
 }
 
+export interface HostMetricsOptions {
+  /**
+   * Split each host by the egress node the read went out through. Off by
+   * default: the dashboard wants "what did this host cost us", and a federated
+   * run is still one host. The budget is the opposite question, which is why it
+   * keys on `(host, egress_node_id)` and why `request_log` had to learn to
+   * answer it.
+   */
+  byNode?: boolean;
+}
+
 /** Per-host aggregates over the last `hours` of the request log. */
-export function hostMetrics(db: DB, hours = 24, now = new Date()): Record<string, HostMetrics> {
+export function hostMetrics(
+  db: DB,
+  hours = 24,
+  now = new Date(),
+  opts: HostMetricsOptions = {},
+): Record<string, HostMetrics> {
   const since = new Date(now.getTime() - hours * 3_600_000).toISOString();
   const rows = db
-    .prepare('SELECT host, status, ms, bytes FROM request_log WHERE ts >= ? ORDER BY host')
-    .all(since) as unknown as { host: string; status: number; ms: number; bytes: number }[];
+    .prepare('SELECT host, egress_node_id, status, ms, bytes FROM request_log WHERE ts >= ? ORDER BY host')
+    .all(since) as unknown as { host: string; egress_node_id: string | null; status: number; ms: number; bytes: number }[];
 
   const latencies = new Map<string, number[]>();
   const out: Record<string, HostMetrics> = {};
   for (const r of rows) {
-    const m = (out[r.host] ??= {
+    const key = opts.byNode ? `${r.host}|${r.egress_node_id ?? LOCAL_EGRESS_NODE_ID}` : r.host;
+    const m = (out[key] ??= {
       requests: 0,
       bytes: 0,
       p50Ms: null,
@@ -132,9 +159,9 @@ export function hostMetrics(db: DB, hours = 24, now = new Date()): Record<string
     else m.status['2xx']++;
     if (r.status === 412) m.throttled['412']++;
     if (r.status === 429) m.throttled['429']++;
-    const list = latencies.get(r.host) ?? [];
+    const list = latencies.get(key) ?? [];
     list.push(r.ms);
-    latencies.set(r.host, list);
+    latencies.set(key, list);
   }
   for (const [host, list] of latencies) {
     list.sort((a, b) => a - b);

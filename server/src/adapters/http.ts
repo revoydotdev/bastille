@@ -124,7 +124,14 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
       lastError = err;
       if (err instanceof HttpError && err.status < 500 && !RETRYABLE.has(err.status)) throw err;
     } finally {
-      recordRequest({ host, op: parsed.pathname, status, ms: performance.now() - started, bytes });
+      recordRequest({
+        host,
+        op: parsed.pathname,
+        status,
+        ms: performance.now() - started,
+        bytes,
+        egressNodeId: opts.identityKey ?? null,
+      });
     }
     // No sleep after the last attempt: the caller gets the error now.
     if (attempt === retries) break;
