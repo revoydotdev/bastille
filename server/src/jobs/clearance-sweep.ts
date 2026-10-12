@@ -341,7 +341,7 @@ export class ClearanceSweepJob {
             // Stand down. The pacer and the ledger are told too, so the next
             // read does not go out the moment this sleep ends - or after a
             // restart.
-            backOffUntil(this.opts.cooldownMs);
+            backOffUntil(this.opts.cooldownMs, egressNodeId);
             await new Promise((r) => setTimeout(r, this.opts.cooldownMs));
           }
         }

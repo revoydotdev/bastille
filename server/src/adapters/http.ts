@@ -29,21 +29,21 @@ export function setHttpDispatcher(d: Dispatcher): void {
 }
 
 /**
- * Per-host queue. Each caller chains onto the previous caller's slot, so the
- * floor holds even when several same-host reads are in flight at once: a
- * check-then-set across an `await` would let two of them read the same
- * `lastRequestAt` and both go out together. The chain never rejects, so one
- * failure cannot wedge the host.
+ * Per-identity queue, keyed `host` or `host|egressNodeId`. Each caller chains
+ * onto the previous caller's slot, so the floor holds even when several
+ * same-host reads are in flight at once: a check-then-set across an `await`
+ * would let two of them read the same `lastRequestAt` and both go out
+ * together. The chain never rejects, so one failure cannot wedge the host.
  */
 const tails = new Map<string, Promise<void>>();
 
-function throttle(host: string): Promise<void> {
-  const slot = (tails.get(host) ?? Promise.resolve()).then(async () => {
-    const wait = (lastRequestAt.get(host) ?? 0) + MIN_INTERVAL_MS - Date.now();
+function throttle(key: string): Promise<void> {
+  const slot = (tails.get(key) ?? Promise.resolve()).then(async () => {
+    const wait = (lastRequestAt.get(key) ?? 0) + MIN_INTERVAL_MS - Date.now();
     if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-    lastRequestAt.set(host, Date.now());
+    lastRequestAt.set(key, Date.now());
   });
-  tails.set(host, slot);
+  tails.set(key, slot);
   return slot;
 }
 
@@ -68,6 +68,12 @@ export interface FetchOptions {
   timeoutMs?: number;
   /** Per-call undici Dispatcher override. Used for residential proxies. */
   dispatcher?: Dispatcher;
+  /**
+   * Distinguishes concurrent reads that share a hostname but go out through
+   * different egress IPs. Walmart's limit is per IP, so throttling them on
+   * the hostname alone serialises N independent readers into one queue.
+   */
+  identityKey?: string;
 }
 
 export async function fetchText(url: string, opts: FetchOptions = {}): Promise<string> {
@@ -81,7 +87,7 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
   const d = opts.dispatcher ?? dispatcher;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
-    await throttle(host);
+    await throttle(opts.identityKey ? `${host}|${opts.identityKey}` : host);
     const started = performance.now();
     let status = 0;
     let bytes = 0;

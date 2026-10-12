@@ -58,7 +58,36 @@ export const CLEARANCE_FACET = 'special_offers:Clearance||fulfillment_method:In-
  */
 const REQUEST_INTERVAL_MS = Number(process.env.WALMART_REQUEST_INTERVAL_MS ?? 20_000);
 const REQUEST_JITTER_MS = Number(process.env.WALMART_REQUEST_JITTER_MS ?? 12_000);
-let nextRequestAt = 0;
+
+/**
+ * One pacer per egress node. The key is `egressNodeId`, with `''` standing for
+ * the process's own egress.
+ *
+ * This is per-node rather than global because the node *is* the identity
+ * Walmart rate-limits: measured 2026-10-11, three VA residential IPs
+ * answered for three different stores with no 412 between them, while reads
+ * sharing one IP do count together. A single module-level timer made N nodes
+ * behave like one reader — every node queued behind the last — which capped
+ * throughput at one read per interval no matter how many nodes were bound.
+ */
+interface NodePacer {
+  nextRequestAt: number;
+}
+const pacers = new Map<string, NodePacer>();
+function pacerFor(nodeId: string | null | undefined): NodePacer {
+  const key = nodeId ?? '';
+  let p = pacers.get(key);
+  if (!p) {
+    p = { nextRequestAt: 0 };
+    pacers.set(key, p);
+  }
+  return p;
+}
+/** Drops a node's pacing state. Called when a node is unbound or disabled. */
+export function forgetNodePacer(nodeId: string): void {
+  pacers.delete(nodeId);
+  perNodeBudget.delete(nodeId);
+}
 
 /** A cooldown longer than this is not slept through inside a read; it is raised. */
 const MAX_PACE_WAIT_MS = 90_000;
@@ -124,6 +153,7 @@ function budgetCall(b: HostBudget, fn: (b: HostBudget) => void): void {
 
 async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
   const b = budgetFor(opts.egressNodeId);
+  const pacer = pacerFor(opts.egressNodeId);
   let held = 0;
   try {
     held = b?.waitMs() ?? 0;
@@ -132,9 +162,9 @@ async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
   }
   if (held > MAX_PACE_WAIT_MS) throw new WalmartCooldownError(held);
 
-  const wait = Math.max(nextRequestAt - Date.now(), held);
+  const wait = Math.max(pacer.nextRequestAt - Date.now(), held);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
+  pacer.nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
   if (b) budgetCall(b, (bb) => bb.recordRead());
 }
 
@@ -143,12 +173,13 @@ async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
  * that has just been rate-limited can stand down without the pacer — or a
  * restarted process — immediately letting the following request through.
  *
- * The block is recorded against every configured budget so a node cooldown
- * also throttles the process's own egress (no double-reading from two IPs
- * for the same store).
+ * Node-local: only the named node's pacer and ledger move. A refusal on one
+ * node must not stall the others, or one bad node costs the whole run its
+ * remaining budget window.
  */
 export function backOffUntil(ms: number, egressNodeId?: string): void {
-  nextRequestAt = Math.max(nextRequestAt, Date.now() + ms);
+  const pacer = pacerFor(egressNodeId);
+  pacer.nextRequestAt = Math.max(pacer.nextRequestAt, Date.now() + ms);
   const b = budgetFor(egressNodeId);
   if (b) budgetCall(b, (bb) => bb.block(ms, null));
 }
@@ -239,11 +270,16 @@ async function persistedQuery<T>(
       timeoutMs: 30_000,
       retries: 0,
       ...(dispatcher ? { dispatcher } : {}),
+      ...(opts.egressNodeId ? { identityKey: opts.egressNodeId } : {}),
     });
   } catch (err) {
     if (err instanceof HttpError) {
       if (err.status === 412 || err.status === 429) {
-        nextRequestAt = Math.max(nextRequestAt, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+        // Node-local. A refusal from one egress IP is evidence about that IP,
+        // not about the run: the other nodes are different identities with
+        // their own untouched windows and should keep reading.
+        const pacer = pacerFor(opts.egressNodeId);
+        pacer.nextRequestAt = Math.max(pacer.nextRequestAt, Date.now() + RATE_LIMIT_COOLDOWN_MS);
         const b = budgetFor(opts.egressNodeId);
         if (b) budgetCall(b, (bb) => bb.block(RATE_LIMIT_COOLDOWN_MS, err.status));
       } else if (err.status >= 400 && err.status < 500 && HASH_ROT.test(err.message)) {
