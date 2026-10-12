@@ -30,6 +30,14 @@ export interface HostBudgetOptions {
   windowLimit?: number;
 }
 
+/**
+ * `recordRead`/`block` are read-modify-write. Unwrapped, that is two
+ * statements with a window between them in which another writer computes the
+ * same next count from the same old row — a lost update that under-counts the
+ * ceiling, the dangerous direction. `BEGIN IMMEDIATE` takes the write lock
+ * first, so each read is counted exactly once; the paired rollback keeps a
+ * failure from half-applying. Same discipline as `clearance/repo.ts:upsertStores`.
+ */
 export class HostBudget {
   private readonly windowMs: number;
   private readonly windowLimit: number;
@@ -74,14 +82,31 @@ export class HostBudget {
 
   /** Counts one read against the window. Call when the read is about to go out. */
   recordRead(now = Date.now()): void {
-    const s = this.state(now);
-    this.write(s.notBefore, s.windowStartedAt, s.readsInWindow + 1, s.lastStatus, now);
+    this.mutate((s) => [s.notBefore, s.windowStartedAt, s.readsInWindow + 1, s.lastStatus], now);
   }
 
   /** The edge refused: nothing goes out for `ms`, across restarts. */
   block(ms: number, status: number | null, now = Date.now()): void {
-    const s = this.state(now);
-    this.write(Math.max(s.notBefore, now + ms), s.windowStartedAt, s.readsInWindow, status, now);
+    this.mutate(
+      (s) => [Math.max(s.notBefore, now + ms), s.windowStartedAt, s.readsInWindow, status],
+      now,
+    );
+  }
+
+  /** Reads and writes the row under one write lock; nothing is half-applied. */
+  private mutate(
+    next: (s: BudgetState) => [number, number, number, number | null],
+    now: number,
+  ): void {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const [notBefore, windowStartedAt, reads, status] = next(this.state(now));
+      this.write(notBefore, windowStartedAt, reads, status, now);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
   }
 
   private write(notBefore: number, windowStartedAt: number, reads: number, status: number | null, now: number): void {

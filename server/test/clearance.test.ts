@@ -23,8 +23,10 @@ import {
   clearanceShelf,
   nearbyStores,
   type ClearanceItem,
+  type ShelfPage,
   type WalmartStore,
 } from '../src/clearance/walmart-api.js';
+import { HttpError } from '../src/adapters/http.js';
 import { discountPercentOf } from '../src/clearance/repo.js';
 import { CLEARANCE_CATEGORIES } from '../src/clearance/categories.js';
 
@@ -121,6 +123,9 @@ async function boot(): Promise<void> {
   app = Fastify();
   const db = openDb(join(dir, 'test.db'));
   repo = new ClearanceRepo(db);
+  // The sweep reads a store through a bound egress node. One node, bound to the
+  // store this connection resolves to below.
+  repo.upsertEgressNode({ id: 'node-gordonsville', label: 'Gordonsville', proxyUrl: 'http://127.0.0.1:1', region: 'VA', enabled: true });
   sweep = new ClearanceSweepJob(repo, readShelf);
   registerClearanceRoutes(app, repo, sweep, findStores, probeShelf);
   base = await app.listen({ port: 0, host: '127.0.0.1' });
@@ -163,6 +168,7 @@ test('walmart clearance sweep', { concurrency: false }, async (t) => {
     assert.equal(body.store.name, 'Gordonsville Supercenter');
     assert.equal(body.store.locationId, '4682');
     assert.equal(body.matchedDirectory, true);
+    repo.setStoreEgressNode('4682', 'node-gordonsville');
   });
 
   await t.test('a store Walmart names but the directory does not is still recorded', async () => {
@@ -459,4 +465,181 @@ test('walmart answers a real store finder and a real clearance shelf', {
     assert.ok(shelf.items.some((i) => i.nowCents !== null));
     assert.ok(shelf.items.some((i) => i.aisle !== null));
   });
+});
+
+// ---------------------------------------------------------------------------
+// Fan-out over egress nodes.
+//
+// The sweep used to read exactly one store per run through whatever this
+// connection happened to answer for. Every store the operator bound to an
+// egress node is now swept, each through its own exit point and against its
+// own read budget.
+// ---------------------------------------------------------------------------
+
+type FanStore = { locationId: string; name: string; nodeId: string | null };
+
+/** An empty, complete, correctly-scoped page. */
+function fanPage(storeName: string, over: Partial<ShelfPage> = {}): ShelfPage {
+  return { items: [], totalCount: 0, pageItemCount: 0, shippedOnly: 0, storeName, maxPage: 1, ...over };
+}
+
+/** A repo holding the given stores, each bound to its given node. */
+function fanRepo(stores: FanStore[], nodes: { id: string; enabled?: boolean; withNode?: boolean }[]): ClearanceRepo {
+  const dir = mkdtempSync(join(tmpdir(), 'bastille-fanout-'));
+  const repo = new ClearanceRepo(openDb(join(dir, 'fanout.db')));
+  for (const n of nodes) {
+    if (n.withNode === false) continue;
+    repo.upsertEgressNode({
+      id: n.id,
+      label: n.id,
+      proxyUrl: `http://127.0.0.1:1/?pool=${n.id}`,
+      region: null,
+      enabled: n.enabled ?? true,
+    });
+  }
+  const db = (repo as unknown as { db: import('../src/db.js').DB }).db;
+  for (const s of stores) {
+    db.prepare(
+      `INSERT INTO walmart_store (location_id, name, postal_code, enabled, added_at, egress_node_id)
+       VALUES (?, ?, ?, 1, ?, ?)`,
+    ).run(s.locationId, s.name, '22942', new Date().toISOString(), s.nodeId);
+  }
+  return repo;
+}
+
+const THREE_NODES: FanStore[] = [
+  { locationId: '4682', name: 'Gordonsville Supercenter', nodeId: 'node-a' },
+  { locationId: '1780', name: 'Charlottesville Supercenter', nodeId: 'node-b' },
+  { locationId: '5511', name: 'Powhatan Supercenter', nodeId: 'node-c' },
+];
+
+const THREE_NODE_ROWS = [
+  { id: 'node-a' },
+  { id: 'node-b' },
+  { id: 'node-c' },
+];
+
+test('the sweep reads every store bound to an enabled egress node', async () => {
+  const repo = fanRepo(THREE_NODES, THREE_NODE_ROWS);
+  const byNode: Record<string, number> = { 'node-a': 0, 'node-b': 0, 'node-c': 0 };
+  const reader: ShelfReader = async ({ locationId, egressNodeId }) => {
+    byNode[egressNodeId!]!++;
+    const store = THREE_NODES.find((s) => s.locationId === locationId)!;
+    return fanPage(store.name);
+  };
+
+  const r = await new ClearanceSweepJob(repo, reader, { readBudget: 12 }).runOnce();
+
+  assert.equal(r.storesSwept, 3);
+  assert.deepEqual(r.errors, []);
+  // Three shelves each, one page each: every node was actually read through.
+  assert.deepEqual(byNode, { 'node-a': 3, 'node-b': 3, 'node-c': 3 });
+  // Each node's proxy URL reached the reader, so the reads really left through it.
+  assert.deepEqual(r.storesSwept, repo.listStores().filter((s) => s.enabled).length);
+});
+
+test('each node\'s read budget is its own, and a refusal does not cross nodes', async () => {
+  const repo = fanRepo(THREE_NODES, THREE_NODE_ROWS);
+  const reads: Record<string, number> = { 'node-a': 0, 'node-b': 0, 'node-c': 0 };
+  // Every shelf claims to be endless, so each node runs its budget out in full.
+  const reader: ShelfReader = async ({ locationId, egressNodeId, page }) => {
+    reads[egressNodeId!]!++;
+    const store = THREE_NODES.find((s) => s.locationId === locationId)!;
+    return fanPage(store.name, { pageItemCount: 1, maxPage: 99 });
+  };
+
+  const r = await new ClearanceSweepJob(repo, reader, { readBudget: 12 }).runOnce();
+
+  // Not the old run-global 12: each node gets its own allowance, 36 in total.
+  assert.equal(r.readsSpent, 36);
+  assert.deepEqual(reads, { 'node-a': 12, 'node-b': 12, 'node-c': 12 });
+  assert.equal(r.abortReason, 'budget');
+  assert.equal(r.errors.filter((e) => e.startsWith('[budget]')).length, 3);
+});
+
+test('a refusal on one node leaves the other nodes\' stores swept', async () => {
+  const repo = fanRepo(THREE_NODES, THREE_NODE_ROWS);
+  const reader: ShelfReader = async ({ locationId, egressNodeId }) => {
+    if (egressNodeId === 'node-b') throw new HttpError(412, 'https://www.walmart.com/x', 'blocked');
+    const store = THREE_NODES.find((s) => s.locationId === locationId)!;
+    return fanPage(store.name);
+  };
+
+  const r = await new ClearanceSweepJob(repo, reader, { maxConsecutiveRateLimits: 1 }).runOnce();
+
+  assert.equal(r.storesSwept, 2);
+  assert.equal(r.rateLimited, 1);
+  assert.ok(r.errors.some((e) => e.startsWith('[rate-limited]') && e.includes('node-b')), r.errors.join('|'));
+});
+
+test('a store whose egress node is missing or disabled is skipped, named, and not fatal', async () => {
+  const repo = fanRepo(
+    [
+      { locationId: '4682', name: 'Gordonsville Supercenter', nodeId: 'node-a' },
+      { locationId: '1780', name: 'Charlottesville Supercenter', nodeId: 'node-gone' },
+      { locationId: '5511', name: 'Powhatan Supercenter', nodeId: 'node-off' },
+    ],
+    [{ id: 'node-a' }, { id: 'node-off', enabled: false }, { id: 'node-gone', withNode: false }],
+  );
+  let reads = 0;
+  const reader: ShelfReader = async ({ locationId }) => {
+    reads++;
+    return fanPage(THREE_NODES.find((s) => s.locationId === locationId)!.name);
+  };
+
+  const r = await new ClearanceSweepJob(repo, reader).runOnce();
+
+  assert.equal(r.storesSwept, 1, 'the one healthy node still swept');
+  assert.equal(reads, 3, 'nothing was read through the missing or disabled node');
+  assert.ok(r.errors.some((e) => e.includes('node-gone') && e.includes('not found')), r.errors.join('|'));
+  assert.ok(r.errors.some((e) => e.includes('node-off') && e.includes('disabled')), r.errors.join('|'));
+});
+
+test('a store with no egress node at all is skipped with a named error', async () => {
+  const repo = fanRepo([{ locationId: '4682', name: 'Gordonsville Supercenter', nodeId: null }], [
+    { id: 'node-a' },
+  ]);
+  let reads = 0;
+  const reader: ShelfReader = async () => {
+    reads++;
+    return fanPage('Gordonsville Supercenter');
+  };
+
+  const r = await new ClearanceSweepJob(repo, reader).runOnce();
+
+  assert.equal(r.storesSwept, 0);
+  assert.equal(reads, 0);
+  assert.ok(r.errors.some((e) => e.includes('no egress node bound')), r.errors.join('|'));
+});
+
+test('a wrong-store answer abandons its own store only', async () => {
+  const repo = fanRepo(THREE_NODES, THREE_NODE_ROWS);
+  const touched: string[] = [];
+  const reader: ShelfReader = async ({ locationId, egressNodeId }) => {
+    touched.push(egressNodeId!);
+    // node-b's exit point has moved: it answers for another shop.
+    if (egressNodeId === 'node-b') return fanPage('Sacramento Supercenter', { items: [item({ itemId: 'X1', name: 'from the wrong shop' })], pageItemCount: 1 });
+    return fanPage(THREE_NODES.find((s) => s.locationId === locationId)!.name, {
+      items: [item({ itemId: `ok-${egressNodeId}`, name: 'from the right shop' })],
+      pageItemCount: 1,
+    });
+  };
+
+  const r = await new ClearanceSweepJob(repo, reader).runOnce();
+
+  assert.equal(r.storesSwept, 2, 'the two nodes that answered correctly still swept');
+  assert.equal(r.errors.filter((e) => e.startsWith('[wrong-store]')).length, 1);
+  assert.ok(r.errors.some((e) => e.includes('Sacramento Supercenter')), r.errors.join('|'));
+  // node-b was read once, then left alone; the run did not stop there.
+  assert.equal(touched.filter((n) => n === 'node-b').length, 1);
+  assert.ok(touched.includes('node-c'), 'the run carried on to the next node');
+  // The wrong shop's rack was refused, not filed under the store that was asked
+  // for; the two good nodes' shelves were.
+  assert.equal(r.finds, 2, 'one item per node that answered correctly, once each');
+  const recorded = (
+    (repo as unknown as { db: import('../src/db.js').DB }).db
+      .prepare('SELECT DISTINCT item_id FROM clearance_find')
+      .all() as { item_id: string }[]
+  ).map((r) => r.item_id);
+  assert.deepEqual(recorded.sort(), ['ok-node-a', 'ok-node-c']);
 });
