@@ -21,10 +21,64 @@
  * read would fail the same way and cost budget doing it.
  */
 import { CLEARANCE_CATEGORIES, sweepOrder, type ClearanceCategory } from '../clearance/categories.js';
-import { backOffUntil, clearanceShelf, HashExpiredError, WalmartCooldownError } from '../clearance/walmart-api.js';
-import type { ShelfPage } from '../clearance/walmart-api.js';
+import { backOffUntil, canaryProbe, clearanceShelf, HashExpiredError, WalmartCooldownError } from '../clearance/walmart-api.js';
+import type { CanaryResult, ShelfPage } from '../clearance/walmart-api.js';
 import { HttpError } from '../adapters/http.js';
-import type { ClearanceRepo } from '../clearance/repo.js';
+import type { ClearanceRepo, EgressNode, NodeHealth } from '../clearance/repo.js';
+
+/** The one call that leaves the process for a canary. Injectable so the sweep can
+ *  be driven end to end in a test without reaching Walmart. */
+export type CanaryProbe = (node: {
+  id: string;
+  proxyUrl: string;
+  verifiedStore: string | null;
+}) => Promise<CanaryResult>;
+
+/**
+ * A canary's outcome, mapped to the node's health. Anything that is not a
+ * verified match and not a store mismatch is a node we could not reach or that
+ * refused us — either way there is no reason to spend the night's budget on it.
+ */
+export function healthOf(result: CanaryResult): Exclude<NodeHealth, null> {
+  if (result.ok) return 'ok';
+  return result.error?.kind === 'mismatch' ? 'drifted' : 'blocked';
+}
+
+export interface StoreGate<S> {
+  /** stores the sweep may read */
+  sweepable: S[];
+  /** stores held back, each with the health that held it */
+  excluded: { locationId: string; egressNodeId: string; health: NodeHealth }[];
+}
+
+/**
+ * Holds back every store whose egress node is not currently attested.
+ *
+ * A store with no node keeps the original behaviour (it is read from the
+ * process's own egress, which has nothing to attest). A store on a node the
+ * canary has not cleared — `drifted`, `blocked`, or never checked at all — is
+ * not read, because spending a night of that node's budget on an exit point
+ * that answers for the wrong store produces confident, mislabelled findings.
+ *
+ * Pure, and exported so the gate can be exercised over a whole node set without
+ * a run behind it.
+ */
+export function gateStoresByNodeHealth<
+  S extends { locationId: string; egressNodeId: string | null },
+>(stores: S[], nodes: EgressNode[]): StoreGate<S> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const sweepable: S[] = [];
+  const excluded: StoreGate<S>['excluded'] = [];
+  for (const store of stores) {
+    const node = store.egressNodeId ? byId.get(store.egressNodeId) : undefined;
+    // Unknown or disabled nodes are reported by the store loop itself, which
+    // already names them; the gate only speaks about health.
+    if (!node || !store.egressNodeId || node.health === 'ok') sweepable.push(store);
+    else if (node.enabled) excluded.push({ locationId: store.locationId, egressNodeId: node.id, health: node.health });
+    else sweepable.push(store);
+  }
+  return { sweepable, excluded };
+}
 
 /** The one call that leaves the process. Injectable so the sweep can be driven
  *  end to end in a test without reaching Walmart. */
@@ -156,6 +210,7 @@ export class ClearanceSweepJob {
     private repo: ClearanceRepo,
     private readShelf: ShelfReader = clearanceShelf,
     opts: SweepOptions = {},
+    private probe: CanaryProbe = canaryProbe,
   ) {
     this.opts = resolveOptions(opts);
   }
@@ -232,10 +287,43 @@ export class ClearanceSweepJob {
 
     try {
       const local = this.repo.localStore();
-      const stores = local ? [local] : [];
+
+      // Canary first, and before the store loop: one read per due node asking
+      // which store it still answers for. It is deliberately not charged to the
+      // node's budget — the point is to decide whether that budget is spent.
+      const now = new Date().toISOString();
+      for (const node of this.repo.getEgressNodesDueForCanary()) {
+        let result: CanaryResult;
+        try {
+          result = await this.probe({
+            id: node.id,
+            proxyUrl: node.proxyUrl,
+            verifiedStore: node.verifiedStore,
+          });
+        } catch (err) {
+          result = { ok: false, answeredStore: null, error: { kind: 'transport', message: (err as Error).message, duration_ms: 0 } };
+        }
+        const health = healthOf(result);
+        this.repo.setNodeHealth(node.id, health, result.ok ? result.answeredStore : null, now);
+        // A passing canary deliberately leaves no trace here: it would mark a
+        // healthy sweep as errored, and the node row already records it.
+        if (health !== 'ok') {
+          errors.push(`[canary] ${node.id}: ${health} (${result.error?.kind}) - skipped this run`);
+        }
+      }
+
+      const gate = gateStoresByNodeHealth(local ? [local] : [], this.repo.listEgressNodes());
+      for (const held of gate.excluded) {
+        errors.push(
+          `[canary] ${held.locationId} (node ${held.egressNodeId}): not read - node health is "${held.health}"`,
+        );
+      }
+      const stores = gate.sweepable;
       const categories = sweepOrder(CLEARANCE_CATEGORIES);
 
-      if (stores.length === 0) {
+      if (local && stores.length === 0) {
+        errors.push('[canary] every bound egress node is drifted or blocked - nothing read this run');
+      } else if (stores.length === 0) {
         errors.push('[error] no store on record - resolve the local store first');
       }
 

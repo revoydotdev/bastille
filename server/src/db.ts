@@ -143,7 +143,13 @@ CREATE TABLE IF NOT EXISTS egress_node (
   region      TEXT,                     -- freeform city/state, e.g. "fairfax,va,us"
   enabled     INTEGER NOT NULL DEFAULT 1,
   added_at    TEXT NOT NULL,            -- ISO-8601
-  last_used_at TEXT                     -- ISO-8601; null until the first sweep uses it
+  last_used_at TEXT,                    -- ISO-8601; null until the first sweep uses it
+  -- Canary attestation: which store this exit point answered for last time it
+  -- was checked, when, and whether that check passed. Null verified_store means
+  -- the node has never been attested; the first canary sets it.
+  verified_store TEXT,                  -- Walmart's own storeDislayName
+  verified_at   TEXT,                   -- ISO-8601; null until the first canary
+  health        TEXT CHECK (health IS NULL OR health IN ('ok','drifted','blocked'))
 );
 
 CREATE TABLE IF NOT EXISTS snapshot_run (
@@ -308,6 +314,15 @@ const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: 'snapshot_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'snapshot_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
   // ---- end: observability columns
+  // ---- begin: canary attestation
+  { table: 'egress_node', column: 'verified_store', definition: 'TEXT' },
+  { table: 'egress_node', column: 'verified_at', definition: 'TEXT' },
+  {
+    table: 'egress_node',
+    column: 'health',
+    definition: "TEXT CHECK (health IS NULL OR health IN ('ok','drifted','blocked'))",
+  },
+  // ---- end: canary attestation
 ];
 
 function applyAddedColumns(db: DB): void {

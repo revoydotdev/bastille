@@ -41,7 +41,29 @@ export interface EgressNode {
   enabled: boolean;
   addedAt: string;
   lastUsedAt: string | null;
+  /**
+   * The store this exit point was last attested at, in Walmart's own wording
+   * (`storeDislayName`). Null until the first canary proves one.
+   */
+  verifiedStore: string | null;
+  /** When that attestation was taken; null until the first canary. */
+  verifiedAt: string | null;
+  /**
+   * The canary's verdict. `drifted` and `blocked` nodes are skipped by the
+   * sweep — there is no point spending a night of budget on an exit point that
+   * has moved or stopped answering.
+   */
+  health: NodeHealth;
 }
+
+export type NodeHealth = 'ok' | 'drifted' | 'blocked' | null;
+
+/**
+ * How long a node's attestation stays fresh. The canary exists to catch an exit
+ * point that has silently moved to another metro, which a proxy provider can
+ * do between runs, so a day's fresh answer is treated as still true.
+ */
+export const CANARY_INTERVAL_MS = Number(process.env.WALMART_CANARY_INTERVAL_MS ?? 12 * 60 * 60 * 1000);
 
 export interface ClearanceRow {
   id: number;
@@ -161,6 +183,11 @@ export interface ShelfMapEntry {
   maxCents: number | null;
   /** the deepest markdown here, which is not always the cheapest item */
   bestDiscountPct: number | null;
+}
+
+/** The stored value is whatever SQLite held; anything else is treated as unknown. */
+function toNodeHealth(value: unknown): NodeHealth {
+  return value === 'ok' || value === 'drifted' || value === 'blocked' ? value : null;
 }
 
 export class ClearanceRepo {
@@ -383,7 +410,13 @@ export class ClearanceRepo {
     return r ? this.toEgressNode(r) : null;
   }
 
-  upsertEgressNode(node: Omit<EgressNode, 'addedAt' | 'lastUsedAt'> & { addedAt?: string }): EgressNode {
+  /** An operator creates a node; the canary attests it. The canary columns are
+   *  deliberately not writable here — only `setNodeHealth` may claim a store. */
+  upsertEgressNode(
+    node: Omit<EgressNode, 'addedAt' | 'lastUsedAt' | 'verifiedStore' | 'verifiedAt' | 'health'> & {
+      addedAt?: string;
+    },
+  ): EgressNode {
     const addedAt = node.addedAt ?? new Date().toISOString();
     this.db
       .prepare(
@@ -437,7 +470,52 @@ export class ClearanceRepo {
       enabled: r['enabled'] === 1,
       addedAt: r['added_at'] as string,
       lastUsedAt: (r['last_used_at'] as string | null) ?? null,
+      verifiedStore: (r['verified_store'] as string | null) ?? null,
+      verifiedAt: (r['verified_at'] as string | null) ?? null,
+      health: toNodeHealth(r['health']),
     };
+  }
+
+  /**
+   * Records a canary's verdict and when it was taken.
+   *
+   * `verifiedStore` is only written when it is non-null, and callers pass the
+   * answered store exactly when the canary succeeded — so the first successful
+   * canary attests the node and a later *failed* one leaves the previous
+   * attestation standing. Overwriting it with the drifted store would turn a
+   * detectable mismatch into a self-fulfilling "always ok".
+   */
+  setNodeHealth(
+    nodeId: string,
+    health: NodeHealth,
+    verifiedStore: string | null,
+    at = new Date().toISOString(),
+  ): void {
+    if (verifiedStore) {
+      this.db
+        .prepare('UPDATE egress_node SET health = ?, verified_store = ?, verified_at = ? WHERE id = ?')
+        .run(health, verifiedStore, at, nodeId);
+      return;
+    }
+    this.db
+      .prepare('UPDATE egress_node SET health = ?, verified_at = ? WHERE id = ?')
+      .run(health, at, nodeId);
+  }
+
+  /**
+   * Enabled nodes whose attestation is missing or stale. One place decides what
+   * "stale" means so the sweep and any future caller cannot disagree.
+   */
+  getEgressNodesDueForCanary(now = Date.now()): EgressNode[] {
+    const cutoff = new Date(now - CANARY_INTERVAL_MS).toISOString();
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM egress_node
+         WHERE enabled = 1 AND (verified_at IS NULL OR verified_at < ?)
+         ORDER BY id`,
+      )
+      .all(cutoff) as Record<string, unknown>[];
+    return rows.map((r) => this.toEgressNode(r));
   }
 
   // ---- delta sweeps -----------------------------------------------------

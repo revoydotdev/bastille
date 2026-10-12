@@ -151,7 +151,7 @@ function budgetCall(b: HostBudget, fn: (b: HostBudget) => void): void {
   }
 }
 
-async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
+async function pace(opts: { egressNodeId?: string; count?: boolean } = {}): Promise<void> {
   const b = budgetFor(opts.egressNodeId);
   const pacer = pacerFor(opts.egressNodeId);
   let held = 0;
@@ -165,7 +165,9 @@ async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
   const wait = Math.max(pacer.nextRequestAt - Date.now(), held);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   pacer.nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
-  if (b) budgetCall(b, (bb) => bb.recordRead());
+  // `count: false` is the canary's whole point: it verifies the exit point
+  // *before* the node spends its budget, so it must not itself burn a slot.
+  if (b && opts.count !== false) budgetCall(b, (bb) => bb.recordRead());
 }
 
 /**
@@ -256,9 +258,11 @@ async function persistedQuery<T>(
     postalCode?: string;
     proxyUrl?: string;
     egressNodeId?: string;
+    /** Skip the budget's read count — see `canaryProbe`. */
+    skipBudgetCount?: boolean;
   },
 ): Promise<T> {
-  await pace({ egressNodeId: opts.egressNodeId });
+  await pace({ egressNodeId: opts.egressNodeId, count: !opts.skipBudgetCount });
   const url = `${SITE}${path}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
   const dispatcher = opts.proxyUrl ? new ProxyAgent({ uri: opts.proxyUrl, pipelining: 0 }) : undefined;
   let body: T & GraphQLErrors;
@@ -675,6 +679,8 @@ export async function clearanceShelf(opts: {
   proxyUrl?: string;
   /** Stable id of the egress node — scopes the host budget to this node. */
   egressNodeId?: string;
+  /** Read without charging the node's budget. Canary use only. */
+  skipBudgetCount?: boolean;
 }): Promise<ShelfPage> {
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 40;
@@ -689,8 +695,106 @@ export async function clearanceShelf(opts: {
       postalCode: opts.postalCode,
       proxyUrl: opts.proxyUrl,
       egressNodeId: opts.egressNodeId,
+      skipBudgetCount: opts.skipBudgetCount,
     },
   );
 
   return parseShelf(body);
+}
+
+// ---- canary ----------------------------------------------------------------
+
+/**
+ * The cheapest shelf Walmart answers: one page of the clearance category the
+ * sweep would read first anyway. `ps=1` because the canary reads the store
+ * header, never the items.
+ */
+export const CANARY_CATEGORY_ID = '3944';
+
+export interface CanaryError {
+  /**
+   * `mismatch` — the node answered for a different store than the one it was
+   * attested at. `http_<status>` — the edge refused (412/429 is routine,
+   * `cooldown` means the node's persisted not-before is still running).
+   * `timeout` / `transport` — the node could not be reached at all.
+   */
+  kind: string;
+  message: string;
+  duration_ms: number;
+}
+
+export interface CanaryResult {
+  /**
+   * True when the node answered for the store it is attested at. A node that
+   * has never been attested (`verifiedStore: null`) counts as passing: the first
+   * canary is what attests it, so any answered store is a success.
+   */
+  ok: boolean;
+  /** Walmart's own `storeDislayName` for whatever node answered, or null. */
+  answeredStore: string | null;
+  error: CanaryError | null;
+}
+
+/**
+ * One `ps=1` Browse read that answers "is this exit point still in the store I
+ * think it is?", read through the node's own proxy.
+ *
+ * The node's `verified_store` is passed in rather than looked up here: this
+ * module is imported *by* the repo, so reaching back into it would be a cycle.
+ * The caller (`ClearanceRepo`) is the one that owns that row.
+ *
+ * The read goes through the same `persistedQuery` path as the sweep — the same
+ * hash, headers, proxy dispatch and pacer — so a canary cannot pass against a
+ * request shape the sweep would not actually make. What it does *not* do is
+ * charge the node's read budget: the canary exists to decide whether the budget
+ * should be spent, so counting it there would make the check self-defeating.
+ */
+export async function canaryProbe(node: {
+  id: string;
+  proxyUrl: string;
+  /** the store this node was last attested at; null = never attested */
+  verifiedStore: string | null;
+}): Promise<CanaryResult> {
+  const started = Date.now();
+  const fail = (kind: string, message: string): CanaryResult => ({
+    ok: false,
+    answeredStore: null,
+    error: { kind, message, duration_ms: Date.now() - started },
+  });
+
+  let storeName: string | null;
+  try {
+    const shelf = await clearanceShelf({
+      categoryId: CANARY_CATEGORY_ID,
+      pageSize: 1,
+      proxyUrl: node.proxyUrl,
+      egressNodeId: node.id,
+      skipBudgetCount: true,
+    });
+    storeName = shelf.storeName;
+  } catch (err) {
+    if (err instanceof HttpError) return fail(`http_${err.status}`, err.message);
+    if (err instanceof WalmartCooldownError) return fail('http_cooldown', err.message);
+    // undici signals a connect/read timeout through `code`; fetchText rethrows
+    // the last error verbatim, so that code survives.
+    const code = (err as { code?: string } | null)?.code ?? '';
+    if (/timeout/i.test(code) || /timeout/i.test((err as Error)?.name ?? '')) {
+      return fail('timeout', (err as Error).message);
+    }
+    return fail('transport', (err as Error)?.message ?? String(err));
+  }
+
+  if (!storeName) return fail('transport', 'response carried no store header');
+  if (node.verifiedStore && storeName.trim().toLowerCase() !== node.verifiedStore.trim().toLowerCase()) {
+    return {
+      ok: false,
+      answeredStore: storeName,
+      error: {
+        kind: 'mismatch',
+        message: `node ${node.id} answered for ${storeName}, not ${node.verifiedStore}`,
+        duration_ms: Date.now() - started,
+      },
+    };
+  }
+  return { ok: true, answeredStore: storeName, error: null };
 }
