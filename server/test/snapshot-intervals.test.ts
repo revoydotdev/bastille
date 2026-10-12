@@ -26,6 +26,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { openDb, type DB } from '../src/db.js';
 import { Repo } from '../src/repo.js';
@@ -277,6 +278,168 @@ test('/api/deals?date=<2nd> returns the same product as /api/deals?date=<1st>', 
     assert.equal(r15.rows[0]!.storeProductId, 'steady');
     assert.equal(r1.rows[0]!.currentCents, 199);
     assert.equal(r15.rows[0]!.currentCents, 199);
+  } finally {
+    await app.close();
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('boot order: a pre-migration daily_snapshot boots and gains the new columns, indexes, and half-open backfill', () => {
+  // Regression for the boot-order bug: SCHEMA used to run CREATE INDEX
+  // statements that referenced valid_from / valid_to before applyAddedColumns
+  // had added them, so a pre-migration DB threw `no such column: valid_to`
+  // and the operator's data was unbootable.
+  const dir = mkdtempSync(join(tmpdir(), 'bastille-pre-'));
+  const prePath = join(dir, 'pre.db');
+  try {
+    {
+      const pre = new DatabaseSync(prePath);
+      pre.exec(
+        `CREATE TABLE daily_snapshot (
+           id                   INTEGER PRIMARY KEY,
+           snapshot_date        TEXT NOT NULL,
+           captured_at          TEXT NOT NULL,
+           store_id             TEXT NOT NULL,
+           location_id          TEXT,
+           store_product_id     TEXT NOT NULL,
+           name                 TEXT NOT NULL,
+           brand                TEXT,
+           size                 TEXT,
+           category             TEXT,
+           image_url            TEXT,
+           product_url          TEXT,
+           regular_cents        INTEGER,
+           current_cents        INTEGER,
+           effective_unit_cents INTEGER,
+           discount_pct         REAL,
+           promo_kind           TEXT NOT NULL,
+           promo_text           TEXT,
+           unit_price_text      TEXT,
+           in_stock             INTEGER,
+           UNIQUE (snapshot_date, store_id, location_id, store_product_id)
+         )`,
+      );
+      pre.prepare(
+        `INSERT INTO daily_snapshot
+           (snapshot_date, captured_at, store_id, location_id, store_product_id,
+            name, brand, size, category, image_url, product_url,
+            regular_cents, current_cents, effective_unit_cents, discount_pct,
+            promo_kind, promo_text, unit_price_text, in_stock)
+         VALUES (?, ?, 'foodlion', NULL, ?, 'Product', NULL, NULL, 'Produce',
+                 NULL, NULL, ?, ?, NULL, NULL, 'none', NULL, NULL, 1)`,
+      ).run('2026-01-01', '2026-01-01 12:00:00', 'legacy-a', 199, 199);
+      pre.prepare(
+        `INSERT INTO daily_snapshot
+           (snapshot_date, captured_at, store_id, location_id, store_product_id,
+            name, brand, size, category, image_url, product_url,
+            regular_cents, current_cents, effective_unit_cents, discount_pct,
+            promo_kind, promo_text, unit_price_text, in_stock)
+         VALUES (?, ?, 'foodlion', NULL, ?, 'Product', NULL, NULL, 'Produce',
+                 NULL, NULL, ?, ?, NULL, NULL, 'none', NULL, NULL, 1)`,
+      ).run('2026-01-15', '2026-01-15 12:00:00', 'legacy-b', 249, 249);
+      pre.close();
+    }
+
+    const db = openDb(prePath);
+
+    try {
+      const cols = db
+        .prepare(`PRAGMA table_info(daily_snapshot)`)
+        .all() as { name: string }[];
+      const colNames = cols.map((c) => c.name);
+      assert.ok(colNames.includes('valid_from'), 'valid_from column was added');
+      assert.ok(colNames.includes('valid_to'), 'valid_to column was added');
+
+      const idx = db
+        .prepare(
+          `SELECT name FROM sqlite_master
+            WHERE type = 'index' AND tbl_name = 'daily_snapshot'`,
+        )
+        .all() as { name: string }[];
+      const idxNames = idx.map((r) => r.name);
+      assert.ok(idxNames.includes('daily_snapshot_open'), 'partial unique open-interval index created');
+      assert.ok(idxNames.includes('daily_snapshot_interval'), 'interval read index created');
+
+      // Half-open backfill: legacy row for snapshot_date D covers
+      // [D 00:00:00, D+1 00:00:00).
+      const a = db
+        .prepare(
+          `SELECT valid_from, valid_to FROM daily_snapshot
+            WHERE store_product_id = 'legacy-a'`,
+        )
+        .get() as { valid_from: string; valid_to: string | null };
+      assert.equal(a.valid_from, '2026-01-01 00:00:00');
+      assert.equal(a.valid_to, '2026-01-02 00:00:00');
+      const b = db
+        .prepare(
+          `SELECT valid_from, valid_to FROM daily_snapshot
+            WHERE store_product_id = 'legacy-b'`,
+        )
+        .get() as { valid_from: string; valid_to: string | null };
+      assert.equal(b.valid_from, '2026-01-15 00:00:00');
+      assert.equal(b.valid_to, '2026-01-16 00:00:00');
+
+      // And the half-open query actually returns them: a query for the
+      // snapshot date matches, a query for the next day does not.
+      const repo = new Repo(db);
+      const onDay = repo.queryDeals({ date: '2026-01-01' });
+      const nextDay = repo.queryDeals({ date: '2026-01-02' });
+      assert.equal(onDay.total, 1);
+      assert.equal(onDay.rows[0]!.storeProductId, 'legacy-a');
+      assert.equal(nextDay.total, 0, 'half-open: a closed row does not match the day after it');
+    } finally {
+      db.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('3 same-day changes for one product produce exactly 1 row in /api/deals', async () => {
+  // Regression for the duplicate-rows bug: the old query used `>=` on
+  // valid_to, so two intervals sharing a boundary instant both matched.
+  // Half-open `>` gives the boundary to the new interval only.
+  const dir = mkdtempSync(join(tmpdir(), 'bastille-intervals-dupes-'));
+  const db = openDb(join(dir, 'test.db'));
+  const app: FastifyInstance = Fastify();
+  const repo = new Repo(db);
+  const stubPoller = { onPoll: (_fn: () => void) => undefined } as unknown as Parameters<typeof registerRoutes>[2];
+  registerRoutes(app, repo, stubPoller, undefined, { clearance: undefined });
+  const base = await app.listen({ port: 0, host: '127.0.0.1' });
+  try {
+    const today = dayDate(1);
+    repo.recordSnapshot(today, [{ offer: offer('wobbly', 99), locationId: null }]);
+    repo.recordSnapshot(today, [{ offer: offer('wobbly', 149), locationId: null }]);
+    repo.recordSnapshot(today, [{ offer: offer('wobbly', 199), locationId: null }]);
+
+    // The disk has 3 rows — the interval contract is intact.
+    const allRows = db
+      .prepare(
+        `SELECT current_cents, valid_from, valid_to
+           FROM daily_snapshot
+          WHERE store_product_id = 'wobbly'
+          ORDER BY valid_from ASC, id ASC`,
+      )
+      .all() as { current_cents: number; valid_from: string; valid_to: string | null }[];
+    assert.equal(allRows.length, 3, 'three writes left three rows on disk');
+    // Boundary instants match exactly between consecutive rows (write path
+    // uses a single `now` for both close and insert).
+    assert.equal(allRows[0]!.valid_to, allRows[1]!.valid_from);
+    assert.equal(allRows[1]!.valid_to, allRows[2]!.valid_from);
+    assert.equal(allRows[2]!.valid_to, null, 'the latest interval is open');
+
+    // But the deals feed sees exactly one row for today — the latest.
+    const r = (await (await fetch(`${base}/api/deals?date=${today}`)).json()) as {
+      source: string;
+      date: string;
+      total: number;
+      rows: { storeProductId: string; currentCents: number | null }[];
+    };
+    assert.equal(r.source, 'snapshot');
+    assert.equal(r.total, 1, '3 same-day changes -> 1 row in /api/deals');
+    assert.equal(r.rows[0]!.storeProductId, 'wobbly');
+    assert.equal(r.rows[0]!.currentCents, 199, 'the latest cents wins');
   } finally {
     await app.close();
     db.close();

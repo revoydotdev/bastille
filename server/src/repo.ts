@@ -806,14 +806,20 @@ export class Repo {
   }
 
   /**
-   * Filter by interval overlap: the row whose `[valid_from, valid_to]`
-   * covers the queried date. An open interval (`valid_to IS NULL`) covers
-   * every date from `valid_from` onward, which is what makes "the price
-   * today" work without re-running the snapshot every day.
+   * Filter by half-open interval overlap: the row whose `[valid_from,
+   * valid_to)` covers the queried date. `valid_from` is inclusive (left
+   * endpoint) and `valid_to` is exclusive (right endpoint), so a row that
+   * closed at the start of day D does NOT match a query for date D — the
+   * boundary instant is owned by the next interval. An open interval
+   * (`valid_to IS NULL`) covers every date from `valid_from` onward, which
+   * is what makes "the price today" work without re-running the snapshot
+   * every day.
    *
    * `date()` is applied on the timestamp columns so a row written at
    * `2026-01-01T12:34:56Z` still matches a `?date=2026-01-01` query — the
-   * interval's start of day is the natural comparison unit.
+   * interval's start of day is the natural comparison unit. The right
+   * endpoint uses `>` (not `>=`) so two intervals sharing a boundary do
+   * not both match.
    */
   queryDeals(filter: DealFilter): { date: string | null; total: number; rows: DealRow[] } {
     const date = filter.date ?? this.latestSnapshotDate();
@@ -821,7 +827,7 @@ export class Repo {
 
     const where: string[] = [
       "date(valid_from) <= ?",
-      "(valid_to IS NULL OR date(valid_to) >= ?)",
+      "(valid_to IS NULL OR date(valid_to) > ?)",
     ];
     const params: (string | number)[] = [date, date];
 
