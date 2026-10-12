@@ -286,6 +286,45 @@ CREATE TABLE IF NOT EXISTS poll_run (
   changes      INTEGER NOT NULL DEFAULT 0,
   error        TEXT
 );
+
+-- ---- DAG runtime (todo 10) -----------------------------------------------
+-- One row per dag_run() call: the run record. inputs_json captures the seed
+-- inputs the run was started with so a later session can reproduce the runs
+-- shape from disk alone.
+CREATE TABLE IF NOT EXISTS dag_run (
+  id          INTEGER PRIMARY KEY,
+  started_at  TEXT NOT NULL,
+  finished_at TEXT,
+  status      TEXT NOT NULL CHECK (status IN ('running','succeeded','failed','aborted')),
+  inputs_json TEXT
+);
+
+-- One row per node-iteration. checkpoint_json is the workers resumable
+-- state -- for a succeeded node its the serialized result data, so a resumed
+-- run replays the cached value without re-executing the node. The idempotency
+-- key is (node_id, logical_date, scope_hash) (todo 10): the same key with
+-- status = succeeded is what the engine looks up to short-circuit a re-run.
+-- logical_date and scope_hash are columns on top of the specs minimum so
+-- the idempotency check can be a single SELECT without parsing inputs_json.
+CREATE TABLE IF NOT EXISTS dag_node_run (
+  id              INTEGER PRIMARY KEY,
+  run_id          INTEGER NOT NULL REFERENCES dag_run(id) ON DELETE CASCADE,
+  node_id         TEXT NOT NULL,
+  attempt         INTEGER NOT NULL DEFAULT 1,
+  status          TEXT,
+  started_at      TEXT,
+  finished_at     TEXT,
+  ms              INTEGER,
+  checkpoint_json TEXT,
+  logical_date    TEXT NOT NULL DEFAULT '',
+  scope_hash      TEXT NOT NULL DEFAULT '',
+  UNIQUE (run_id, node_id, attempt)
+);
+-- The idempotency lookup is (node_id, logical_date, scope_hash) joined with
+-- status = succeeded. An unindexed row-by-row scan here would be O(N) on
+-- the table, which gets expensive after a few weeks of nightly runs.
+CREATE INDEX IF NOT EXISTS dag_node_run_idem
+  ON dag_node_run (node_id, logical_date, scope_hash, status);
 `;
 
 /**

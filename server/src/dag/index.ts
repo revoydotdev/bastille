@@ -13,4 +13,10 @@ export type {
 } from './node.js';
 export type { NodeId, NodeStatus, NodeResult, DagNode, DagGraph } from './types.js';
 export { NodeError, BudgetExhaustedError, DagCycleError } from './types.js';
-export { runDag, topoSort } from './engine.js';
+export { runDag, resumeDag, topoSort, type RunOptions } from './engine.js';
+export type {
+  CheckpointStore,
+  DagCheckpoint,
+  DagRunStatus,
+} from './checkpoint.js';
+export { SqliteCheckpointStore, type SqliteCheckpointClock } from './sqlite-checkpoint-store.js';

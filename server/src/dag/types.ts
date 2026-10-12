@@ -37,12 +37,15 @@ export interface NodeResult {
 
 /**
  * `deps` lists upstream node ids whose `NodeResult` is fed into `run` under
- * the dep id key. `inputs` is `{ [depId]: NodeResult }`.
+ * the dep id key. `inputs` is `{ [depId]: NodeResult }`. The optional
+ * `attempt` is the engine's current retry index (todo 10); it is `1` for a
+ * fresh execution and `> 1` only when the engine decides to re-run a node
+ * after a prior attempt recorded in dag_node_run.
  */
 export interface DagNode<TIn = unknown, TOut = unknown> {
   id: NodeId;
   deps: NodeId[];
-  run(inputs: TIn, ctx: NodeCtx): Promise<TOut>;
+  run(inputs: TIn, ctx: NodeCtx, attempt?: number): Promise<TOut>;
 }
 
 export type DagGraph = DagNode[];
