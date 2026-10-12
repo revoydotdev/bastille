@@ -3,47 +3,34 @@
  * scripts/measure-bytes.mjs
  *
  * Measures compressed wire bytes alongside decompressed bytes for each bastille
- * ingest path, and records the result into .omo/evidence/wave-A/bytes.json.
+ * ingest path, and records the result into $BASTILLE_EVIDENCE_DIR/wave-A/bytes.json.
  *
- * Usage: node scripts/measure-bytes.mjs
+ * Usage:
+ *   node scripts/measure-bytes.mjs
+ *   BASTILLE_EVIDENCE_DIR=/custom/path node scripts/measure-bytes.mjs
+ *
+ * Two arms per path:
+ *   - normal:    accept-encoding: gzip, br  (production-like, compressed)
+ *   - no_compression: accept-encoding: identity  (baseline, uncompressed)
  *
  * Wire bytes are sourced from the response Content-Length header where available;
  * undici inflates the body before giving it to us, so Buffer.byteLength(text)
  * gives the decompressed size (matching what request_log.bytes records today).
  *
- * Handles 403/412/429/503/timeout as refusal rows — the script never exits non-zero
- * for an HTTP refusal.
+ * Handles 403/412/418/429/503/timeout as refusal rows — the script never exits
+ * non-zero for an HTTP refusal.
  */
 import { request } from 'undici';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// ---------------------------------------------------------------------------
-// Paths
-// ---------------------------------------------------------------------------
-const EVIDENCE_DIR = '/home/revelri/hex/.omo/evidence/wave-A';
+const EVIDENCE_DIR = process.env.BASTILLE_EVIDENCE_DIR ?? '/home/revelri/hex/.omo/evidence/wave-A';
 const OUT_FILE = resolve(EVIDENCE_DIR, 'bytes.json');
 
 // ---------------------------------------------------------------------------
 // Ingest paths to measure
 // ---------------------------------------------------------------------------
-/**
- * @typedef {Object} IngestPath
- * @property {string} path
- * @property {string} label
- * @property {string} url
- * @property {(url: string) => Promise<RequestOptions>} buildRequest
- */
 
-/**
- * @typedef {Object} RequestOptions
- * @property {string} url
- * @property {string} [method]
- * @property {Record<string, string>} [headers]
- * @property {string | undefined} [body]
- */
-
-/** @returns {Promise<RequestOptions>} */
 async function walmartStoreFinder() {
   const variables = JSON.stringify({ postalCode: '22901', radius: 50, preferredStores: [] });
   return {
@@ -56,11 +43,10 @@ async function walmartStoreFinder() {
   };
 }
 
-/** @returns {Promise<RequestOptions>} */
 async function walmartBrowse() {
-  // ps=1 (page size 1) keeps the call deliberately cheap; canary
+  // ps=40 (production page size) for realistic byte cost measurement
   return {
-    url: 'https://www.walmart.com/orchestra/home/graphql/browse/6d3a5c2b15c96f4fd5e5e7c3c9e3f2a9c8d7b6e4f5a3c2d1e0f9a8b7c6d5e4f3?variables=' + encodeURIComponent(JSON.stringify({ catId: '3944', page: 1, ps: 1, sort: 'new' })),
+    url: 'https://www.walmart.com/orchestra/home/graphql/browse/6d3a5c2b15c96f4fd5e5e7c3c9e3f2a9c8d7b6e4f5a3c2d1e0f9a8b7c6d5e4f3?variables=' + encodeURIComponent(JSON.stringify({ catId: '3944', page: 1, ps: 40, sort: 'new' })),
     method: 'GET',
     headers: {
       'accept-encoding': 'gzip, br',
@@ -69,7 +55,6 @@ async function walmartBrowse() {
   };
 }
 
-/** @returns {Promise<RequestOptions>} */
 async function wegmansApiStores() {
   return {
     url: 'https://www.wegmans.com/api/stores',
@@ -81,15 +66,13 @@ async function wegmansApiStores() {
   };
 }
 
-/** @returns {Promise<RequestOptions>} */
 async function wegmansAlgolia() {
-  // Using the public Algolia credentials from the Wegmans adapter (no env vars needed)
   const ALGOLIA_APP_ID = 'QGPPR19V8V';
   const ALGOLIA_API_KEY = '9a10b1401634e9a6e55161c3a60c200d';
   const params = new URLSearchParams({
     query: 'milk',
     hitsPerPage: '1',
-    filters: 'soldAtStores:24', // DEFAULT_STORE = 24
+    filters: 'soldAtStores:24',
   });
   return {
     url: `https://${ALGOLIA_APP_ID}-dsn.algolia.net/1/indexes/*/queries`,
@@ -104,10 +87,7 @@ async function wegmansAlgolia() {
   };
 }
 
-/** @returns {Promise<RequestOptions>} */
 async function traderJoesGraphQL() {
-  // Trader Joe's GraphQL for stores — operation: StoresSearch
-  // If the operation does not exist the call will return errors; record that as a refusal.
   const query = `query StoresSearch($postalCode: String!) { stores(search: $postalCode) { storeId name address { street city state zip } } }`;
   return {
     url: 'https://www.traderjoes.com/api/graphql',
@@ -122,9 +102,7 @@ async function traderJoesGraphQL() {
   };
 }
 
-/** @returns {Promise<RequestOptions>} */
 async function foodLionAisle() {
-  // Food Lion aisle page (Astro HTML catalogue) — first top-level aisle
   return {
     url: 'https://foodlion.com/groceries/2098-produce/',
     method: 'GET',
@@ -135,7 +113,6 @@ async function foodLionAisle() {
   };
 }
 
-/** @returns {Promise<RequestOptions>} */
 async function controlUrl() {
   return {
     url: 'https://example.com/',
@@ -148,70 +125,80 @@ async function controlUrl() {
 }
 
 // ---------------------------------------------------------------------------
+// Refusal codes
+// ---------------------------------------------------------------------------
+
+const REFUSAL_CODES = new Set([403, 412, 418, 429, 503]);
+
+// ---------------------------------------------------------------------------
 // Measurement
 // ---------------------------------------------------------------------------
 
-/** @param {string} url @param {RequestOptions} opts @returns {Promise<import('./types').PathRow>} */
+/**
+ * @param {string} url
+ * @param {{ method?: string, headers?: Record<string, string>, body?: string }} opts
+ * @returns {Promise<{wire_bytes: number|null, uncompressed_bytes: number|null, compression_ratio: number|null, content_encoding: string, http_status: number, error: {kind: string, message: string, duration_ms: number}|null}>}
+ */
 async function measureOne(url, { method = 'GET', headers = {}, body = undefined }) {
   const startedAt = performance.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
 
   try {
-    const dispatcher = /** @type {any} */ ({});
     const res = await request(url, {
       method,
       headers,
       body,
       signal: controller.signal,
-      // @ts-ignore — dispatcher is internal but available at runtime
-      dispatcher: undefined,
       headersTimeout: 20_000,
       bodyTimeout: 20_000,
     });
 
     clearTimeout(timeout);
 
-    // Capture transfer stats BEFORE reading the body
-    // undici sets content-length to the COMPRESSED size when content-encoding is active
+    // content-length is the compressed wire size when content-encoding is active;
+    // undici has already decompressed the body before we read it.
     const contentLengthHeader = /** @type {string | null} */ (res.headers['content-length'] ?? null);
     const contentEncoding = /** @type {string} */ ((res.headers['content-encoding'] ?? 'identity').toLowerCase());
 
-    // Read body — undici has already decompressed it at this point
-    const text = await res.body.text();
+    // 4xx from the server is a refusal
+    if (REFUSAL_CODES.has(res.statusCode)) {
+      const durationMs = Math.round(performance.now() - startedAt);
+      return {
+        wire_bytes: null,
+        uncompressed_bytes: null,
+        compression_ratio: null,
+        content_encoding: contentEncoding,
+        http_status: res.statusCode,
+        error: { kind: `http_${res.statusCode}`, message: `HTTP ${res.statusCode} refusal`, duration_ms: durationMs },
+      };
+    }
 
+    const text = await res.body.text();
     const durationMs = Math.round(performance.now() - startedAt);
     const uncompressedBytes = Buffer.byteLength(text);
 
-    // Wire bytes: use content-length if the server sent it (it is the compressed
-    // transfer size, even when undici decompressed the body before we read it).
-    // Only override when content-length is absent or identity.
-    // For chunked responses without content-length we cannot recover the
-    // compressed wire size without lowering-level APIs, so body.size is
-    // used as a lower-bound estimate (it is the decompressed size here).
-    let wireBytes = uncompressedBytes; // default: no compression detected
+    // wire_bytes: only derivable from content-length when the server sent it.
+    // When absent (chunked transfer) and compression is active, we cannot know
+    // the compressed size — do NOT fabricate an estimate.
+    let wireBytes = null;
     if (contentLengthHeader !== null && contentEncoding !== 'identity') {
       const cl = parseInt(contentLengthHeader, 10);
       if (cl > 0) wireBytes = cl;
     }
 
-    // 1.0 = identity encoding (no compression), or wire >= uncompressed (compression not beneficial or content-length absent)
-    // null = we had no content-length for a compressed response and could not determine wire bytes
-    const compressionRatio =
-      contentEncoding !== 'identity' && wireBytes > 0 && wireBytes < uncompressedBytes
-        ? Math.round((uncompressedBytes / wireBytes) * 100) / 100
-        : 1.0;
+    // compression_ratio: null when we have no wire_bytes for a compressed response
+    let compressionRatio = null;
+    if (wireBytes !== null && wireBytes > 0 && wireBytes < uncompressedBytes) {
+      compressionRatio = Math.round((uncompressedBytes / wireBytes) * 100) / 100;
+    }
 
     return {
-      path: '', // filled by caller
-      label: '', // filled by caller
-      url_attempted: url,
-      http_status: res.statusCode,
-      content_encoding: contentEncoding,
       wire_bytes: wireBytes,
       uncompressed_bytes: uncompressedBytes,
-      compression_ratio: Math.round(compressionRatio * 100) / 100,
-      measured_at: new Date().toISOString(),
+      compression_ratio: compressionRatio,
+      content_encoding: contentEncoding,
+      http_status: res.statusCode,
       error: null,
     };
   } catch (err) {
@@ -222,15 +209,11 @@ async function measureOne(url, { method = 'GET', headers = {}, body = undefined 
       : /** @type {string} */ (err.code ?? 'unknown');
 
     return {
-      path: '',
-      label: '',
-      url_attempted: url,
-      http_status: 0,
-      content_encoding: 'identity',
       wire_bytes: null,
       uncompressed_bytes: null,
       compression_ratio: null,
-      measured_at: new Date().toISOString(),
+      content_encoding: 'identity',
+      http_status: 0,
       error: { kind, message: String(err.message).slice(0, 200), duration_ms: durationMs },
     };
   }
@@ -243,10 +226,10 @@ async function measureOne(url, { method = 'GET', headers = {}, body = undefined 
 async function main() {
   mkdirSync(EVIDENCE_DIR, { recursive: true });
 
-  /** @type {Array<{path: string, label: string, buildRequest: () => Promise<RequestOptions>}>} */
+  /** @type {Array<{path: string, label: string, buildRequest: () => Promise<any>}>} */
   const paths = [
     { path: 'walmart-store-finder', label: 'Walmart Store Finder (nearByNodes, ZIP 22901, 50mi)', buildRequest: walmartStoreFinder },
-    { path: 'walmart-browse', label: 'Walmart Browse ps=1 catId=3944', buildRequest: walmartBrowse },
+    { path: 'walmart-browse', label: 'Walmart Browse ps=40 catId=3944', buildRequest: walmartBrowse },
     { path: 'wegmans-api-stores', label: 'Wegmans /api/stores', buildRequest: wegmansApiStores },
     { path: 'wegmans-algolia', label: 'Wegmans Algolia products_v2 search "milk"', buildRequest: wegmansAlgolia },
     { path: 'traderjoes-graphql', label: "Trader Joe's GraphQL StoresSearch", buildRequest: traderJoesGraphQL },
@@ -257,17 +240,37 @@ async function main() {
   const rows = [];
 
   for (const { path, label, buildRequest } of paths) {
-    process.stderr.write(`[measure] ${label} … `);
-    const opts = await buildRequest();
-    const row = await measureOne(opts.url, opts);
-    row.path = path;
-    row.label = label;
+    process.stderr.write(`[measure] ${label} …\n`);
+
+    // Arm 1: compression enabled (production-like)
+    const normalOpts = await buildRequest();
+    const normalResult = await measureOne(normalOpts.url, normalOpts);
+
+    // Arm 2: compression disabled (identity) — same URL, strip accept-encoding
+    const noCompHeaders = { ...normalOpts.headers };
+    delete noCompHeaders['accept-encoding'];
+    const noCompOpts = { ...normalOpts, headers: noCompHeaders };
+    const noCompResult = await measureOne(noCompOpts.url, noCompOpts);
+
+    const row = {
+      path,
+      label,
+      url_attempted: normalOpts.url,
+      normal: normalResult,
+      no_compression: noCompResult,
+    };
     rows.push(row);
 
-    if (row.error) {
-      process.stderr.write(`REFUSED ${row.error.kind} (${row.http_status})\n`);
+    if (normalResult.error) {
+      process.stderr.write(`  normal: REFUSED ${normalResult.error.kind} (${normalResult.http_status})\n`);
     } else {
-      process.stderr.write(`${row.http_status} wire=${row.wire_bytes} uncompressed=${row.uncompressed_bytes} ratio=${row.compression_ratio}x\n`);
+      process.stderr.write(`  normal: ${normalResult.http_status} wire=${normalResult.wire_bytes} uncompressed=${normalResult.uncompressed_bytes} ratio=${normalResult.compression_ratio}x ce=${normalResult.content_encoding}\n`);
+    }
+
+    if (noCompResult.error) {
+      process.stderr.write(`  no_compression: REFUSED ${noCompResult.error.kind} (${noCompResult.http_status})\n`);
+    } else {
+      process.stderr.write(`  no_compression: ${noCompResult.http_status} wire=${noCompResult.wire_bytes} uncompressed=${noCompResult.uncompressed_bytes} ce=${noCompResult.content_encoding}\n`);
     }
 
     // 2-second per-host pacing
@@ -276,20 +279,20 @@ async function main() {
 
   const result = {
     measured_at: new Date().toISOString(),
-    script_version: '1.0.0',
+    script_version: '1.1.0',
     paths: rows,
   };
 
   writeFileSync(OUT_FILE, JSON.stringify(result, null, 2));
   process.stdout.write(`Written: ${OUT_FILE}\n`);
 
-  const refusals = rows.filter((r) => r.error !== null);
-  const measurable = rows.filter((r) => r.compression_ratio !== null);
-  const gzipped = rows.filter((r) => r.compression_ratio !== null && r.compression_ratio > 1.0);
-  const maxRatio = measurable.reduce((m, r) => Math.max(m, r.compression_ratio ?? 0), 0);
+  const refusals = rows.filter((r) => r.normal.error !== null || r.no_compression.error !== null);
+  const withRatio = rows.filter((r) => r.normal.compression_ratio !== null);
+  const gzipped = withRatio.filter((r) => r.normal.compression_ratio > 1.0);
+  const maxRatio = withRatio.reduce((m, r) => Math.max(m, r.normal.compression_ratio ?? 0), 0);
   process.stdout.write(
     `Summary: ${rows.length} paths, ${refusals.length} refusals, ${gzipped.length} with compression_ratio>1, ` +
-    `max_ratio=${maxRatio.toFixed(1)}x, ${measurable.length} measurable\n`,
+    `max_ratio=${maxRatio.toFixed(1)}x, ${withRatio.length} measurable\n`,
   );
   if (gzipped.length === 0 && rows.length > 0) {
     process.stdout.write('NOTE: no path showed wire_bytes < uncompressed_bytes; either no server compresses these responses, or content-length was absent (chunked transfer).\n');
@@ -297,7 +300,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  // Only crash for truly unexpected errors (programming mistakes)
   console.error('Fatal:', err);
   process.exit(1);
 });
