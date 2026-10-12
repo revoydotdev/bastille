@@ -151,21 +151,68 @@ function budgetCall(b: HostBudget, fn: (b: HostBudget) => void): void {
   }
 }
 
-async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
+/**
+ * Serialises the per-identity pacing slot. Without it `pace()` reads
+ * `waitMs()` and `nextRequestAt`, then awaits — so N reads in flight on one node
+ * all read the same pre-await state, all pass the ceiling check, and all go out
+ * together on an upsert that only the last of them wins.
+ *
+ * Chain pattern, same as `throttle()` in `adapters/http.ts`: each caller chains
+ * onto the previous caller's slot. The tail never rejects, so one caller's
+ * cooldown throw cannot wedge the node for the rest of the process.
+ *
+ * Keyed `(identityKey, egressNodeId)` — the two things Walmart rate-limits a
+ * read by. They are the same value today (the only identity a read passes is
+ * its egress node), but the tuple keeps a future non-node identity on its own
+ * slot instead of collapsing onto the node's.
+ *
+ * The lock covers the check-and-set only. The sleep and the network read
+ * happen after it is released, so a slow proxy or a 30s response never blocks
+ * another node's pacing — or this one's own, beyond its own slot turn.
+ */
+const paceTails = new Map<string, Promise<void>>();
+
+function paceSlot<T>(key: string, body: () => Promise<T>): Promise<T> {
+  const slot = (paceTails.get(key) ?? Promise.resolve()).then(body);
+  paceTails.set(
+    key,
+    slot.then(
+      () => {},
+      () => {},
+    ),
+  );
+  return slot;
+}
+
+/** Exported for the concurrency tests; every read path reaches it. */
+export async function pace(opts: { egressNodeId?: string; identityKey?: string } = {}): Promise<void> {
   const b = budgetFor(opts.egressNodeId);
   const pacer = pacerFor(opts.egressNodeId);
-  let held = 0;
-  try {
-    held = b?.waitMs() ?? 0;
-  } catch {
-    held = 0;
-  }
-  if (held > MAX_PACE_WAIT_MS) throw new WalmartCooldownError(held);
+  const key = `${opts.identityKey ?? opts.egressNodeId ?? ''}|${opts.egressNodeId ?? ''}`;
 
-  const wait = Math.max(pacer.nextRequestAt - Date.now(), held);
+  const { sleepFor: wait } = await paceSlot(key, async () => {
+    let held = 0;
+    try {
+      held = b?.waitMs() ?? 0;
+    } catch {
+      held = 0;
+    }
+    if (held > MAX_PACE_WAIT_MS) throw new WalmartCooldownError(held);
+
+    // Reserve the slot before releasing the lock, not after the sleep: the next
+    // caller must see this read's interval already claimed. Reserved on top of
+    // the previous reservation, not on top of `now` — callers arriving in the
+    // same millisecond would otherwise each measure the same gap and all go out
+    // together, which is the burst this lock exists to prevent.
+    const now = Date.now();
+    const sleepFor = Math.max(pacer.nextRequestAt - now, held);
+    pacer.nextRequestAt =
+      Math.max(now, pacer.nextRequestAt) + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
+    if (b) budgetCall(b, (bb) => bb.recordRead());
+    return { sleepFor };
+  });
+
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-  pacer.nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
-  if (b) budgetCall(b, (bb) => bb.recordRead());
 }
 
 /**
