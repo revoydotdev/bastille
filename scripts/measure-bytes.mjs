@@ -5,22 +5,19 @@
  * Measures compressed wire bytes alongside decompressed bytes for each bastille
  * ingest path, and records the result into $BASTILLE_EVIDENCE_DIR/wave-A/bytes.json.
  *
- * Usage:
- *   node scripts/measure-bytes.mjs
- *   BASTILLE_EVIDENCE_DIR=/custom/path node scripts/measure-bytes.mjs
+ * Wire bytes are the raw compressed body length as received over the wire
+ * (Buffer.concat(chunks).length) — NOT socket.bytesRead deltas which include
+ * socket-level read-ahead and systematically under-report body size.
  *
- * Two arms per path:
- *   - normal:    accept-encoding: gzip, br  (production-like, compressed)
- *   - no_compression: accept-encoding: identity  (baseline, uncompressed)
- *
- * Wire bytes are sourced from the response Content-Length header where available;
- * undici inflates the body before giving it to us, so Buffer.byteLength(text)
- * gives the decompressed size (matching what request_log.bytes records today).
+ * The native http/https module does NOT auto-decompress like undici, so we
+ * manually decompress based on content-encoding to get true uncompressed size.
  *
  * Handles 403/412/418/429/503/timeout as refusal rows — the script never exits
  * non-zero for an HTTP refusal.
  */
-import { request } from 'undici';
+import http from 'node:http';
+import https from 'node:https';
+import zlib from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
@@ -124,6 +121,19 @@ async function controlUrl() {
   };
 }
 
+async function githubRawControl() {
+  // GitHub raw: content-length + gzip — good offline-verifiable control that
+  // wire_bytes (raw body length) matches what curl --compressed reports
+  return {
+    url: 'https://raw.githubusercontent.com/nodejs/node/main/README.md',
+    method: 'GET',
+    headers: {
+      'accept-encoding': 'gzip, br',
+      accept: '*/*',
+    },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Refusal codes
 // ---------------------------------------------------------------------------
@@ -131,7 +141,7 @@ async function controlUrl() {
 const REFUSAL_CODES = new Set([403, 412, 418, 429, 503]);
 
 // ---------------------------------------------------------------------------
-// Measurement
+// Measurement using native http/https with socket byte tracking
 // ---------------------------------------------------------------------------
 
 /**
@@ -139,84 +149,167 @@ const REFUSAL_CODES = new Set([403, 412, 418, 429, 503]);
  * @param {{ method?: string, headers?: Record<string, string>, body?: string }} opts
  * @returns {Promise<{wire_bytes: number|null, uncompressed_bytes: number|null, compression_ratio: number|null, content_encoding: string, http_status: number, error: {kind: string, message: string, duration_ms: number}|null}>}
  */
-async function measureOne(url, { method = 'GET', headers = {}, body = undefined }) {
+async function measureOneNative(url, { method = 'GET', headers = {}, body = undefined }) {
   const startedAt = performance.now();
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 20_000);
 
-  try {
-    const res = await request(url, {
-      method,
-      headers,
-      body,
-      signal: controller.signal,
-      headersTimeout: 20_000,
-      bodyTimeout: 20_000,
-    });
+  return new Promise((resolve) => {
+    try {
+      const parsedUrl = new URL(url);
+      const isHttps = parsedUrl.protocol === 'https:';
+      const mod = isHttps ? https : http;
 
-    clearTimeout(timeout);
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method,
+        headers: { ...headers },
+      };
 
-    // content-length is the compressed wire size when content-encoding is active;
-    // undici has already decompressed the body before we read it.
-    const contentLengthHeader = /** @type {string | null} */ (res.headers['content-length'] ?? null);
-    const contentEncoding = /** @type {string} */ ((res.headers['content-encoding'] ?? 'identity').toLowerCase());
+      const req = mod.request(options, (res) => {
+        const contentEncoding = (res.headers['content-encoding'] ?? 'identity').toLowerCase();
 
-    // 4xx from the server is a refusal
-    if (REFUSAL_CODES.has(res.statusCode)) {
+        // 4xx from the server is a refusal
+        if (REFUSAL_CODES.has(res.statusCode)) {
+          clearTimeout(timeout);
+          const durationMs = Math.round(performance.now() - startedAt);
+          resolve({
+            wire_bytes: null,
+            uncompressed_bytes: null,
+            compression_ratio: null,
+            content_encoding: contentEncoding,
+            http_status: res.statusCode,
+            error: { kind: `http_${res.statusCode}`, message: `HTTP ${res.statusCode} refusal`, duration_ms: durationMs },
+          });
+          return;
+        }
+
+        // Collect raw (compressed) body chunks — the native http module does NOT
+        // auto-decompress, so chunks contains the true wire bytes as received.
+        const chunks = [];
+
+        res.on('data', (chunk) => {
+          chunks.push(chunk);
+        });
+
+        res.on('end', () => {
+          clearTimeout(timeout);
+          const durationMs = Math.round(performance.now() - startedAt);
+
+          if (chunks.length === 0) {
+            resolve({
+              wire_bytes: 0,
+              uncompressed_bytes: 0,
+              compression_ratio: null,
+              content_encoding: contentEncoding,
+              http_status: res.statusCode,
+              error: null,
+            });
+            return;
+          }
+
+          const rawBody = Buffer.concat(chunks);
+          const wireBytes = rawBody.length; // actual compressed bytes on the wire
+
+          // Calculate uncompressed bytes by decompressing the raw body
+          let uncompressedBytes = 0;
+          if (contentEncoding === 'gzip') {
+            try {
+              uncompressedBytes = zlib.gunzipSync(rawBody).length;
+            } catch {
+              uncompressedBytes = wireBytes;
+            }
+          } else if (contentEncoding === 'br') {
+            try {
+              uncompressedBytes = zlib.brotliDecompressSync(rawBody).length;
+            } catch {
+              uncompressedBytes = wireBytes;
+            }
+          } else {
+            // identity or unknown — raw body is already uncompressed
+            uncompressedBytes = wireBytes;
+          }
+
+          // compression_ratio: null when uncompressed <= wire (no compression or error)
+          let compressionRatio = null;
+          if (uncompressedBytes > wireBytes) {
+            compressionRatio = Math.round((uncompressedBytes / wireBytes) * 100) / 100;
+          }
+
+          resolve({
+            wire_bytes: wireBytes,
+            uncompressed_bytes: uncompressedBytes,
+            compression_ratio: compressionRatio,
+            content_encoding: contentEncoding,
+            http_status: res.statusCode,
+            error: null,
+          });
+        });
+
+        res.on('error', (err) => {
+          clearTimeout(timeout);
+          const durationMs = Math.round(performance.now() - startedAt);
+          resolve({
+            wire_bytes: null,
+            uncompressed_bytes: null,
+            compression_ratio: null,
+            content_encoding: contentEncoding,
+            http_status: 0,
+            error: { kind: 'network', message: String(err.message).slice(0, 200), duration_ms: durationMs },
+          });
+        });
+      });
+
+      req.on('error', (err) => {
+        clearTimeout(timeout);
+        const durationMs = Math.round(performance.now() - startedAt);
+        const kind = err.code === 'ECONNREFUSED' ? 'refused' : /** @type {string} */ (err.code ?? 'unknown');
+        resolve({
+          wire_bytes: null,
+          uncompressed_bytes: null,
+          compression_ratio: null,
+          content_encoding: 'identity',
+          http_status: 0,
+          error: { kind, message: String(err.message).slice(0, 200), duration_ms: durationMs },
+        });
+      });
+
+      req.on('abort', () => {
+        clearTimeout(timeout);
+        const durationMs = Math.round(performance.now() - startedAt);
+        resolve({
+          wire_bytes: null,
+          uncompressed_bytes: null,
+          compression_ratio: null,
+          content_encoding: 'identity',
+          http_status: 0,
+          error: { kind: 'timeout', message: 'Request aborted/timeout', duration_ms: durationMs },
+        });
+      });
+
+      controller.signal.addEventListener('abort', () => {
+        req.abort();
+      });
+
+      if (body) {
+        req.write(body);
+      }
+      req.end();
+    } catch (err) {
+      clearTimeout(timeout);
       const durationMs = Math.round(performance.now() - startedAt);
-      return {
+      resolve({
         wire_bytes: null,
         uncompressed_bytes: null,
         compression_ratio: null,
-        content_encoding: contentEncoding,
-        http_status: res.statusCode,
-        error: { kind: `http_${res.statusCode}`, message: `HTTP ${res.statusCode} refusal`, duration_ms: durationMs },
-      };
+        content_encoding: 'identity',
+        http_status: 0,
+        error: { kind: 'unknown', message: String(err.message).slice(0, 200), duration_ms: durationMs },
+      });
     }
-
-    const text = await res.body.text();
-    const durationMs = Math.round(performance.now() - startedAt);
-    const uncompressedBytes = Buffer.byteLength(text);
-
-    // wire_bytes: only derivable from content-length when the server sent it.
-    // When absent (chunked transfer) and compression is active, we cannot know
-    // the compressed size — do NOT fabricate an estimate.
-    let wireBytes = null;
-    if (contentLengthHeader !== null && contentEncoding !== 'identity') {
-      const cl = parseInt(contentLengthHeader, 10);
-      if (cl > 0) wireBytes = cl;
-    }
-
-    // compression_ratio: null when we have no wire_bytes for a compressed response
-    let compressionRatio = null;
-    if (wireBytes !== null && wireBytes > 0 && wireBytes < uncompressedBytes) {
-      compressionRatio = Math.round((uncompressedBytes / wireBytes) * 100) / 100;
-    }
-
-    return {
-      wire_bytes: wireBytes,
-      uncompressed_bytes: uncompressedBytes,
-      compression_ratio: compressionRatio,
-      content_encoding: contentEncoding,
-      http_status: res.statusCode,
-      error: null,
-    };
-  } catch (err) {
-    clearTimeout(timeout);
-    const durationMs = Math.round(performance.now() - startedAt);
-    const kind = err.code === 'UND_ERR_ABORTED' || err.message === 'The operation was aborted'
-      ? 'timeout'
-      : /** @type {string} */ (err.code ?? 'unknown');
-
-    return {
-      wire_bytes: null,
-      uncompressed_bytes: null,
-      compression_ratio: null,
-      content_encoding: 'identity',
-      http_status: 0,
-      error: { kind, message: String(err.message).slice(0, 200), duration_ms: durationMs },
-    };
-  }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +328,7 @@ async function main() {
     { path: 'traderjoes-graphql', label: "Trader Joe's GraphQL StoresSearch", buildRequest: traderJoesGraphQL },
     { path: 'foodlion-aisle', label: 'Food Lion aisle page (produce)', buildRequest: foodLionAisle },
     { path: 'control', label: 'example.com static control', buildRequest: controlUrl },
+    { path: 'github-raw-control', label: 'GitHub raw README.md (content-length+gzip control)', buildRequest: githubRawControl },
   ];
 
   const rows = [];
@@ -244,13 +338,13 @@ async function main() {
 
     // Arm 1: compression enabled (production-like)
     const normalOpts = await buildRequest();
-    const normalResult = await measureOne(normalOpts.url, normalOpts);
+    const normalResult = await measureOneNative(normalOpts.url, normalOpts);
 
     // Arm 2: compression disabled (identity) — same URL, strip accept-encoding
     const noCompHeaders = { ...normalOpts.headers };
     delete noCompHeaders['accept-encoding'];
     const noCompOpts = { ...normalOpts, headers: noCompHeaders };
-    const noCompResult = await measureOne(noCompOpts.url, noCompOpts);
+    const noCompResult = await measureOneNative(noCompOpts.url, noCompOpts);
 
     const row = {
       path,
@@ -279,7 +373,7 @@ async function main() {
 
   const result = {
     measured_at: new Date().toISOString(),
-    script_version: '1.1.0',
+    script_version: '1.3.0',
     paths: rows,
   };
 
@@ -295,11 +389,22 @@ async function main() {
     `max_ratio=${maxRatio.toFixed(1)}x, ${withRatio.length} measurable\n`,
   );
   if (gzipped.length === 0 && rows.length > 0) {
-    process.stdout.write('NOTE: no path showed wire_bytes < uncompressed_bytes; either no server compresses these responses, or content-length was absent (chunked transfer).\n');
+    process.stdout.write('WARNING: no path showed wire_bytes < uncompressed_bytes; check socket tracking is working.\n');
   }
 }
 
-main().catch((err) => {
-  console.error('Fatal:', err);
-  process.exit(1);
-});
+// Guard: only run main() when executed directly, not when imported as a module
+// (e.g. by `node --test scripts/measure-bytes.test.mjs`)
+import { pathToFileURL } from 'node:url';
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    console.error('Fatal:', err);
+    process.exit(1);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Exports for testing
+// ---------------------------------------------------------------------------
+
+export { measureOneNative, REFUSAL_CODES };

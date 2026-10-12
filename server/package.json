@@ -8,7 +8,7 @@
     "dev": "tsx watch --disable-warning=ExperimentalWarning src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node --disable-warning=ExperimentalWarning dist/index.js",
-    "test": "tsx --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "test": "tsx --disable-warning=ExperimentalWarning --test test/*.test.{ts,mjs}",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
