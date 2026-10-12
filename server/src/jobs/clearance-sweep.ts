@@ -35,6 +35,8 @@ export type ShelfReader = (opts: {
   page?: number;
   pageSize?: number;
   sort?: string;
+  proxyUrl?: string;
+  egressNodeId?: string;
 }) => Promise<ShelfPage>;
 
 function localDate(d = new Date()): string {
@@ -207,6 +209,10 @@ export class ClearanceSweepJob {
     this.running = true;
     this.readsSpent = 0;
 
+    // Per-node host budgets. Each egress node burns its own 18-read window
+    // against walmart.com so a block on one IP doesn't stop the others.
+    this.repo.installEgressBudgets();
+
     const date = localDate();
     const runId = this.repo.startSweep(date);
     const errors: string[] = [];
@@ -249,6 +255,26 @@ export class ClearanceSweepJob {
       for (const store of stores) {
         if (abandoned) break;
 
+        // Look up the egress node for this store. Without one, the read goes
+        // out the process's own egress (which Walmart's edge resolves to one
+        // store, typically the closest to the server's real IP). With one, the
+        // read goes through the residential proxy, and Walmart picks the store
+        // that node is in. This is what lets one sweep cover multiple metros.
+        const node = store.egressNodeId ? this.repo.getEgressNode(store.egressNodeId) : null;
+        if (store.egressNodeId) {
+          if (!node) {
+            errors.push(`[error] ${store.name} (${store.locationId}): assigned egress node "${store.egressNodeId}" not found`);
+            continue;
+          }
+          if (!node.enabled) {
+            errors.push(`[error] ${store.name} (${store.locationId}): egress node "${store.egressNodeId}" is disabled`);
+            continue;
+          }
+          this.repo.touchEgressNode(node.id);
+        }
+        const proxyUrl = node?.proxyUrl;
+        const egressNodeId = node?.id;
+
         // Delta only when there is a previous full pass recent enough to lean on.
         const lastFull = this.repo.lastFullSweepDate(store.locationId);
         const delta =
@@ -263,7 +289,9 @@ export class ClearanceSweepJob {
           this.progress.currentCategory = category.slug;
           this.publish();
           try {
-            const result = await this.sweepCategory(date, store, category, delta ? known : null);
+            const result = await this.sweepCategory(
+              date, store, category, delta ? known : null, proxyUrl, egressNodeId,
+            );
             finds += result.finds;
             alerts += result.alerts;
             sweptAnything = true;
@@ -363,12 +391,24 @@ export class ClearanceSweepJob {
    * record at this store; when given the read is a delta - newest first, ending
    * at the first page that holds nothing unfamiliar. `complete` says the shelf
    * was read to its end rather than cut short by the budget or an error.
+   *
+   * `store` is the full SweptStore (with `egressNodeId` if assigned). The
+   * per-store egress node is resolved to a proxy URL once and used for every
+   * page of this shelf. Nodes are looked up in `localEgressNodes` which the
+   * job pre-populates from the repo at run start.
    */
   private async sweepCategory(
     date: string,
-    store: { locationId: string; postalCode: string; name: string },
+    store: {
+      locationId: string;
+      postalCode: string;
+      name: string;
+      egressNodeId: string | null;
+    },
     category: ClearanceCategory,
     known: Set<string> | null,
+    proxyUrl: string | undefined,
+    egressNodeId: string | undefined,
   ): Promise<{ finds: number; alerts: number; complete: boolean }> {
     const { locationId, postalCode } = store;
     let finds = 0;
@@ -385,6 +425,8 @@ export class ClearanceSweepJob {
         page,
         pageSize: PAGE_SIZE,
         sort: this.opts.sort,
+        proxyUrl,
+        egressNodeId,
       });
 
       // Walmart echoes the store it answered for, and it is not always the one

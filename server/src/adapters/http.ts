@@ -66,6 +66,8 @@ export interface FetchOptions {
   body?: unknown;
   retries?: number;
   timeoutMs?: number;
+  /** Per-call undici Dispatcher override. Used for residential proxies. */
+  dispatcher?: Dispatcher;
 }
 
 export async function fetchText(url: string, opts: FetchOptions = {}): Promise<string> {
@@ -74,6 +76,9 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
   if (offline()) throw new Error(`offline mode (BASTILLE_OFFLINE=1): refusing to read ${host}`);
   const retries = opts.retries ?? 2;
   let lastError: unknown;
+  // Per-call dispatcher override (e.g. a residential proxy for one read).
+  // Default is the module-level dispatcher set by setHttpDispatcher / tests.
+  const d = opts.dispatcher ?? dispatcher;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     await throttle(host);
@@ -82,7 +87,7 @@ export async function fetchText(url: string, opts: FetchOptions = {}): Promise<s
     let bytes = 0;
     try {
       const res = await request(url, {
-        dispatcher,
+        dispatcher: d,
         method: opts.method ?? 'GET',
         headers: {
           'user-agent': UA,

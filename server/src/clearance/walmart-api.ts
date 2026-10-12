@@ -19,9 +19,15 @@
  * `pageMetadata.storeSelectionHeader`, which is checked so a silently
  * unscoped read can never be recorded as a store's clearance.
  *
+ * Per-node proxy: when `egressNodeId` is passed to a read, the call goes
+ * through a residential-proxy URL. The egress IP is what Walmart uses to
+ * pick the answering store, so different nodes read different racks. This is
+ * the W-9 federation path: one process, many IPs, one store per IP.
+ *
  * See docs/WALMART-CLEARANCE-API.md for the full write-up.
  */
 import { fetchJson, HttpError } from '../adapters/http.js';
+import { ProxyAgent } from 'undici';
 import type { HostBudget } from './host-budget.js';
 import type { Point } from '../geo.js';
 
@@ -59,12 +65,32 @@ const MAX_PACE_WAIT_MS = 90_000;
 const RATE_LIMIT_COOLDOWN_MS = Number(process.env.WALMART_RATE_LIMIT_COOLDOWN_MS ?? 5 * 60 * 1000);
 
 /**
- * The durable ledger every read is checked against. Optional so the module
+ * A durable ledger every read is checked against. Optional so the module
  * stays usable without a database; `ClearanceRepo` installs one at start-up.
+ *
+ * The ledger is keyed by `(host, egressNodeId)`. The empty-string key is the
+ * default: reads that go through the process's own egress (no proxy, or a
+ * proxy the operator hasn't assigned to a node) share one window. Reads that
+ * name an explicit node each burn their own 18-read window — that's how
+ * W-9 federation scales to multiple stores per run.
+ *
+ * The per-node budget is created lazily so the host_budget table doesn't
+ * sprout N rows for N nodes on first boot. Reads that pass an empty
+ * `egressNodeId` continue to use the same ledger the module always had.
  */
-let budget: HostBudget | null = null;
+const perNodeBudget: Map<string, HostBudget> = new Map();
+let defaultBudget: HostBudget | null = null;
 export function setHostBudget(b: HostBudget | null): void {
-  budget = b;
+  defaultBudget = b;
+  perNodeBudget.clear();
+}
+export function setNodeHostBudget(nodeId: string, b: HostBudget | null): void {
+  if (b === null) perNodeBudget.delete(nodeId);
+  else perNodeBudget.set(nodeId, b);
+}
+function budgetFor(nodeId: string | null | undefined): HostBudget | null {
+  if (nodeId && perNodeBudget.has(nodeId)) return perNodeBudget.get(nodeId)!;
+  return defaultBudget;
 }
 
 /** Walmart's edge is closed to us for a while; the persisted not-before says how long. */
@@ -86,20 +112,21 @@ export class HashExpiredError extends Error {
 
 const HASH_ROT = /PersistedQueryNotFound|PERSISTED_QUERY|persisted query|VALIDATION_|must have a selection|Unknown (?:type|argument)|missing variable/i;
 
-function budgetCall(fn: (b: HostBudget) => void): void {
+function budgetCall(b: HostBudget, fn: (b: HostBudget) => void): void {
   // The ledger is a safeguard, not a dependency: a failing database must not
   // turn into a failing read path.
   try {
-    if (budget) fn(budget);
+    fn(b);
   } catch {
     /* ignore */
   }
 }
 
-async function pace(): Promise<void> {
+async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
+  const b = budgetFor(opts.egressNodeId);
   let held = 0;
   try {
-    held = budget?.waitMs() ?? 0;
+    held = b?.waitMs() ?? 0;
   } catch {
     held = 0;
   }
@@ -108,17 +135,22 @@ async function pace(): Promise<void> {
   const wait = Math.max(nextRequestAt - Date.now(), held);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
-  budgetCall((b) => b.recordRead());
+  if (b) budgetCall(b, (bb) => bb.recordRead());
 }
 
 /**
  * Pushes the next read out by `ms`, in memory and in the ledger, so a caller
  * that has just been rate-limited can stand down without the pacer — or a
  * restarted process — immediately letting the following request through.
+ *
+ * The block is recorded against every configured budget so a node cooldown
+ * also throttles the process's own egress (no double-reading from two IPs
+ * for the same store).
  */
-export function backOffUntil(ms: number): void {
+export function backOffUntil(ms: number, egressNodeId?: string): void {
   nextRequestAt = Math.max(nextRequestAt, Date.now() + ms);
-  budgetCall((b) => b.block(ms, null));
+  const b = budgetFor(egressNodeId);
+  if (b) budgetCall(b, (bb) => bb.block(ms, null));
 }
 
 function correlationId(): string {
@@ -176,15 +208,28 @@ interface GraphQLErrors {
  * A GraphQL error arrives as HTTP 200 with `data: null`. Left unchecked that
  * reads downstream as "this store has nothing on clearance", which is the most
  * expensive kind of wrong answer here — so it is raised instead.
+ *
+ * `opts.proxyUrl` makes the read go through a residential-proxy exit. A fresh
+ * ProxyAgent is built per call (cheap; the agent is just config) so each node
+ * has its own connection pool and a node cooldown can't poison the default
+ * dispatcher.
  */
 async function persistedQuery<T>(
   path: string,
   operation: string,
   variables: unknown,
-  opts: { referer: string; withStoreCookie?: boolean; locationId?: string; postalCode?: string },
+  opts: {
+    referer: string;
+    withStoreCookie?: boolean;
+    locationId?: string;
+    postalCode?: string;
+    proxyUrl?: string;
+    egressNodeId?: string;
+  },
 ): Promise<T> {
-  await pace();
+  await pace({ egressNodeId: opts.egressNodeId });
   const url = `${SITE}${path}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
+  const dispatcher = opts.proxyUrl ? new ProxyAgent({ uri: opts.proxyUrl, pipelining: 0 }) : undefined;
   let body: T & GraphQLErrors;
   try {
     // retries: 0 — a refusal is not something to knock on again. The sweep's
@@ -193,12 +238,14 @@ async function persistedQuery<T>(
       headers: walmartHeaders(opts.referer, operation, opts),
       timeoutMs: 30_000,
       retries: 0,
+      ...(dispatcher ? { dispatcher } : {}),
     });
   } catch (err) {
     if (err instanceof HttpError) {
       if (err.status === 412 || err.status === 429) {
         nextRequestAt = Math.max(nextRequestAt, Date.now() + RATE_LIMIT_COOLDOWN_MS);
-        budgetCall((b) => b.block(RATE_LIMIT_COOLDOWN_MS, err.status));
+        const b = budgetFor(opts.egressNodeId);
+        if (b) budgetCall(b, (bb) => bb.block(RATE_LIMIT_COOLDOWN_MS, err.status));
       } else if (err.status >= 400 && err.status < 500 && HASH_ROT.test(err.message)) {
         throw new HashExpiredError(`${operation}: Walmart rejected the query (${err.status}) - ${err.message.slice(0, 200)}`);
       }
@@ -245,12 +292,16 @@ interface NearbyNodesResponse {
 }
 
 /** Stores near a ZIP, nearest first. `radiusMiles` is Walmart's own cap. */
-export async function nearbyStores(postalCode: string, radiusMiles = 50): Promise<WalmartStore[]> {
+export async function nearbyStores(
+  postalCode: string,
+  radiusMiles = 50,
+  opts: { proxyUrl?: string; egressNodeId?: string } = {},
+): Promise<WalmartStore[]> {
   const body = await persistedQuery<NearbyNodesResponse>(
     `/orchestra/home/graphql/storeFinderNearbyNodesQuery/${STORE_FINDER_HASH}`,
     'storeFinderNearbyNodesQuery',
     { input: { postalCode, nodeTypes: ['STORE'], accessTypes: ['PICKUP_INSTORE'], radius: radiusMiles } },
-    { referer: `${SITE}/store-finder` },
+    { referer: `${SITE}/store-finder`, proxyUrl: opts.proxyUrl, egressNodeId: opts.egressNodeId },
   );
 
   const nodes = body.data?.nearByNodes?.nodes ?? [];
@@ -584,6 +635,10 @@ export async function clearanceShelf(opts: {
   pageSize?: number;
   /** Walmart's sort token; `new` is newest-first (verified 2026-10-06). */
   sort?: string;
+  /** Residential-proxy URL to dial this read through. W-9 federation path. */
+  proxyUrl?: string;
+  /** Stable id of the egress node — scopes the host budget to this node. */
+  egressNodeId?: string;
 }): Promise<ShelfPage> {
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 40;
@@ -596,6 +651,8 @@ export async function clearanceShelf(opts: {
       withStoreCookie: true,
       locationId: opts.locationId,
       postalCode: opts.postalCode,
+      proxyUrl: opts.proxyUrl,
+      egressNodeId: opts.egressNodeId,
     },
   );
 

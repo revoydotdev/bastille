@@ -7,7 +7,7 @@
  * matters is *which store*, *what aisle*, and *is it new today*.
  */
 import type { DB } from '../db.js';
-import { setHostBudget, type ClearanceItem, type WalmartStore } from './walmart-api.js';
+import { setHostBudget, setNodeHostBudget, type ClearanceItem, type WalmartStore } from './walmart-api.js';
 import { HostBudget } from './host-budget.js';
 import { isCategoryGroup, type CategoryGroup } from './categories.js';
 
@@ -16,6 +16,31 @@ export interface SweptStore extends WalmartStore {
   discoveredZip: string | null;
   /** when a sweep last actually read this store's rack, or null */
   lastSweptAt: string | null;
+  /**
+   * Egress node the sweep uses to read this store. The IP Walmart sees — and
+   * therefore the store Walmart answers for — comes from this node. Null means
+   * the sweep falls back to the process's own egress (single-store setups,
+   * the original behaviour).
+   */
+  egressNodeId: string | null;
+}
+
+/**
+ * A residential-proxy exit point. The sweep dials the proxy URL with a per-store
+ * geo suffix appended to the password to get an IP in the right metro, and the
+ * host budget is keyed by (host, id) so each exit point burns its own 18-read
+ * window — that's how W-9 federation scales to multiple stores per run.
+ */
+export interface EgressNode {
+  id: string;
+  label: string;
+  /** Full proxy URL with embedded credentials. Treat as sensitive. */
+  proxyUrl: string;
+  /** Freeform region label, e.g. "fairfax,va,us". Used in logs only. */
+  region: string | null;
+  enabled: boolean;
+  addedAt: string;
+  lastUsedAt: string | null;
 }
 
 export interface ClearanceRow {
@@ -125,14 +150,107 @@ const ROW_SELECT = `
   FROM clearance_find f
   JOIN walmart_store s ON s.location_id = f.location_id`;
 
+/** One aisle of the rack, rolled up. A view of what a sweep already recorded. */
+export interface ShelfMapEntry {
+  aisle: string;
+  categorySlug: string;
+  group: CategoryGroup;
+  items: number;
+  newItems: number;
+  minCents: number | null;
+  maxCents: number | null;
+  /** the deepest markdown here, which is not always the cheapest item */
+  bestDiscountPct: number | null;
+}
+
 export class ClearanceRepo {
+  private readonly budget: HostBudget;
+
   constructor(private db: DB) {
     // Every Walmart read in this process answers to one durable ledger, whether
     // it comes from the nightly job, a manual sweep or a store lookup.
-    setHostBudget(new HostBudget(db));
+    this.budget = new HostBudget(db);
+    setHostBudget(this.budget);
+  }
+
+  /** Exposed so a caller can price a read before spending one. */
+  hostBudget(): HostBudget {
+    return this.budget;
+  }
+
+  /**
+   * One HostBudget per egress node, keyed by node id. Idempotent: safe to call
+   * every run. Each node's budget is independent of the default one, so a
+   * 412 against the Charlottesville proxy does not block a read through the
+   * Powhatan one. The budgets live in the same SQLite file (host_budget table)
+   * keyed by host = `www.walmart.com:<nodeId>` so they share the durable
+   * ledger across restarts.
+   */
+  installEgressBudgets(): void {
+    for (const n of this.listEgressNodes().filter((n) => n.enabled)) {
+      setNodeHostBudget(n.id, new HostBudget(this.db, `www.walmart.com:${n.id}`));
+    }
   }
 
   // ---- stores -----------------------------------------------------------
+
+  /** Every store on record, the live one first, then nearest. */
+  listStores(): SweptStore[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM walmart_store
+         ORDER BY enabled DESC, last_swept_at DESC, distance_miles IS NULL, distance_miles ASC`,
+      )
+      .all() as unknown as Record<string, unknown>[];
+    return rows.map((r) => this.toStore(r));
+  }
+
+  /** An aggregate over `clearance_find` alone, so it spends no Walmart read. */
+  shelfMap(date?: string): { date: string | null; aisles: ShelfMapEntry[] } {
+    const day = date ?? this.latestSweepDate();
+    if (!day) return { date: null, aisles: [] };
+
+    const rows = this.db
+      .prepare(
+        `SELECT f.aisle, f.category_slug, f.item_group,
+                COUNT(*) AS items,
+                SUM(CASE WHEN NOT EXISTS (
+                      SELECT 1 FROM clearance_find p
+                      WHERE p.location_id = f.location_id AND p.item_id = f.item_id
+                        AND p.sweep_date < f.sweep_date) THEN 1 ELSE 0 END) AS new_items,
+                MIN(f.now_cents) AS min_cents,
+                MAX(f.now_cents) AS max_cents,
+                MAX(f.discount_pct) AS best_discount_pct
+         FROM clearance_find f
+         WHERE f.sweep_date = ? AND f.aisle IS NOT NULL AND f.aisle <> ''
+         GROUP BY f.aisle, f.category_slug, f.item_group
+         ORDER BY f.aisle ASC, f.category_slug ASC`,
+      )
+      .all(day) as unknown as {
+      aisle: string;
+      category_slug: string;
+      item_group: CategoryGroup;
+      items: number;
+      new_items: number;
+      min_cents: number | null;
+      max_cents: number | null;
+      best_discount_pct: number | null;
+    }[];
+
+    return {
+      date: day,
+      aisles: rows.map((r) => ({
+        aisle: r.aisle,
+        categorySlug: r.category_slug,
+        group: r.item_group,
+        items: r.items,
+        newItems: r.new_items,
+        minCents: r.min_cents,
+        maxCents: r.max_cents,
+        bestDiscountPct: r.best_discount_pct,
+      })),
+    };
+  }
 
   /** Kept for the store lookup that enriches the local store with an address. */
   upsertStores(stores: WalmartStore[], zip: string, enableNew: boolean): void {
@@ -244,6 +362,81 @@ export class ClearanceRepo {
       enabled: r['enabled'] === 1,
       discoveredZip: (r['discovered_zip'] as string | null) ?? null,
       lastSweptAt: (r['last_swept_at'] as string | null) ?? null,
+      egressNodeId: (r['egress_node_id'] as string | null) ?? null,
+    };
+  }
+
+  // ---- egress_node CRUD ---------------------------------------------------
+
+  listEgressNodes(opts: { enabledOnly?: boolean } = {}): EgressNode[] {
+    const sql = opts.enabledOnly
+      ? 'SELECT * FROM egress_node WHERE enabled = 1 ORDER BY id'
+      : 'SELECT * FROM egress_node ORDER BY id';
+    const rows = this.db.prepare(sql).all() as Record<string, unknown>[];
+    return rows.map((r) => this.toEgressNode(r));
+  }
+
+  getEgressNode(id: string): EgressNode | null {
+    const r = this.db
+      .prepare('SELECT * FROM egress_node WHERE id = ?')
+      .get(id) as Record<string, unknown> | undefined;
+    return r ? this.toEgressNode(r) : null;
+  }
+
+  upsertEgressNode(node: Omit<EgressNode, 'addedAt' | 'lastUsedAt'> & { addedAt?: string }): EgressNode {
+    const addedAt = node.addedAt ?? new Date().toISOString();
+    this.db
+      .prepare(
+        `INSERT INTO egress_node (id, label, proxy_url, region, enabled, added_at)
+         VALUES (?,?,?,?,?,?)
+         ON CONFLICT (id) DO UPDATE SET
+           label=excluded.label, proxy_url=excluded.proxy_url, region=excluded.region,
+           enabled=excluded.enabled`,
+      )
+      .run(node.id, node.label, node.proxyUrl, node.region, node.enabled ? 1 : 0, addedAt);
+    return this.getEgressNode(node.id)!;
+  }
+
+  deleteEgressNode(id: string): void {
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.prepare('UPDATE walmart_store SET egress_node_id = NULL WHERE egress_node_id = ?').run(id);
+      this.db.prepare('DELETE FROM egress_node WHERE id = ?').run(id);
+      this.db.exec('COMMIT');
+    } catch (err) {
+      this.db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+
+  /**
+   * Binds a store to an egress node. The sweep uses the node's proxy URL to
+   * read this store. Stores without a node fall back to the process's own
+   * egress (the original behaviour, still useful for single-store setups).
+   */
+  setStoreEgressNode(locationId: string, egressNodeId: string | null): void {
+    this.db
+      .prepare('UPDATE walmart_store SET egress_node_id = ? WHERE location_id = ?')
+      .run(egressNodeId, locationId);
+  }
+
+  /**
+   * Bumps the node's last_used_at when the sweep picks it. Cheap; one row
+   * update per store per sweep.
+   */
+  touchEgressNode(id: string, at = new Date().toISOString()): void {
+    this.db.prepare('UPDATE egress_node SET last_used_at = ? WHERE id = ?').run(at, id);
+  }
+
+  private toEgressNode(r: Record<string, unknown>): EgressNode {
+    return {
+      id: r['id'] as string,
+      label: r['label'] as string,
+      proxyUrl: r['proxy_url'] as string,
+      region: (r['region'] as string | null) ?? null,
+      enabled: r['enabled'] === 1,
+      addedAt: r['added_at'] as string,
+      lastUsedAt: (r['last_used_at'] as string | null) ?? null,
     };
   }
 

@@ -81,6 +81,36 @@ export function registerClearanceRoutes(
     }
   });
 
+  /**
+   * The whole Walmart picture at once — the local store, the directory on
+   * record, the rack by aisle, and what a read would cost right now.
+   *
+   * Answers from SQLite alone. Asking Walmart for state already written down
+   * spends a read to learn nothing, which is how a nightly sweep's careful
+   * budget gets eaten by a dashboard polling for status.
+   */
+  app.get('/api/clearance/map', async () => {
+    const budget = repo.hostBudget();
+    const now = Date.now();
+    const state = budget.state(now);
+    return {
+      local: repo.localStore(),
+      stores: repo.listStores(),
+      date: repo.latestSweepDate(),
+      aisles: repo.shelfMap().aisles,
+      sweeping: sweep.isRunning,
+      progress: sweep.currentProgress,
+      lastSweep: repo.lastSweep(),
+      budget: {
+        readsInWindow: state.readsInWindow,
+        windowStartedAt: new Date(state.windowStartedAt).toISOString(),
+        notBefore: state.notBefore > 0 ? new Date(state.notBefore).toISOString() : null,
+        waitMs: budget.waitMs(now),
+        lastStatus: state.lastStatus,
+      },
+    };
+  });
+
   app.get('/api/clearance', async (req, reply) => {
     const q = req.query as Record<string, string | undefined>;
     const slugs = parseList(q['categories']);
@@ -138,7 +168,103 @@ export function registerClearanceRoutes(
     return reply.code(202).send({ started: true, progress: sweep.currentProgress });
   });
 
+  /**
+   * Re-reads the rack behind the caller's back and answers with what is on
+   * record *now*, so a client can render at once and re-read when the feed
+   * changes. `/sweep` instead asks only to start work.
+   *
+   * The read goes out only when the durable ledger allows one. A refusal's
+   * cooldown and a spent window both mean "later"; spending a request to be
+   * told so helps nobody.
+   */
+  app.post('/api/clearance/refresh', async (req, reply) => {
+    const body = (req.body ?? {}) as { date?: string };
+    const cached = repo.query({ date: body.date });
+
+    if (!sweep.isRunning) {
+      const budget = repo.hostBudget();
+      const now = Date.now();
+      const waitMs = budget.waitMs(now);
+      if (waitMs > 0) {
+        return reply.code(202).send({
+          started: false,
+          refreshing: false,
+          reason: budget.state(now).notBefore > now ? 'cooldown' : 'budget',
+          retryInMs: waitMs,
+          ...cached,
+        });
+      }
+      // Failures land in `sweep_run` and in the run's own error list, which
+      // `/status` reports; nothing is lost by not awaiting here.
+      void sweep.runOnce().catch(() => undefined);
+      return reply.code(202).send({ started: true, refreshing: true, ...cached });
+    }
+
+    // Already running: this caller's refresh is the one in flight.
+    return reply.code(202).send({ started: false, refreshing: true, ...cached });
+  });
+
   app.get('/api/clearance/monitor', async () => repo.getMonitor());
+
+  // ---- egress nodes (W-9) -----------------------------------------------
+
+  app.get('/api/clearance/egress-nodes', async () => ({
+    nodes: repo.listEgressNodes(),
+  }));
+
+  app.post('/api/clearance/egress-nodes', async (req, reply) => {
+    const body = (req.body ?? {}) as {
+      id?: string;
+      label?: string;
+      proxyUrl?: string;
+      region?: string;
+      enabled?: boolean;
+    };
+    if (!body.id || !body.label || !body.proxyUrl) {
+      return reply.code(400).send({ error: 'id, label, proxyUrl are required' });
+    }
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/.test(body.id)) {
+      return reply.code(400).send({ error: 'id must be lowercase alphanumeric / dash / underscore, 1-64 chars' });
+    }
+    try {
+      const node = repo.upsertEgressNode({
+        id: body.id,
+        label: body.label,
+        proxyUrl: body.proxyUrl,
+        region: body.region ?? null,
+        enabled: body.enabled ?? true,
+      });
+      return { node };
+    } catch (err) {
+      return reply.code(500).send({ error: (err as Error).message });
+    }
+  });
+
+  app.delete('/api/clearance/egress-nodes/:id', async (req, reply) => {
+    const id = (req.params as { id?: string }).id;
+    if (!id) return reply.code(400).send({ error: 'id is required' });
+    repo.deleteEgressNode(id);
+    return { deleted: id };
+  });
+
+  /**
+   * Bind a store to an egress node. Pass `null` to clear. The next sweep reads
+   * the store through the node's proxy URL.
+   */
+  app.put('/api/clearance/store/egress', async (req, reply) => {
+    const body = (req.body ?? {}) as { locationId?: string; egressNodeId?: string | null };
+    if (!body.locationId) {
+      return reply.code(400).send({ error: 'locationId is required' });
+    }
+    if (body.egressNodeId !== null) {
+      const node = body.egressNodeId ? repo.getEgressNode(body.egressNodeId) : null;
+      if (!node) {
+        return reply.code(404).send({ error: `egress node "${body.egressNodeId}" not found` });
+      }
+    }
+    repo.setStoreEgressNode(body.locationId, body.egressNodeId ?? null);
+    return { locationId: body.locationId, egressNodeId: body.egressNodeId ?? null };
+  });
 
   app.put('/api/clearance/monitor', async (req, reply) => {
     const body = (req.body ?? {}) as { minDiscount?: number; groups?: string; enabled?: boolean };

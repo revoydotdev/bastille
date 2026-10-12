@@ -125,6 +125,27 @@ CREATE INDEX IF NOT EXISTS daily_snapshot_deals
 CREATE INDEX IF NOT EXISTS daily_snapshot_product
   ON daily_snapshot (store_id, store_product_id, snapshot_date DESC);
 
+-- ---- Egress nodes (W-9) -------------------------------------------------
+-- One row per residential-proxy exit point. The sweep dials the proxy_url and
+-- appends the geo suffix to the proxy password to get an IP in <region>.
+-- The host budget is keyed by (host, egress_node_id) so each exit point burns
+-- its own 18-read window.  This is what implements the W-9 federation path:
+-- one process, multiple egress nodes, one store per node.
+--
+-- proxy_url is a full URL with embedded credentials (e.g. a per-region password
+-- suffix that IPRoyal understands). Keeping it in the DB means rotating
+-- credentials doesn't require a code change; the rotation just edits rows.
+-- Rotation cadence is left to the operator.  Treat the column as sensitive.
+CREATE TABLE IF NOT EXISTS egress_node (
+  id          TEXT PRIMARY KEY,        -- short operator-chosen id, e.g. "us-va-fairfax"
+  label       TEXT NOT NULL,            -- human label, e.g. "Fairfax VA residential"
+  proxy_url   TEXT NOT NULL,            -- full URL with embedded creds; sensitive
+  region      TEXT,                     -- freeform city/state, e.g. "fairfax,va,us"
+  enabled     INTEGER NOT NULL DEFAULT 1,
+  added_at    TEXT NOT NULL,            -- ISO-8601
+  last_used_at TEXT                     -- ISO-8601; null until the first sweep uses it
+);
+
 CREATE TABLE IF NOT EXISTS snapshot_run (
   id            INTEGER PRIMARY KEY,
   snapshot_date TEXT NOT NULL,
@@ -274,6 +295,13 @@ CREATE TABLE IF NOT EXISTS poll_run (
  */
 const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
   { table: 'walmart_store', column: 'last_swept_at', definition: 'TEXT' },
+  // ---- begin: W-9 — egress node assignment
+  // Each store points to a row in egress_node (proxy URL + region selector).
+  // The sweep uses that to dial a residential IP and read this store's local
+  // rack. Stores without a node are read from the process's own egress (the
+  // old behaviour, kept for single-store setups that don't need federation).
+  { table: 'walmart_store', column: 'egress_node_id', definition: 'TEXT' },
+  // ---- end: W-9
   // ---- begin: observability columns (O-2)
   { table: 'poll_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { table: 'poll_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
