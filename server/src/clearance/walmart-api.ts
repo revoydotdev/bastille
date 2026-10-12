@@ -28,7 +28,7 @@
  */
 import { fetchJson, HttpError } from '../adapters/http.js';
 import { ProxyAgent } from 'undici';
-import type { HostBudget } from './host-budget.js';
+import type { BudgetClass, HostBudget } from './host-budget.js';
 import type { Point } from '../geo.js';
 
 const SITE = 'https://www.walmart.com';
@@ -151,12 +151,12 @@ function budgetCall(b: HostBudget, fn: (b: HostBudget) => void): void {
   }
 }
 
-async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
+async function pace(opts: { egressNodeId?: string; className?: BudgetClass; skipBudgetCount?: boolean } = {}): Promise<void> {
   const b = budgetFor(opts.egressNodeId);
   const pacer = pacerFor(opts.egressNodeId);
   let held = 0;
   try {
-    held = b?.waitMs() ?? 0;
+    held = b?.waitMs(undefined, opts.className) ?? 0;
   } catch {
     held = 0;
   }
@@ -165,7 +165,9 @@ async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
   const wait = Math.max(pacer.nextRequestAt - Date.now(), held);
   if (wait > 0) await new Promise((r) => setTimeout(r, wait));
   pacer.nextRequestAt = Date.now() + REQUEST_INTERVAL_MS + Math.random() * REQUEST_JITTER_MS;
-  if (b) budgetCall(b, (bb) => bb.recordRead());
+  // The canary never charges: it exists to confirm an IP before the real sweep
+  // spends budget, so its reads must not move any reservation forward.
+  if (b && !opts.skipBudgetCount) budgetCall(b, (bb) => bb.recordRead(undefined, opts.className));
 }
 
 /**
@@ -177,11 +179,11 @@ async function pace(opts: { egressNodeId?: string } = {}): Promise<void> {
  * node must not stall the others, or one bad node costs the whole run its
  * remaining budget window.
  */
-export function backOffUntil(ms: number, egressNodeId?: string): void {
+export function backOffUntil(ms: number, egressNodeId?: string, className: BudgetClass = 'nightly-sweep'): void {
   const pacer = pacerFor(egressNodeId);
   pacer.nextRequestAt = Math.max(pacer.nextRequestAt, Date.now() + ms);
   const b = budgetFor(egressNodeId);
-  if (b) budgetCall(b, (bb) => bb.block(ms, null));
+  if (b) budgetCall(b, (bb) => bb.block(ms, null, undefined, className));
 }
 
 function correlationId(): string {
@@ -256,9 +258,11 @@ async function persistedQuery<T>(
     postalCode?: string;
     proxyUrl?: string;
     egressNodeId?: string;
+    className?: BudgetClass;
+    skipBudgetCount?: boolean;
   },
 ): Promise<T> {
-  await pace({ egressNodeId: opts.egressNodeId });
+  await pace({ egressNodeId: opts.egressNodeId, className: opts.className, skipBudgetCount: opts.skipBudgetCount });
   const url = `${SITE}${path}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
   const dispatcher = opts.proxyUrl ? new ProxyAgent({ uri: opts.proxyUrl, pipelining: 0 }) : undefined;
   let body: T & GraphQLErrors;
@@ -281,7 +285,7 @@ async function persistedQuery<T>(
         const pacer = pacerFor(opts.egressNodeId);
         pacer.nextRequestAt = Math.max(pacer.nextRequestAt, Date.now() + RATE_LIMIT_COOLDOWN_MS);
         const b = budgetFor(opts.egressNodeId);
-        if (b) budgetCall(b, (bb) => bb.block(RATE_LIMIT_COOLDOWN_MS, err.status));
+        if (b) budgetCall(b, (bb) => bb.block(RATE_LIMIT_COOLDOWN_MS, err.status, undefined, opts.className));
       } else if (err.status >= 400 && err.status < 500 && HASH_ROT.test(err.message)) {
         throw new HashExpiredError(`${operation}: Walmart rejected the query (${err.status}) - ${err.message.slice(0, 200)}`);
       }
@@ -331,13 +335,13 @@ interface NearbyNodesResponse {
 export async function nearbyStores(
   postalCode: string,
   radiusMiles = 50,
-  opts: { proxyUrl?: string; egressNodeId?: string } = {},
+  opts: { proxyUrl?: string; egressNodeId?: string; className?: BudgetClass } = {},
 ): Promise<WalmartStore[]> {
   const body = await persistedQuery<NearbyNodesResponse>(
     `/orchestra/home/graphql/storeFinderNearbyNodesQuery/${STORE_FINDER_HASH}`,
     'storeFinderNearbyNodesQuery',
     { input: { postalCode, nodeTypes: ['STORE'], accessTypes: ['PICKUP_INSTORE'], radius: radiusMiles } },
-    { referer: `${SITE}/store-finder`, proxyUrl: opts.proxyUrl, egressNodeId: opts.egressNodeId },
+    { referer: `${SITE}/store-finder`, proxyUrl: opts.proxyUrl, egressNodeId: opts.egressNodeId, className: opts.className },
   );
 
   const nodes = body.data?.nearByNodes?.nodes ?? [];
@@ -675,6 +679,10 @@ export async function clearanceShelf(opts: {
   proxyUrl?: string;
   /** Stable id of the egress node — scopes the host budget to this node. */
   egressNodeId?: string;
+  /** Priority class for the ledger row this read counts against. */
+  className?: BudgetClass;
+  /** When true, do not charge the read to the budget at all (canary path). */
+  skipBudgetCount?: boolean;
 }): Promise<ShelfPage> {
   const page = opts.page ?? 1;
   const pageSize = opts.pageSize ?? 40;
@@ -689,6 +697,8 @@ export async function clearanceShelf(opts: {
       postalCode: opts.postalCode,
       proxyUrl: opts.proxyUrl,
       egressNodeId: opts.egressNodeId,
+      className: opts.className,
+      skipBudgetCount: opts.skipBudgetCount,
     },
   );
 

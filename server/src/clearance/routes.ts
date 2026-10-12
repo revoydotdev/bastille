@@ -92,7 +92,7 @@ export function registerClearanceRoutes(
   app.get('/api/clearance/map', async () => {
     const budget = repo.hostBudget();
     const now = Date.now();
-    const state = budget.state(now);
+    const state = budget.state(now, 'nightly-sweep');
     return {
       local: repo.localStore(),
       stores: repo.listStores(),
@@ -105,7 +105,7 @@ export function registerClearanceRoutes(
         readsInWindow: state.readsInWindow,
         windowStartedAt: new Date(state.windowStartedAt).toISOString(),
         notBefore: state.notBefore > 0 ? new Date(state.notBefore).toISOString() : null,
-        waitMs: budget.waitMs(now),
+        waitMs: budget.waitMs(now, 'nightly-sweep'),
         lastStatus: state.lastStatus,
       },
     };
@@ -156,7 +156,7 @@ export function registerClearanceRoutes(
 
     if (body.wait) {
       try {
-        return await sweep.runOnce();
+        return await sweep.runOnce({ className: 'user-initiated' });
       } catch (err) {
         return reply.code(500).send({ error: (err as Error).message });
       }
@@ -164,7 +164,7 @@ export function registerClearanceRoutes(
 
     // Failures land in `sweep_run` and in the run's own error list, which
     // `/status` reports; nothing is lost by not awaiting here.
-    void sweep.runOnce().catch(() => undefined);
+    void sweep.runOnce({ className: 'user-initiated' }).catch(() => undefined);
     return reply.code(202).send({ started: true, progress: sweep.currentProgress });
   });
 
@@ -184,19 +184,19 @@ export function registerClearanceRoutes(
     if (!sweep.isRunning) {
       const budget = repo.hostBudget();
       const now = Date.now();
-      const waitMs = budget.waitMs(now);
+      const waitMs = budget.waitMs(now, 'user-initiated');
       if (waitMs > 0) {
         return reply.code(202).send({
           started: false,
           refreshing: false,
-          reason: budget.state(now).notBefore > now ? 'cooldown' : 'budget',
+          reason: budget.state(now, 'user-initiated').notBefore > now ? 'cooldown' : 'budget',
           retryInMs: waitMs,
           ...cached,
         });
       }
       // Failures land in `sweep_run` and in the run's own error list, which
       // `/status` reports; nothing is lost by not awaiting here.
-      void sweep.runOnce().catch(() => undefined);
+      void sweep.runOnce({ className: 'user-initiated' }).catch(() => undefined);
       return reply.code(202).send({ started: true, refreshing: true, ...cached });
     }
 

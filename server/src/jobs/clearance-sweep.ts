@@ -25,6 +25,7 @@ import { backOffUntil, clearanceShelf, HashExpiredError, WalmartCooldownError } 
 import type { ShelfPage } from '../clearance/walmart-api.js';
 import { HttpError } from '../adapters/http.js';
 import type { ClearanceRepo } from '../clearance/repo.js';
+import type { BudgetClass } from '../clearance/host-budget.js';
 
 /** The one call that leaves the process. Injectable so the sweep can be driven
  *  end to end in a test without reaching Walmart. */
@@ -37,6 +38,8 @@ export type ShelfReader = (opts: {
   sort?: string;
   proxyUrl?: string;
   egressNodeId?: string;
+  className?: BudgetClass;
+  skipBudgetCount?: boolean;
 }) => Promise<ShelfPage>;
 
 function localDate(d = new Date()): string {
@@ -118,6 +121,10 @@ export interface SweepOptions {
   fullEveryDays?: number;
   /** Walmart sort token. Default `WALMART_SWEEP_SORT` or `new`. */
   sort?: string;
+  /** Budget class for the run. Defaults to 'nightly-sweep'; routes that fire
+   *  from a user request pass 'user-initiated' so the unauthenticated
+   *  `POST /api/clearance/sweep` cannot spend the nightly reservation. */
+  className?: BudgetClass;
 }
 
 /**
@@ -138,6 +145,7 @@ function resolveOptions(o: SweepOptions): Required<SweepOptions> {
     delta: o.delta ?? (process.env.WALMART_SWEEP_DELTA === '1' || process.env.WALMART_SWEEP_DELTA === 'true'),
     fullEveryDays: o.fullEveryDays ?? Number(process.env.WALMART_FULL_SWEEP_DAYS ?? 7),
     sort: o.sort ?? process.env.WALMART_SWEEP_SORT ?? 'new',
+    className: o.className ?? 'nightly-sweep',
   };
 }
 
@@ -341,7 +349,7 @@ export class ClearanceSweepJob {
             // Stand down. The pacer and the ledger are told too, so the next
             // read does not go out the moment this sleep ends - or after a
             // restart.
-            backOffUntil(this.opts.cooldownMs, egressNodeId);
+            backOffUntil(this.opts.cooldownMs, egressNodeId, this.opts.className);
             await new Promise((r) => setTimeout(r, this.opts.cooldownMs));
           }
         }
@@ -427,6 +435,7 @@ export class ClearanceSweepJob {
         sort: this.opts.sort,
         proxyUrl,
         egressNodeId,
+        className: this.opts.className,
       });
 
       // Walmart echoes the store it answered for, and it is not always the one

@@ -258,15 +258,20 @@ CREATE TABLE IF NOT EXISTS sweep_run (
 );
 
 -- Durable read ledger for hosts that rate-limit by count. The pacer, the nightly
--- sweep and a manual sweep all consult the same row, so a restart does not hand
--- a refused connection a fresh allowance.
+-- sweep, a manual sweep and the canary each draw on their own row keyed by
+-- (host, class), so a button click on the unauthenticated POST /api/clearance/sweep
+-- cannot spend the nightly job's budget. host is the www.walmart.com[:nodeId]
+-- string the rest of the ledger uses (the node id is concatenated at
+-- clearance/repo.ts:installEgressBudgets).
 CREATE TABLE IF NOT EXISTS host_budget (
-  host              TEXT PRIMARY KEY,
+  host              TEXT NOT NULL,
+  class             TEXT NOT NULL,                -- 'nightly-sweep' | 'user-initiated' | 'canary' | 'experiment'
   not_before        INTEGER NOT NULL DEFAULT 0,   -- epoch ms; no read before this
   window_started_at INTEGER NOT NULL DEFAULT 0,   -- epoch ms
   reads_in_window   INTEGER NOT NULL DEFAULT 0,
   last_status       INTEGER,                      -- HTTP status of the last refusal
-  updated_at        TEXT NOT NULL
+  updated_at        TEXT NOT NULL,
+  PRIMARY KEY (host, class)
 );
 
 -- When a store last got a full read of every shelf. Delta sweeps (newest-first,
@@ -319,6 +324,38 @@ function applyAddedColumns(db: DB): void {
   }
 }
 
+/**
+ * host_budget: composite (host, class) primary key added by todo 11.
+ * Older databases have the single-column `host TEXT PRIMARY KEY` shape; carry
+ * any existing rows forward under the 'nightly-sweep' class so the scheduled
+ * job picks up where it left off. No other schema in the database references
+ * host_budget, so this is safe to run on every open.
+ */
+function migrateHostBudgetClass(db: DB): void {
+  const columns = db.prepare(`PRAGMA table_info(host_budget)`).all() as unknown as { name: string }[];
+  if (columns.length === 0) return; // not created yet; CREATE TABLE above will land the new shape
+  if (columns.some((c) => c.name === 'class')) return; // already migrated
+  db.exec('ALTER TABLE host_budget RENAME TO host_budget_legacy');
+  db.exec(`
+    CREATE TABLE host_budget (
+      host              TEXT NOT NULL,
+      class             TEXT NOT NULL,
+      not_before        INTEGER NOT NULL DEFAULT 0,
+      window_started_at INTEGER NOT NULL DEFAULT 0,
+      reads_in_window   INTEGER NOT NULL DEFAULT 0,
+      last_status       INTEGER,
+      updated_at        TEXT NOT NULL,
+      PRIMARY KEY (host, class)
+    )
+  `);
+  db.exec(`
+    INSERT INTO host_budget (host, class, not_before, window_started_at, reads_in_window, last_status, updated_at)
+    SELECT host, 'nightly-sweep', not_before, window_started_at, reads_in_window, last_status, updated_at
+      FROM host_budget_legacy
+  `);
+  db.exec('DROP TABLE host_budget_legacy');
+}
+
 // ---- begin: observability and perf additions --------------------------------
 // Kept apart from SCHEMA above so it merges cleanly with changes to that block.
 const EXTRA_SCHEMA = `
@@ -359,6 +396,7 @@ export function openDb(path: string = process.env.BASTILLE_DB ?? resolve('data/b
   db.exec(SCHEMA);
   db.exec(EXTRA_SCHEMA);
   applyAddedColumns(db);
+  migrateHostBudgetClass(db);
   db.prepare(
     `INSERT INTO deal_monitor (id, min_discount, groups, enabled, updated_at)
      VALUES (1, ?, ?, 1, ?) ON CONFLICT (id) DO NOTHING`,
