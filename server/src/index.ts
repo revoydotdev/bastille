@@ -14,6 +14,7 @@ import { adapterFor, STORE_IDS } from './adapters/index.js';
 import { ClearanceRepo } from './clearance/repo.js';
 import { ClearanceSweepJob } from './jobs/clearance-sweep.js';
 import { registerClearanceRoutes } from './clearance/routes.js';
+import { BackupService } from './backup/index.js';
 
 // Resolve paths against the repo, not the shell's cwd — `npm start
 // --workspace=server` runs from server/, `node dist/index.js` from anywhere.
@@ -33,6 +34,7 @@ async function main(): Promise<void> {
   const snapshotJob = new SnapshotJob(repo);
   const clearanceRepo = new ClearanceRepo(db);
   const clearanceSweep = new ClearanceSweepJob(clearanceRepo);
+  const backupService = new BackupService({ db, dataDir: resolve(REPO_ROOT, 'data') });
 
   registerRoutes(app, repo, poller, snapshotJob, { clearance: { repo: clearanceRepo, sweep: clearanceSweep } });
   registerClearanceRoutes(app, clearanceRepo, clearanceSweep);
@@ -55,6 +57,7 @@ async function main(): Promise<void> {
     poller.start();
     snapshotJob.start();
     clearanceSweep.start();
+    backupService.start();
     // Food Lion's search index is a crawl of its aisle tree; start it now so the
     // first search is served from the full catalogue rather than building it.
     for (const id of STORE_IDS) adapterFor(id).warm?.();
@@ -68,6 +71,7 @@ async function main(): Promise<void> {
     poller.stop();
     snapshotJob.stop();
     clearanceSweep.stop();
+    backupService.stop();
     // Backstop: never let a stuck connection hold the process open.
     const failsafe = setTimeout(() => process.exit(1), 5_000);
     failsafe.unref();

@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { applyMigrations } from './db/runner.js';
 
 export type DB = DatabaseSync;
 
@@ -289,35 +290,11 @@ CREATE TABLE IF NOT EXISTS poll_run (
 `;
 
 /**
- * Columns added after a table shipped. `CREATE TABLE IF NOT EXISTS` leaves an
- * existing table alone, so a new column has to be added explicitly — and
- * idempotently, since this runs on every open.
+ * Schema drift now lives in `db/migrations.ts`. Each entry applies once, in
+ * version order, inside its own `BEGIN IMMEDIATE`; the runner records a
+ * checksum and refuses to boot if any previously recorded row no longer
+ * matches its SQL. `ADDED_COLUMNS` is gone: the runner replaces it.
  */
-const ADDED_COLUMNS: { table: string; column: string; definition: string }[] = [
-  { table: 'walmart_store', column: 'last_swept_at', definition: 'TEXT' },
-  // ---- begin: W-9 — egress node assignment
-  // Each store points to a row in egress_node (proxy URL + region selector).
-  // The sweep uses that to dial a residential IP and read this store's local
-  // rack. Stores without a node are read from the process's own egress (the
-  // old behaviour, kept for single-store setups that don't need federation).
-  { table: 'walmart_store', column: 'egress_node_id', definition: 'TEXT' },
-  // ---- end: W-9
-  // ---- begin: observability columns (O-2)
-  { table: 'poll_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
-  { table: 'poll_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
-  { table: 'snapshot_run', column: 'requests', definition: 'INTEGER NOT NULL DEFAULT 0' },
-  { table: 'snapshot_run', column: 'bytes', definition: 'INTEGER NOT NULL DEFAULT 0' },
-  // ---- end: observability columns
-];
-
-function applyAddedColumns(db: DB): void {
-  for (const { table, column, definition } of ADDED_COLUMNS) {
-    const columns = db.prepare(`PRAGMA table_info(${table})`).all() as unknown as { name: string }[];
-    if (columns.length === 0) continue; // table not created yet on this open
-    if (columns.some((c) => c.name === column)) continue;
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
-}
 
 // ---- begin: observability and perf additions --------------------------------
 // Kept apart from SCHEMA above so it merges cleanly with changes to that block.
@@ -358,7 +335,7 @@ export function openDb(path: string = process.env.BASTILLE_DB ?? resolve('data/b
   const db = new DatabaseSync(path);
   db.exec(SCHEMA);
   db.exec(EXTRA_SCHEMA);
-  applyAddedColumns(db);
+  applyMigrations(db);
   db.prepare(
     `INSERT INTO deal_monitor (id, min_discount, groups, enabled, updated_at)
      VALUES (1, ?, ?, 1, ?) ON CONFLICT (id) DO NOTHING`,
