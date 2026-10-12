@@ -5,11 +5,12 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch --disable-warning=ExperimentalWarning src/index.ts",
-    "build": "tsc -p tsconfig.json",
+    "codegen": "node ../scripts/codegen-registry.mjs",
+    "dev": "npm run codegen && tsx watch --disable-warning=ExperimentalWarning src/index.ts",
+    "build": "npm run codegen && tsc -p tsconfig.json",
     "start": "node --disable-warning=ExperimentalWarning dist/index.js",
-    "test": "tsx --disable-warning=ExperimentalWarning --test test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test": "npm run codegen && tsx --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "typecheck": "npm run codegen && tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

@@ -1,4 +1,6 @@
+// codegen:registry:open
 export type StoreId = 'foodlion' | 'wegmans' | 'traderjoes';
+// codegen:registry:close
 
 export type PromoKind =
   | 'none' | 'sale' | 'bogo' | 'bxgy' | 'multibuy'

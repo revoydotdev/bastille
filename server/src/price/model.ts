@@ -8,7 +8,9 @@
  * yields an *effective unit price* wherever one can honestly be derived.
  */
 
+// codegen:registry:open
 export type StoreId = 'foodlion' | 'wegmans' | 'traderjoes';
+// codegen:registry:close
 
 /** How an offer is expressed, independent of its numeric value. */
 export type PromoKind =

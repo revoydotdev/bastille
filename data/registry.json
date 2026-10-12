@@ -1,0 +1,76 @@
+{
+  "sources": [
+    {
+      "id": "foodlion",
+      "label": "Food Lion",
+      "adapter": "FoodLionAdapter",
+      "defaultLocationId": "national",
+      "pricesVaryByLocation": false,
+      "enabled": true,
+      "capabilities": {
+        "search": true,
+        "fetchOffer": true,
+        "enumerate": true,
+        "findLocations": true,
+        "zipAnchors": true,
+        "warm": true,
+        "stats": true,
+        "clearance": false,
+        "promotionParsing": true
+      },
+      "transport": {
+        "requiresProxy": false,
+        "requiresEgressNode": false
+      },
+      "cost_per_read_bytes": 0
+    },
+    {
+      "id": "wegmans",
+      "label": "Wegmans",
+      "adapter": "WegmansAdapter",
+      "defaultLocationId": "national",
+      "pricesVaryByLocation": false,
+      "enabled": true,
+      "capabilities": {
+        "search": true,
+        "fetchOffer": true,
+        "enumerate": true,
+        "findLocations": true,
+        "zipAnchors": true,
+        "warm": false,
+        "stats": false,
+        "clearance": false,
+        "promotionParsing": true
+      },
+      "transport": {
+        "requiresProxy": false,
+        "requiresEgressNode": false
+      },
+      "cost_per_read_bytes": 0
+    },
+    {
+      "id": "traderjoes",
+      "label": "Trader Joe's",
+      "adapter": "TraderJoesAdapter",
+      "defaultLocationId": "national",
+      "pricesVaryByLocation": false,
+      "enabled": true,
+      "capabilities": {
+        "search": true,
+        "fetchOffer": true,
+        "enumerate": true,
+        "findLocations": true,
+        "zipAnchors": true,
+        "warm": false,
+        "stats": false,
+        "clearance": false,
+        "promotionParsing": false
+      },
+      "transport": {
+        "requiresProxy": false,
+        "requiresEgressNode": false
+      },
+      "cost_per_read_bytes": 0
+    }
+  ]
+}
